@@ -1,5 +1,5 @@
 # Propeller 2 Repository
-This repository serves as a source of information and source code for the Propeller Community as the Propeller 2 is tested and further developed.
+This repository serves as a source of information and source code for the Propeller Community as the Propeller 2 is tested and further developed.  Want to contribute?  [Follow these steps.](https://github.com/parallaxinc/propeller/wiki)
 
 ## Resources
 - A simple [Propeller Website](https://propeller.parallax.com) is driven by content in the /docs subfolder.
