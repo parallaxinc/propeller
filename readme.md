@@ -1,4 +1,4 @@
-# Propeller Repository
+# Propeller 2 Repository
 This repository serves as a source of information and source code for the Propeller Community as the Propeller 2 is tested and further developed.
 
 ## Resources
