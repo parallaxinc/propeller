@@ -1,0 +1,63 @@
+'
+' ** XBYTE Demo **
+' Automatically executes bytecodes via RET/_RET_ to $1F8..$1FF.
+' Overhead is 6 clocks, including _RET_ at end of each bytecode routine.
+'
+dat		org
+
+		hubset	#$FF		'set clock to 80MHz
+
+		setq2	#$FF		'load bytecode table into lut $100..$1FF
+		rdlong	$100,#bytetable
+
+		rdfast	#0,#bytecodes	'init fifo read at start of bytecodes
+
+		push	#$1FF		'push $1FF for xbyte on ret
+	_ret_	setq	#$100		'start xbyte with lut base = $100, no stack pop
+'
+' Bytecode routines
+'
+r0	_ret_	drvnot	#0		'toggle pin 0
+
+r1	_ret_	drvnot	#1		'toggle pin 1
+
+r2	_ret_	drvnot	#2		'toggle pin 2
+
+r3	_ret_	drvnot	#3		'toggle pin 3
+
+r4		rfvars	pa		'get offset
+		add	pb,pa		'add offset
+	_ret_	rdfast	#0,pb		'init fifo read at new address
+'
+' Bytecodes that form program in hub
+'
+		orgh
+
+bytecodes	byte	0			'toggle pin 0
+		byte	1			'toggle pin 1
+		byte	2			'toggle pin 2
+		byte	3			'toggle pin 3
+		byte	4,(bytecodes-$) & $7F	'relative branch, loop to bytecodes
+'
+' Bytecode EXECF table that gets moved into lut $100..$1FF
+'
+bytetable	long	r0			'#0	toggle pin 0
+		long	r1			'#1	toggle pin 1
+		long	r2			'#2	toggle pin 2
+		long	r3			'#3	toggle pin 3
+		long	r4			'#4	relative branch
+
+{
+clock	phase	hidden				description
+----------------------------------------------------------------------------------------------------------------------
+1	go	RFBYTE byte			last clock of instruction which is executing a RET/_RET_ to $1F8..$1FF
+
+2	get	RDLUT @byte, write byte to PA	1st clock of 1st cancelled instruction
+3	go	LUT long --> next D		2nd clock of 1st cancelled instruction
+4	get	EXECF D,			1st clock of 2nd cancelled instruction
+5	go	EXECF D, write GETPTR to PB	2nd clock of 2nd cancelled instruction
+6	get	flush pipe			1st clock of 3rd cancelled instruction
+7	go	flush pipe			2nd clock of 3rd cancelled instruction
+
+8	get					1st clock of 1st instruction of bytecode routine, loop to 1 if _RET_
+}

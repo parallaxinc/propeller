@@ -1,0 +1,141 @@
+dat
+
+' Set up cog 0 debug isr
+
+	org
+
+	hubset	#$FF		'set clock to 80MHz
+
+	setq	#$0F		'install cog 0 debug isr at $FFFC0..$FFFFF
+	wrlong	buff,##$FFFC0	'(reg $000..$00F swap space is at $FFF80..$FFFBF)
+
+	hubset	##$20000001	'enable debug interrupt for cog 0
+
+	coginit	#0,#@start	'restart cog 0 with target program
+
+buff
+
+' Cog 0 debug isr - gets moved to $FFFC0..$FFFFF
+'
+'	On a debug interrupt, rom code at $1F8 copies regs $000..$00F to $FFF80..$FFFBF.
+'	Regs $000..$00F then get loaded with the debug isr from $FFFC0..$FFFFF.
+'	A jump to $000 executes, running the debug isr code in regs $000..$00F.
+'
+'	At the end of the debug isr, place a jump to rom code at $1FD.
+'	Regs $000..$00F get restored from $FFF80..$FFFBF and then 'reti0' executes.
+
+	org			'begin 16-instruction-max debug isr
+
+isr0	drvnot	#0		'pulse pin 0
+	drvnot	#0
+				'(pick one line below to uncomment)
+'	brk	##bp<<12 + $400	'enable breakpoint on address (stops after)
+'	brk	##15<<12 + $200	'enable breakpoint on event 15 (0..15 allowed)
+'	brk	#$100		'enable breakpoint on cogbrk from other cog(s)
+'	brk	#$E0		'enable breakpoint on int3/int2/int1
+'	brk	#$80		'enable breakpoint on int3
+'	brk	#$40		'enable breakpoint on int2
+'	brk	#$20		'enable breakpoint on int1
+'	brk	#$10		'enable breakpoint on 'brk' (stops after)
+'	brk	#$0F		'enable single-stepping in int3/int2/int1/main
+'	brk	#$08		'enable single-stepping in int3 isr
+'	brk	#$04		'enable single-stepping in int2 isr
+'	brk	#$02		'enable single-stepping in int1 isr
+	brk	#$01		'enable single-stepping in main program
+
+	setbyte	dira,#$FF,#1	'write pc[7:0] to p15..p8
+	setbyte	outa,inb,#1
+
+	getbrk	$0	wc	'write next skip bit to p7
+	drvc	#7
+
+	waitx	#$1	wz	'add jitter to avoid patterns ('waitx wc/wz' uses {#}d & rnd)
+
+	jmp	#$1FD		'jump to cog rom: 'setq #$F' + 'rdlong $000,$FFF80' + 'reti0'
+
+
+' Cog 0 main program - demonstrates debug interrupts
+' Connect a logic analyzer to p15..p0
+
+	org
+
+start	mov	ijmp1,#int1	'set interrupt vectors
+	mov	ijmp2,#int2
+	mov	ijmp3,#int3
+
+	getct	t1		'set initial ct1 event
+	addct1	t1,time1
+
+	getct	t2		'set initial ct2 event
+	addct2	t2,time2
+
+	getct	t3		'set initial ct3 event
+	addct3	t3,time3
+
+	setint1	#1		'ct1 interrupt on int1
+	setint2	#2		'ct2 interrupt on int2
+	setint3	#3		'ct3 interrupt on int3
+
+	orgf	$10		'bump up to $010 for clean pc viewing on p15..p8
+
+
+loop	drvnot	#4		'$10	main program, pulse pin 4
+bp	drvnot	#4		'$11	breakpoint address (if enabled in debug isr)
+	brk	#0		'$12	brk (if enabled in debug isr)
+	call	#.tog		'$13	call a subroutine (proves breakpoint triggers)
+	jmp	#loop		'$14	loop
+
+.tog	mov	x,#3		'$15	subroutine
+.lp	drvnot	#5		'$16	toggle a pin
+	djnz	x,#.lp		'$17	..x times
+
+	skipf	#%0110101	'$18	do a skip/skipf sequence
+
+	drvnot	#5		'$19	nop	skip/1	skipf/1
+	drvnot	#5		'$1A	exec	skip/0	skipf/0
+	drvnot	#5		'$1B	nop	skip/1
+	drvnot	#5		'$1C	exec	skip/0	skipf/0
+	drvnot	#5		'$1D	nop	skip/1
+	drvnot	#5		'$1E	nop	skip/1
+_ret_	drvnot	#5		'$1F	exec	skip/0	skipf/0
+
+
+int3	addct3	t3,time3	'$20	int3 isr
+	drvnot	#3		'$21	pulse pin 3
+	drvnot	#3		'$22
+	call	#.a		'$23	call a subroutine (proves breakpoint triggers)
+	reti3			'$24
+.a	scas	0,0		'$25	do a protected instruction (proves triggers)
+	cmp	0,0		'$26
+	ret			'$27
+
+
+int2	addct2	t2,time2	'$28	int2 isr
+	drvnot	#2		'$29	pulse pin 2
+	drvnot	#2		'$2A
+	call	#.a		'$2B	call a subroutine (proves breakpoint triggers)
+	reti2			'$2C
+.a	scas	0,0		'$2D	do a protected instruction (proves triggers)
+	cmp	0,0		'$2E
+	ret			'$2F
+
+
+int1	addct1	t1,time1	'$30	int1 isr
+	drvnot	#1		'$31	pulse pin 1
+	drvnot	#1		'$32
+	call	#.a		'$33	call a subroutine (proves breakpoint triggers)
+	reti1			'$34
+.a	scas	0,0		'$35	do a protected instruction (proves triggers)
+	cmp	0,0		'$36
+	ret			'$37
+
+
+time1	long	3000
+time2	long	3001
+time3	long	3002
+
+t1	res	1
+t2	res	1
+t3	res	1
+
+x	res	1

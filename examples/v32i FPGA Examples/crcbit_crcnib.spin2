@@ -1,0 +1,31 @@
+dat	org
+
+	jmp	#.nibs		'nibs, comment out for bits
+
+
+.bits	rep	#2,#32		'32 bits, 130 clocks
+	shl	b,#1	wc
+	crcbit	crc,poly
+
+	jmp	#.done
+
+
+.nibs	setq	b		'8 nibbles (32 bits), 18 clocks
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+	crcnib	crc,poly
+
+
+.done	bmask	dirb,#15	'show crc result on LEDs of Prop123
+	mov	outb,crc
+	jmp	#$
+
+
+b	long	$12345678	'data
+crc	long	$FFFF		'initial crc
+poly	long	$8005 >< 16	'polynomial

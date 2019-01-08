@@ -1,0 +1,15 @@
+' This program exercises the xoro32 instruction
+' and outputs the results to the Prop123-FPGA LEDs
+
+dat	org
+
+	bmask	dirb,#15		'drive LEDs
+
+loop	xoro32	state			'iterate xoroshiro32+
+	mov	outb,0			'output
+
+	waitx	##20_000_000/10
+	jmp	#loop
+
+
+state	long	1			'seed with 1

@@ -1,0 +1,10 @@
+' This program displays the lower 16 bits of the PRNG to
+' pins 47..32, which are LEDs on the Prop123 FPGA board.
+
+DAT	org
+
+	bmask	dirb,#15		'make p47..p32 outputs
+
+loop	getrnd	outb			'get xoroshiro128+ onto p47..p32
+	waitx	##20_000_000/10		'wait 1/10 second
+	jmp	#loop			'loop

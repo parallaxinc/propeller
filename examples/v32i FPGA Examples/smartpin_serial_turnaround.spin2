@@ -1,0 +1,45 @@
+' 10M baud 8-bit serial demo
+
+dat		org
+
+		hubset	#$FF		'set clock to 80MHz
+
+		wrpin	pm_tx,	#0	'set asynchronous tx mode in smart pin 0
+		wxpin	bitper,	#0	'set tx bit period
+
+		wrpin	pm_rx,	#1	'set asynchronous rx mode in smart pin 1
+		wxpin	bitper,	#1	'set rx bit period
+
+		mov	dira,##$FF03	'enable pins 15..8 and smart pins 1..0
+
+		wypin	#0,#0		'send initial byte to tx pin
+
+.loop	'	waitx	#200		'uncomment for delay between bytes
+
+.full		testp	#0	wc	'wait for buffer empty on tx pin
+	if_nc	jmp	#.full
+
+		wypin	x,#0		'send next byte to tx pin
+
+		incmod	x,#$FF		'increment byte
+
+.recv		testp	#1	wc	'wait for smart pin 1 to signal rx data received
+	if_nc	jmp	#.recv
+
+		rdpin	y,#1		'get data from rx pin
+		shr	y,#32-8
+
+		setbyte	outa,y,#1	'write rx data to to pins 15..8
+
+		outnot	#1		'make scope trigger on pin 1 (since smart pin 1 is
+		outnot	#1		'...reading pin 0, pin 1 is still usable for normal output)
+
+		jmp	#.loop		'loop
+
+
+pm_tx		long	%0000_0000_000_0000000000000_01_11110_0	'async tx mode, output enabled for smart output
+pm_rx		long	%0111_0000_000_0000000000000_01_11111_0	'async rx mode, output enabled for normal output, inputs pin 0
+
+bitper		long	8<<16 + 7	'number of clocks per bit period, 3..65536, 8-bit words
+x		long	0
+y		long	0

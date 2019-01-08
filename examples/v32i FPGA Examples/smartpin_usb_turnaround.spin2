@@ -1,0 +1,78 @@
+' USB demo program
+' - outputs SOP, $00..$FF bytes, then EOP from cog0
+' - input status monitored by cog1
+' - uses P1,P0 as USB pins
+' - outputs receiver status onto P47..P32
+' - set scope to trigger on P1 and P0 both low
+
+con
+	dp	=	1
+	dm	=	0
+
+	fclk	=	80_000_000.0
+	fusb	=	12_000_000.0
+	nco	=	round((fusb / fclk) * 65536.0)
+
+dat
+'
+' Cog0 program
+'
+		org
+
+		hubset	#$FF		'set clock to 80MHz
+
+		coginit	#1,#@cog1	'start cog1 with USB reporting program
+
+		wrpin	#%1_11011_0,#dp	'configure DP pin (passive)
+		wrpin	#%1_11011_0,#dm	'configure DM pin (the brain)
+		wxpin	##nco,#dm	'configure 12Mbps
+
+		or	dira,#%11	'enable smart pins 1 and 0
+
+		wypin	#3,#dm		'set J state (like IDLE, but driven)
+
+		waitx	##1000		'allow cog1 time to start
+
+		getrnd	x		'random wait to test inital edge detection
+		and	x,#$F
+		waitx	x
+
+		wypin	#3,#dm		'set J state (like IDLE, but driven)
+'
+' Send USB packets
+'
+.packet		mov	x,#$80		'send SOP byte
+		call	#send
+
+		mov	x,#0		'send $00..$FF bytes
+.byte		call	#send
+		incmod	x,#$FF	wc
+	if_nc	jmp	#.byte
+
+.eop		rdpin	x,#dm		'wait for EOP after tx runs out
+		test	x,#$20	wc
+	if_nc	jmp	#.eop
+
+		jmp	#.packet	'send another packet
+'
+' Send USB byte
+'
+send		testp	#dp	wc	'wait for tx buffer empty
+	if_nc	jmp	#send
+
+		akpin	#dp		'acknowledge tx buffer empty
+
+	_ret_	wypin	x,#dm		'send byte
+'
+' Data
+'
+x		long	0
+'
+' Cog1 program
+'
+		org
+
+cog1		bmask	dirb,#15	'report USB status over and over
+
+		rep	#1,#0
+		rqpin	outb,#dm

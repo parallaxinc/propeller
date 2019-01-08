@@ -1,0 +1,91 @@
+'*************************************
+'*  VGA 640 x 480 x 16bpp 5:6:5 RGB  *
+'*************************************
+
+CON
+
+  intensity	= 80	'0..128
+
+  fclk		= 80_000_000.0
+  fpix		= 25_000_000.0
+  fset		= (fpix / fclk * 2.0) * float($4000_0000)
+
+  vsync		=	0	'vsync pin (all FPGA boards now)
+
+DAT		org
+'
+'
+' Setup
+'
+		hubset	#$FF			'set clock to 80MHz
+
+		rdfast	##640*350*2/64,##$1000	'set rdfast to wrap on bitmap
+
+		setxfrq ##round(fset)		'set transfer frequency to 25MHz
+
+		'the next 4 lines may be commented out to bypass signal level scaling
+
+		setcy	##intensity << 24	'r	set colorspace for rgb
+		setci	##intensity << 16	'g
+		setcq	##intensity << 08	'b
+		setcmod	#%01_0_000_0		'enable colorspace conversion (may be commented out)
+
+		wrpin	dacmode,#0		'enable dac modes in pins 0..3
+		wrpin	dacmode,#1
+		wrpin	dacmode,#2
+		wrpin	dacmode,#3
+'
+'
+' Field loop
+'
+field		mov	x,#90			'top blanks
+		call	#blank
+
+		mov     x,#350			'set visible lines
+line		call	#hsync			'do horizontal sync
+		xcont	m_rf,#1			'visible line
+		djnz    x,#line           	'another line?
+
+		mov	x,#83			'bottom blanks
+		call	#blank
+
+		drvnot	#vsync			'sync on
+
+		mov	x,#2			'sync blanks
+		call	#blank
+
+		drvnot	#vsync			'sync off
+
+                jmp     #field                  'loop
+'
+'
+' Subroutines
+'
+blank		call	#hsync			'blank lines
+		xcont	m_vi,#0
+	_ret_	djnz	x,#blank
+
+hsync		xcont	m_bs,#0			'horizontal sync
+		xzero	m_sn,#1
+	_ret_	xcont	m_bv,#0
+'
+'
+' Initialized data
+'
+dacmode		long	%0000_0000_000_1010000000000_01_00000_0
+
+m_bs		long	$CF000000+16		'before sync
+m_sn		long	$CF000000+96		'sync
+m_bv		long	$CF000000+48		'before visible
+m_vi		long	$CF000000+640		'visible
+
+m_rf		long	$2F000000+640		'visible rfword rgb16 (5:6:5)
+
+x		res	1
+y		res	1
+'
+'
+' Bitmap
+'
+		orgh	$1000 - 70		'justify pixels at $1000
+		file	"birds_16bpp.bmp"	'rayman's picture (640 x 350)
