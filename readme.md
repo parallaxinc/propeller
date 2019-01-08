@@ -1,9 +1,9 @@
 # Propeller 2 Repository
-This repository serves as a source of information and source code for the Propeller Community as the Propeller 2 is tested and further developed.  Want to contribute?  [Follow these steps.](https://github.com/parallaxinc/propeller/wiki/Contributing)
+This repository serves as a source of information and source code for the Propeller Community as the Propeller 2 is tested and further developed.  
+
+## Want to contribute?
+Parallax welcomes Propeller Community members to contribute to this repository.  Don't allow great resources to remain buried in the forums - share them here in a version-controlled, centralized place for new and existing users to enjoy.  Have you created example Propeller 2 code you want to share?  Do you know of (or have created) Propeller 2 tools, tips, etc.?  Please [follow these steps](https://github.com/parallaxinc/propeller/wiki/Contributing) to include them here for all to see.
 
 ## Resources
-- A simple [Propeller Website](https://propeller.parallax.com) is driven by content in the /docs subfolder.
-- The latest [Propeller 2 Documentation](https://docs.google.com/document/d/1UnelI6fpVPHFISQ9vpLzOVa8oUghxpI6UpkXVsYgBEQ/edit?usp=sharing) is contained in a Google Doc with community commenting enabled.
-- [Parallax Propeller 2 Instructions v32](https://docs.google.com/spreadsheets/d/1usUcCCQVp3liAqENX9rvX-XVqJomMREhKYExM_taG0A/edit?usp=sharing) is contained in a Google Spreadsheet.
-- [Prop2 FPGA File](http://forums.parallax.com/discussion/162298/prop2-fpga-files-updated-2-june-2018-final-version-32i) information is on the forum.
-- [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller) discussions.
+- Visit the [Propeller Website](https://propeller.parallax.com) (driven by content in this repository's /docs subfolder) for a collection of resources.
+- See the [/examples](https://github.com/parallaxinc/propeller/tree/master/examples) subfolder for code examples.
