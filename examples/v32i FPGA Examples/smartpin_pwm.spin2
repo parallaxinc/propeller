@@ -1,0 +1,42 @@
+dat		org
+
+		hubset	#$FF		'set clock to 80MHz
+
+		mov	x,#7
+.init		wrpin	pm,x		'set triangle pwm mode in smart pins 0..7
+		wxpin	fr,x		'set frame count and prescaler
+		djnf	x,#.init
+
+		mov	dira,#$1FF	'enable smart pins 0..7 and scope trigger pin 8
+
+		setse1	#%001_000000	'trigger on smart pin 0
+.loop
+		mov	x,#7		'update samples in smart pins
+.update		altd	x,#pwms
+		wypin	pwms,x
+		altd	x,#pwms
+		incmod	pwms,lim
+		djnf	x,#.update
+
+		waitse1			'wait for smart pin 0 to signal new period
+
+		outnot	#8		'make scope trigger on pin 8
+		outnot	#8
+
+		jmp	#.loop		'loop
+
+
+pm		long	%1_01000_0	'triangle pwm mode
+fr		long	8000<<16 + 1	'frame is 8000 counts, prescaler is 1
+lim		long	8000
+
+pwms		long	0*1000
+		long	1*1000
+		long	2*1000
+		long	3*1000
+		long	4*1000
+		long	5*1000
+		long	6*1000
+		long	7*1000
+
+x		res	1

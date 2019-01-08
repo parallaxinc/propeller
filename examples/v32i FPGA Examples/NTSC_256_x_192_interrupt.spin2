@@ -1,0 +1,137 @@
+'*******************************
+'*  NTSC 256 x 192 x 8bpp-lut  *
+'*      Interrupt-driven       *
+'*******************************
+
+CON
+
+  f_color	= 3_579_545.0		'colorburst frequency
+  f_scanline	= f_color / 227.5	'scanline frequency
+  f_pixel	= f_scanline * 400.0	'pixel frequency for 400 pixels per scanline
+
+  f_clock	= 80_000_000.0		'clock frequency
+
+  f_xfr		= f_pixel / f_clock * float($7FFF_FFFF)
+  f_csc		= f_color / f_clock * float($7FFF_FFFF) * 2.0
+
+  s		= 90			'scale DAC output (s = 0..128)
+  r		= s * 1000 / 1646	'precompensate for modulator expansion of 1.646
+
+  mody		= ((+38*s/128) & $FF) << 24 + ((+75*s/128) & $FF) << 16 + ((+15*s/128) & $FF) << 8 + (110*s/128 & $FF)
+  modi		= ((+76*r/128) & $FF) << 24 + ((-35*r/128) & $FF) << 16 + ((-41*r/128) & $FF) << 8 + (100*s/128 & $FF)
+  modq		= ((+27*r/128) & $FF) << 24 + ((-67*r/128) & $FF) << 16 + ((+40*r/128) & $FF) << 8 + 128
+
+
+DAT		org
+'
+'
+' Setup
+'
+		hubset	#$FF			'set clock to 80MHz
+
+		rdfast	#0,##$1000-$400		'load .bmp palette into lut
+		mov	x,#0
+		rep	@.end,#$100
+		rflong	y
+		shl	y,#8
+		wrlut	y,x
+		add	x,#1
+.end
+		rdfast	##256*192/64,##$1000	'set rdfast to wrap on bitmap
+
+		setxfrq ##round(f_xfr)		'set transfer frequency
+		setcfrq	##round(f_csc)		'set colorspace converter frequency
+
+		setcy	##mody			'set colorspace converter coefficients
+		setci	##modi
+		setcq	##modq
+
+		setcmod	#%11_1_0000		'set colorspace converter to YIQ mode (composite)
+
+		mov	ijmp1,#field		'set up streamer-empty interrupt
+		setint1	#10
+
+		xcont	#10,#0			'do streamer instruction to start interrupt sequence
+
+		wrpin	dacmode,#1		'enable dac mode in pin 1
+'
+'
+' Main program
+'
+.loop		drvnot	#0			'keep toggling p0
+		jmp	#.loop
+'
+'
+' Field loop via interrupts - issue next streamer command and then resume
+'
+field		mov     x,#27+192+35		'set blank+visible+blank lines
+.line		xcont	m_sn,#2			'horizontal sync
+		resi1
+		xcont	m_bc,#1
+		resi1
+		xcont	m_cb,c_cb
+		resi1
+		xcont	m_ac,#1
+		resi1
+		cmp	x,#27+192+1	wc	'blank line or visible line?
+	if_c	cmpr	x,#27		wc
+	if_nc	xcont	m_vi,#0			'blank line
+	if_c	xcont	m_rf,#0			'visible line
+		resi1
+	        xcont	m_av,#1
+		resi1
+		djnz    x,#.line
+
+		mov	x,#6			'high vertical syncs
+.vlow		xcont	m_hl,#2
+		resi1
+		xcont	m_hh,#1
+		resi1
+		djnz	x,#.vlow
+
+		mov	x,#6			'low vertical syncs
+.vhigh		xcont	m_ll,#2
+		resi1
+		xcont	m_lh,#1
+		resi1
+		djnz	x,#.vhigh
+
+		mov	x,#6			'high vertical syncs
+.vlow2		xcont	m_hl,#2
+		resi1
+		xcont	m_hh,#1
+		resi1
+		djnz	x,#.vlow2
+
+                jmp     #field                  'loop
+'
+'
+' Initialized data
+'
+dacmode		long	%0000_0000_000_1010000000000_01_00000_0
+
+m_sn		long	$CF000000+29		'sync
+m_bc		long	$CF000000+7		'before colorburst
+m_cb		long	$CF000000+18		'colorburst
+m_ac		long	$CF000000+40		'after colorburst
+m_vi		long	$CF000000+256		'visible
+m_av		long	$CF000000+50		'after visible (400 total)
+
+m_rf		long	$7F000000+256		'visible rflong 8bpp lut
+
+m_hl		long	$CF000000+15		'vertical sync high low 
+m_hh		long	$CF000000+185		'vertical sync high high (200 total)
+
+m_ll		long	$CF000000+171		'vertical sync low low
+m_lh		long	$CF000000+29		'vertical sync low high (200 total)
+
+c_cb		long	$507000_01		'colorburst reference color
+
+x		res	1
+y		res	1
+'
+'
+' Bitmap
+'
+		orgh	$1000 - $436	'justify pixels at $1000, pallete at $1000-$400
+		file	"bitmap.bmp"
