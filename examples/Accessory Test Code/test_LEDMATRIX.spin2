@@ -1,0 +1,56 @@
+' test_LEDMATRIX.spin2
+'
+
+
+
+CON
+
+  basepin=32
+
+  oscmode = $010c3f04
+  freq = 160_000_000
+
+ 
+  
+OBJ
+  
+  pins: "Pins.spin2"    
+
+
+
+
+PUB Main | r, c, speed
+ 
+  speed := 10
+
+  repeat
+
+   pins.Toggle(56) ' Toggle P2-EVAL LED to indicate test is running
+
+   speed:= speed + 1000
+
+   if speed > 10000
+	speed := 100
+
+   
+   repeat r from 0 to 7
+
+        pins.High(basepin + r)
+
+        repeat c from 0 to 7
+
+            if c == r
+                next
+
+            if r==7 and c==7
+                next
+
+            pins.Low(basepin + c)
+
+	    'waitcnt(clkfreq / 100000 + cnt) ' Minimal delay for mfg test, to get all LEDs visible at once (very dim)
+	    waitcnt(clkfreq / speed + cnt)   ' Use longer delay to see some scroll action; changing speed value for demo
+
+            pins.In(basepin + c)
+            
+
+        pins.In(basepin + r)
