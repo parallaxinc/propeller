@@ -1,0 +1,65 @@
+' test_AV.spin2
+'
+
+CON
+
+basepin	=	32
+
+left	=	basepin+6
+right	=	basepin+7
+
+freql	=	440.0		'left frequency
+freqr	=	445.0		'right frequency
+
+volume	=	$0080		'$0000..$7FFF volume
+
+fsys	=	250_000_000.0
+
+dat	org
+
+	hubset	##%1_000001_0000011000_1111_10_00	'enable crystal+PLL, stay in 20MHz+ mode
+	waitx	##20_000_000/100			'wait ~10ms for crystal+PLL to stabilize
+	hubset	##%1_000001_0000011000_1111_10_11	'now switch to PLL running at 250MHz
+
+	drvl	#56 ' Set LED 56 on (visual indicator that code is running)
+
+	wrpin	dac,#left
+	wxpin	#256,#left
+	dirh	#left
+
+	wrpin	dac,#right
+	wxpin	#256,#right
+	dirh	#right
+
+	setse1	#%001<<6 + right
+
+.loop	add	p1,f1		'calculate right sample
+	qrotate	amp,p1
+	getqx	x
+	bitnot	x,#15
+	wypin	x,#left
+
+	add	p2,f2		'calculate left sample
+	qrotate	amp,p2
+	getqx	x
+	bitnot	x,#15
+	wypin	x,#right
+
+	waitse1			'wait for new period
+
+	jmp	#.loop		'loop
+
+
+
+x	long	0
+
+p1	long	0
+p2	long	0
+
+f1	long	round(freql * 65536.0 * 65536.0 * 256.0 / fsys)
+f2	long	round(freqr * 65536.0 * 65536.0 * 256.0 / fsys)
+
+amp	long	volume
+
+'dac	long	%10111_00000000_01_00010_0	'random dither (noisier, needs no period)
+dac	long	%10111_00000000_01_00011_0	'pwm (quieter, needs 256N period)

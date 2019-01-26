@@ -1,0 +1,90 @@
+' test_CONTROL.spin2
+'
+
+
+
+CON
+
+  basepin=32
+
+  oscmode = $010c3f04
+  freq = 160_000_000
+
+VAR
+   byte buttons 
+  
+OBJ
+  
+  pins: "Pins.spin2"    
+
+
+
+
+PUB Main | i
+
+   
+  buttons:=0
+  
+  repeat
+
+    pins.High(56) ' Status LED toggle
+	
+    pins.High(basepin + 0)
+    pins.High(basepin + 1)
+    pins.High(basepin + 2)
+    pins.High(basepin + 3)
+
+
+    if buttons == $0F ' All buttons pressed
+	 waitcnt(clkfreq / 2 + cnt) ' wait a moment as test PASS	
+	 buttons:=0 ' Reset (ready for next module test)
+
+
+    ' Set buttons low before reading them
+    pins.Low(basepin + 4)
+    pins.Low(basepin + 5)
+    pins.Low(basepin + 6)
+    pins.Low(basepin + 7)
+
+    waitcnt(clkfreq / 30 + cnt)
+
+    pins.Low(56) ' Status LED toggle
+
+    
+    if BitGET(buttons, 0) == 0 
+	pins.Low(basepin + 0)
+	buttons:=BitSET(buttons, 0, pins.In(basepin+5))
+
+    if BitGET(buttons, 1) == 0
+	pins.Low(basepin + 1)
+	buttons:=BitSET(buttons, 1, pins.In(basepin+4))    
+
+    if BitGET(buttons, 2) == 0
+	pins.Low(basepin + 2)
+	buttons:=BitSET(buttons, 2, pins.In(basepin+6))
+    
+    if BitGET(buttons, 3) == 0
+	pins.Low(basepin + 3)
+	buttons:=BitSET(buttons, 3, pins.In(basepin+7))
+
+   
+    waitcnt(clkfreq / 30 + cnt)
+
+
+
+
+
+
+PRI BitGET(srcval, bit) : result
+
+	result := (srcval >> bit) & 1
+
+PRI BitSET(srcval, bit, val) : result
+
+	if val == 0
+
+		result := srcval & !(|<bit)
+
+	else
+
+		result := srcval | (|<bit)
