@@ -1,8 +1,8 @@
 # Propeller 2 Developer Site
 A collection of resources for Propeller Community members.
 
-<img src="/assets/p2_pinout_large.jpg" alt="P2 Pinout" height="200" width="200">
-<img src="/assets/p2-es_rev_a.jpg" alt="P2 Pinout" height="200" width="200">
+<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout" height="200" width="200">
+<img src="assets/p2-es_rev_a.jpg" alt="P2 Pinout" height="200" width="200">
 
 ## Resources
 ### Documentation
