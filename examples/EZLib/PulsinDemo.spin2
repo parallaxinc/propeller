@@ -1,0 +1,144 @@
+{{
+Author:  John Abshier
+Version:  1.0
+Date" March 15, 2019
+Contact Info:  Parallax forums  https://forums.parallax.com/
+
+Purpose:  Test PulseinMs and PulseinUs.  
+
+Caveat:  I killed my Propeller 2 so this code is only partially tested.  *** indicates something I wanted to check
+         Nothing has been tested since I edited to add comments.
+         
+}}
+CON
+
+
+  oscmode = $010c3f04
+  freq = 160_000_000
+  baud = 230400                     'must configure RUN command to match this
+  rx = 63
+  tx = 62
+  LOW  =  0
+  HIGH =  1
+  PIN  = 42
+  TOUT = freq / 10 
+  
+VAR
+   long pulse
+   long stack[50] 
+OBJ
+  
+  ser:  "SmartSerial"     'access to Propellor output (output only)
+  pins : "pins2.spin2"
+
+PUB Main | i
+    clkset(oscmode, freq)
+    ser.start(rx, tx, 0, baud)                  'start up serial terminal
+    waitcnt(2 * freq)
+    cognew(TogglePin(PIN), @stack)              ' comment out this line for time out test
+    ser.str(string("Pulsein Test"))             
+    ser.nl
+    pulse := pins.PulseinMs(pin, LOW, TOUT)
+    if pulse == -1
+       ser.str(string("Bad polarity vale"))
+       ser.nl
+    elseif pulse == -2
+       ser.str(string("Timed out--Start edge"))
+       ser.nl
+    elseif pulse == -3
+       ser.str(string("Timed out--End edge"))
+       ser.nl
+    else
+       ser.str(string("Low pulse value (milliseconds) "))  
+       ser.dec(pulse)
+       ser.nl
+    pulse := pins.PulseinMs(pin, HIGH, TOUT)
+    if pulse == -1
+       ser.str(string("Bad polarity vale"))
+       ser.nl
+    elseif pulse == -2
+       ser.str(string("Timed out--Start edge"))
+       ser.nl
+    elseif pulse == -3
+       ser.str(string("Timed out--End edge"))
+       ser.nl
+    else
+       ser.str(string("High pulse value (milliseconds "))  
+       ser.dec(pulse)
+       ser.nl
+    pulse := pins.PulseinMs(pin, 3, TOUT)         
+    if pulse == -1
+       ser.str(string("Bad polarity value"))
+       ser.nl
+    pulse := pins.PulseinUs(pin, LOW, TOUT)
+    if pulse == -1
+       ser.str(string("Bad polarity value"))
+       ser.nl
+    elseif pulse == -2
+       ser.str(string("Timed out--Start edge"))
+       ser.nl
+    elseif pulse == -3
+       ser.str(string("Timed out--End edge"))
+       ser.nl
+    else
+       ser.str(string("Low pulse value (microseconds) "))  
+       ser.dec(pulse)
+       ser.nl
+    pulse := pins.PulseinUs(pin, HIGH, TOUT)
+    if pulse == -1
+       ser.str(string("Bad polarity value"))
+       ser.nl
+    elseif pulse == -2
+       ser.str(string("Timed out--Start edge"))
+       ser.nl
+    elseif pulse == -3
+       ser.str(string("Timed out--End edge"))
+       ser.nl
+    else
+       ser.str(string("High pulse value (microseconds "))  
+       ser.dec(pulse)
+       ser.nl
+    pulse := pins.PulseinUs(pin, 3, TOUT)         
+    if pulse == -1
+       ser.str(string("Bad polarity value"))
+       ser.nl
+    repeat
+    
+PRI TogglePin(_pin)
+    repeat
+        pins.high(_pin)
+        waitcnt(clkfreq / 1000 + cnt)
+        pins.low(_pin)
+        waitcnt(clkfreq / 500 + cnt)
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+
+}}
+
+
+
+
+
+
+
+
+
