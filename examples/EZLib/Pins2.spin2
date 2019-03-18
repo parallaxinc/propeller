@@ -1,0 +1,225 @@
+{{
+Author:  John Abshier
+Version:  1.0
+Date" March 15, 2019
+Contact Info:  Parallax forums  https://forums.parallax.com/
+
+Purpose:  This library is designed for new, occasional programer, or student.  It provides wrappers for many common tasks related
+to pins on the Propeller 2.  Pins 58-63 are used for communication and booting.  Those pins should only be used if you are sure
+it will not cause a conflict.
+
+Caveat:  I killed my Propeller 2 so this code is only partially tested.  *** indicates something I wanted to check
+         Nothing has been tested since I edited to add comments.
+
+}}
+CON HIGH_PULSE = 1
+    LOW_PULSE  = 0
+    PAUSE_CORRECTION = 220
+VAR
+{    long millSec, microSec
+                                       *** I was originally requiring a call to start to set these variables
+                                       *** Now they are calculated where needed.  If the libary grows and reqires a Start method
+                                       *** I would not calculate them where needed
+PUB Start
+    millSec := clkfreq / 1_000
+    microSec := clkfreq / 1_000_000
+}    
+    
+PUB High(pin)  
+'' Sets pin to output high
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users
+     asm
+        drvh pin
+     endasm
+
+PUB Low(pin)
+'' Sets pin to output low
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users
+     asm
+        drvl pin
+     endasm
+    
+PUB In(pin) : state
+'' Tests the IN bit of a pin
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users
+  asm
+    testp pin wc
+    muxc state, #1
+  endasm
+  
+PUB Toggle(pin) 
+'' Sets pin direction to output and inverts the OUT bit
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users
+     asm
+        drvnot pin
+     endasm
+
+PUB SetPullup(pin)
+'' Sets the pin to have a 15 kohm pullup
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users   
+    asm
+'           drvl    pin                       *** I think this should be here for safety, but haven't tested with it
+           wrpin   ##%010_000_00_00000_0,pin '15k pullup
+           dirh    pin
+           outh    pin
+    endasm
+    
+PUB SetPulldown(pin) 
+'' Sets the pin to have a 15 kohm pulldown
+'' Input parameter:  A pin number (0-63).  Pins 58-63 for advanced users   
+    asm
+'           drvl    pin                       *** I think this should be here for safety, but haven't tested with it
+        wrpin   ##%010_00_00000_0,pin '15k pulldown
+        dirh    pin
+        outl    pin  
+    endasm
+    
+PUB PulseinMs(_pin, _polarity,_timeout) : pulse | millSec
+'' Measures a single pulse and return the length of the pulse in milliseconds or an error flag
+'' Input parameters:  See PulseinClk
+'' Output:  Pulse length in milliseconds or error flag as described in PulseinClk
+'                                              *** not tested after modifying to properly return error flag
+    pulse := PulseinClk(_pin, _polarity,_timeout)
+    if pulse > 0
+        millSec := clkfreq / 1_000
+        pulse /= millSec
+    
+PUB PulseinUs(_pin, _polarity,_timeout) : pulse  | microSec
+'' Measures a single pulse and return the length of the pulse in microseconds or an error flag
+'' Input parameters:  See PulseinClk
+'' Output:  Pulse length in microseconds or error flag as described in PulseinClk
+'                                              *** not tested after modifying to properly return error flag
+    pulse := PulseinClk(_pin, _polarity,_timeout) / microSec
+    if pulse > 0
+        microSec := clkfreq / 1_000_000
+        pulse /= microSec
+     
+PUB PulseinClk(_pin,_polarity,_timeout) : pulse | timeOut, startTime, startEdge, endEdge
+'' Measures a single pulse and return the length of the pulse in clock ticks or an error flag
+'' Input parameters:  _pin  A pin number 0-63.  Pins 58-63 for advanced users
+''                    _polarity  1 for a high pulse, 0 for a low pulse
+''                    _timeout  Time in clock ticks to wait for an edge
+'' Output:  Pulse length in clock ticks
+'' Error outputs -1 for _polarity not in (0,1)  -2 timed out on start edge  -3 timed out on end edge                      
+   if _polarity == HIGH_PULSE
+      startEdge := %001 << 6 | _pin            'low to high
+      endEdge :=   %010 << 6 | _pin            'high to low
+   elseif _polarity == LOW_PULSE
+      startEdge := %010 << 6 | _pin            'high to low
+      endEdge :=   %001 << 6 | _pin            'low to high
+   else                                        'bad argument for polarity
+      pulse := -1
+      return 
+      
+   asm
+           getct     timeOut
+           add       timeOut,    _timeout
+           setse1    startEdge
+           setq      timeOut
+           waitse1                  wc 
+    if_c   jmp       #timed_out 
+           getct     timeOut
+           add       timeout,    _timeout        
+           setse1    endEdge
+           getct     startTime
+           setq      timeOut
+           waitse1                  wc
+           getct     pulse
+    if_c   jmp       #timed_out2 
+           sub       pulse,  startTime
+           jmp       #done
+timed_out  mov pulse,     #2
+           neg pulse
+           jmp       #done
+timed_out2 mov pulse,     #3
+           neg pulse
+done
+   endasm  
+       
+PUB PauseMs(_time) | mS
+'' Pauses for _time milliseconds
+'' Input parameter _time is time to pause in milliseconds >0
+'                            *** not sure if the magic number 365 is frequency dependent
+    mS := clkfreq / 1000  
+    _time := _time * mS - 365
+    asm
+       waitx   _time
+    endasm
+    
+PUB PauseUs(_time)  | microSec
+'' Pauses for _time microseconds
+'' Input parameter _time is time to pause in microeconds >1
+'                            *** not sure if the magic number 200 is frequency dependent                                      
+'     _time must be => 2
+     microSec := clkfreq / 1_000_000
+     if _time < 2
+         _time := 2
+     _time := _time * microSec - 200
+     asm
+         waitx  _time
+     endasm
+PUB PulseoutMs(_pin, _polarity, _time)  | t
+'' Sends one pulse on a pin time in milliseconds
+'' Input Parameters:  _pin a pin number 0-63.  Pins 58-36 for advanced users
+''                    _polarity 0 for low pulse, 1 for high pulse
+''                    _time length of pulse in milliseconds
+    t := _time * 1_000                      ' convert milliseconds to microseconds
+    PulseoutUs(_pin, _polarity, t)
+        
+PUB PulseoutUs(_pin, _polarity, _time)  | microSec
+'' Sends one pulse on a pin time in microseconds
+'' Input Parameters:  _pin a pin number 0-63.  Pins 58-36 for advanced users
+''                    _polarity 0 for low pulse, 1 for high pulse.  If not valid method just returns
+''                    _time length of pulse in microseconds 
+   microSec := clkfreq / 1_000_000                                                       
+   if _polarity == HIGH_PULSE
+       asm
+          drvl  _pin             ' establish starting pin condition
+       endasm
+       _time := _time * microSec - 2
+       asm
+           drvh   _pin
+           waitx  _time
+           drvl   _pin
+       endasm   
+   elseif _polarity == LOW_PULSE
+       asm
+          drvh  _pin             ' establish starting pin condition
+       endasm
+       microSec := clkfreq /1_000_000
+       _time := _time * microSec - 2
+       asm
+           drvl   _pin
+           waitx  _time
+           drvh   _pin
+       endasm   
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+
+}}
+
+
+
+
+
+
+
+
