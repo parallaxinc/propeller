@@ -21,7 +21,7 @@ A collection of resources for Propeller Community members.
   * [fastspin](https://github.com/totalspectrum/spin2cpp/releases) -
 P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
 [BASIC](https://github.com/totalspectrum/spin2cpp/blob/master/doc/basic.md) and
-[C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) compiler by Eric H. Smith
+[C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) compiler by Eric R. Smith
     - [Spin2gui](https://github.com/totalspectrum/spin2gui/releases) - IDE for fastspin by Eric R. Smith.
     - See [Spin2gui source readme](https://github.com/totalspectrum/spin2gui/blob/master/README.md) for documentation
   * [p2gcc, p2asm & loadp2](https://github.com/davehein/p2gcc) - P2 C compiler/assembler/linker/loader by Dave Hein.
