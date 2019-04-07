@@ -11,13 +11,16 @@ A collection of resources for Propeller Community members.
 
 ### FPGA emulation
   * [Propeller 2 Version 32i Verilog File](https://github.com/parallaxinc/propeller/releases/download/v32i/Prop2_FPGA_v32i.zip) - For P2 emulation on an FPGA board.
+  * [Propeller 2 Version 33k Verilog File](https://forums.parallax.com/discussion/169695/new-fpga-files-for-next-silicon-version-5th-final-release-contains-new-rom) - For P2 emulation on an FPGA board.
   * [Detailed information](http://forums.parallax.com/discussion/162298/prop2-fpga-files-updated-2-june-2018-final-version-32i/p1) is on the forum.
   * [P2 FPGA Emulation](http://forums.parallax.com/discussion/144199/propeller-ii-emulation-of-the-p2-on-fpga-boards-prop123-a7-a9-de0-nano-de2-115-etc#latest) discussion.
 
 ### Software
   * [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS).
-  * [boot rom P2 v32i](https://www.dropbox.com/sh/ssdb8di5g90ycng/AACi8dWtLuqV5vzUSjJc6SDQa?dl=0) - P2 boot ROM as available on P2-ES board
+  * [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/v32i%20FPGA%20Examples/ROM_Booter_v32i.spin2) - P2 boot ROM as available on P2-ES board
   * [boot rom P2 v33j](http://forums.parallax.com/discussion/comment/1465155/#Comment_1465155) - P2 boot ROM for coming [P2 revision](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon)
+  * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) -
+treasure trove of information on TAQOZ by Peter Jakacki
   * [fastspin](https://github.com/totalspectrum/spin2cpp/releases) -
 P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
 [BASIC](https://github.com/totalspectrum/spin2cpp/blob/master/doc/basic.md) and
@@ -29,6 +32,8 @@ P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.
   * [MicroPython](https://forums.parallax.com/discussion/169862/micropython-for-p2) - P2 microPython implementation by Eric R. Smith
   * [pyLoader](https://forums.parallax.com/discussion/168850/python-p2-loader) - P2 binary loader written in python by ozpropdev
   * [flash loader](https://forums.parallax.com/discussion/169608/prop2-flash-loader) - Load program in flash by ozpropdev
+
+for more look [here](software.md)
 
 ### Hardware
   * [P2-ES Board](https://www.parallax.com/product/64000-es)
