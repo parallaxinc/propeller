@@ -23,7 +23,7 @@ VAR
     
 
 OBJ
-    ser : "SmartSerial"
+    ser : "SmartSerial.spin2"
     pins : "Pins2Debug.spin2"
     
 PUB Main    | pin

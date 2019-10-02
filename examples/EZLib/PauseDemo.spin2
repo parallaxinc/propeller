@@ -22,7 +22,7 @@ VAR
     
 
 OBJ
-    ser : "SmartSerial"
+    ser : "SmartSerial.spin2"
     pins : "Pins2.spin2"
     
 PUB Main    | pause, time
@@ -33,7 +33,7 @@ PUB Main    | pause, time
     
     
     pause := 10
-    ser.str("Pause time ")
+    ser.str(string("Pause time "))
     ser.dec(pause)
     ser.tx(13)
     time := -cnt
@@ -70,7 +70,3 @@ PUB Main    | pause, time
   OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 }}
-    
-    
-
-
