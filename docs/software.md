@@ -27,7 +27,7 @@ Make sure to check out the different discussions in TAQOZ, fastspin, p2gcc as mo
 
 ### Protocol
 #### serial
- * [smartpin demo](../examples/v32i%20FPGA%20Examples/smartpin_serial_turnaround.spin2) -
+ * [smartpin demo](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/smartpin_serial_turnaround.spin2) -
 10 MBaud example by Chip Gracey
  * [fullduplex smart serial with interrupt](https://forums.parallax.com/discussion/169660/cogserial-fullduplex-smart-serial-using-interrupt) -
 by msrobot
@@ -45,7 +45,7 @@ bit banged SPI driver, part of TAQOZ by Peter Jakacki
 #### I2C
 
 #### PWM
- * [smartpin example](../examples/v32i%20FPGA%20Examples/smartpin_pwm.spin2) -
+ * [smartpin example](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/smartpin_pwm.spin2) -
 example PWM driver by Chip Gracey
  * 
 
@@ -66,15 +66,15 @@ by ozpropdev
 
 ### Display
 #### NTSC
- * [256x192](../examples/v32i%20FPGA%20Examples/NTSC_256_x_192.spin2) -
+ * [256x192](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/NTSC_256_x_192.spin2) -
 example driver by Chip Gracey
- * [256x192 interrupt driven](../examples/v32i%20FPGA%20Examples/NTSC_256_x_192_interrupt.spin2) -
+ * [256x192 interrupt driven](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/NTSC_256_x_192_interrupt.spin2) -
 example driver by Chip Gracey
 
 #### VGA
- * [640x480x8bpp](../examples/v32i%20FPGA%20Examples/VGA_640_x_480_8bpp.spin2) -
+ * [640x480x8bpp](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/VGA_640_x_480_8bpp.spin2) -
 example driver by Chip Gracey
- * [640x480x16bpp](../examples/v32i%20FPGA%20Examples/VGA_640_x_480_16bpp.spin2) -
+ * [640x480x16bpp](https://github.com/parallaxinc/propeller/tree/master/examples/v32i%20FPGA%20Examples/VGA_640_x_480_16bpp.spin2) -
 example driver by Chip Gracey
  * [640x480 & 800x600 tile driver](https://forums.parallax.com/discussion/169803/vga-640x480-and-800x600-full-color-tile-text-driver) -
 by Eric R. Smith
