@@ -18,8 +18,8 @@ A collection of resources for Propeller Community members.
 ### Firmware
   * [boot rom P2 v33j](http://forums.parallax.com/discussion/comment/1465155/#Comment_1465155) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B.
     - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/v32i%20FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
-  * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) -
-treasure trove of information on TAQOZ by Peter Jakacki
+  * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) - treasure trove of information on TAQOZ by Peter Jakacki
+
 ### Software
   * IDEs
     - [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS).
