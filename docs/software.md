@@ -6,13 +6,6 @@ by ozpropdev
  * [Cordic Crickets](https://forums.parallax.com/discussion/169478/p2-invaders-cordic-crickets-vga-demo-for-p2-eval-boards) -
 by ozpropdev
 
-## Programming Languages
- * [P1 Spin interpreter](https://forums.parallax.com/discussion/169861/p1-spin-interpreter-for-p2) -
-by cluso99
- * [P1 Spin interpreter](https://forums.parallax.com/discussion/162858/p1spin) -
-by Dave Hein
-
-
 ## Emulators
  * [Risc V](https://forums.parallax.com/discussion/166563/zpu-and-riscv-emulation-for-p2-now-with-xbyte) -
 by Eric R. Smith

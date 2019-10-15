@@ -15,22 +15,29 @@ A collection of resources for Propeller Community members.
   * [Detailed information](http://forums.parallax.com/discussion/162298/prop2-fpga-files-updated-2-june-2018-final-version-32i/p1) is on the forum.
   * [P2 FPGA Emulation](http://forums.parallax.com/discussion/144199/propeller-ii-emulation-of-the-p2-on-fpga-boards-prop123-a7-a9-de0-nano-de2-115-etc#latest) discussion.
 
-### Software
-  * [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS).
-  * [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/v32i%20FPGA%20Examples/ROM_Booter_v32i.spin2) - P2 boot ROM as available on P2-ES board
-  * [boot rom P2 v33j](http://forums.parallax.com/discussion/comment/1465155/#Comment_1465155) - P2 boot ROM for coming [P2 revision](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon)
+### Firmware
+  * [boot rom P2 v33j](http://forums.parallax.com/discussion/comment/1465155/#Comment_1465155) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B.
+    - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/v32i%20FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
   * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) -
 treasure trove of information on TAQOZ by Peter Jakacki
-  * [fastspin](https://github.com/totalspectrum/spin2cpp/releases) -
-P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
+### Software
+  * IDEs
+    - [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS).
+    - [FlexGUI (formerly Spin2gui)](https://github.com/totalspectrum/flexgui/releases) - IDE for P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
 [BASIC](https://github.com/totalspectrum/spin2cpp/blob/master/doc/basic.md) and
-[C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) compiler by Eric R. Smith
-    - [Spin2gui](https://github.com/totalspectrum/spin2gui/releases) - IDE for fastspin by Eric R. Smith.
-    - See [Spin2gui source readme](https://github.com/totalspectrum/spin2gui/blob/master/README.md) for documentation
-  * [p2gcc, p2asm & loadp2](https://github.com/davehein/p2gcc) - P2 C compiler/assembler/linker/loader by Dave Hein.
-  * [Catalina](https://forums.parallax.com/discussion/168399/catalina-and-the-p2) - P2 C Compiler/linker by RossH
-  * [MicroPython](https://forums.parallax.com/discussion/169862/micropython-for-p2) - P2 microPython implementation by Eric R. Smith
-  * [pyLoader](https://forums.parallax.com/discussion/168850/python-p2-loader) - P2 binary loader written in python by ozpropdev
+[C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) by Eric R. Smith.
+      - See [FlexGUI source readme](https://github.com/totalspectrum/flexgui/blob/master/README.md) for documentation
+  * Language Tools (Compiler & Interpreter)
+    - [fastspin](https://github.com/totalspectrum/spin2cpp/releases) -
+P1 and P2 Spin, BASIC and C compiler by Eric R. Smith
+    - [P1 Spin interpreter for P2](https://forums.parallax.com/discussion/169861/p1-spin-interpreter-for-p2) -
+by cluso99
+    - [P1 Spin interpreter for P2](https://forums.parallax.com/discussion/162858/p1spin) -
+by Dave Hein
+    - [p2gcc, p2asm & loadp2](https://github.com/davehein/p2gcc) - P2 C compiler/assembler/linker/loader by Dave Hein.
+    - [Catalina](https://forums.parallax.com/discussion/168399/catalina-and-the-p2) - P2 C Compiler/linker by RossH
+    - [MicroPython](https://forums.parallax.com/discussion/169862/micropython-for-p2) - P2 microPython implementation by Eric R. Smith
+    - [pyLoader](https://forums.parallax.com/discussion/168850/python-p2-loader) - P2 binary loader written in python by ozpropdev
   * [flash loader](https://forums.parallax.com/discussion/169608/prop2-flash-loader) - Load program in flash by ozpropdev
 
 for more look [here](software.md)
