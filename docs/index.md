@@ -39,6 +39,7 @@ by Dave Hein
     - [MicroPython](https://forums.parallax.com/discussion/169862/micropython-for-p2) - P2 microPython implementation by Eric R. Smith
     - [pyLoader](https://forums.parallax.com/discussion/168850/python-p2-loader) - P2 binary loader written in python by ozpropdev
   * [flash loader](https://forums.parallax.com/discussion/169608/prop2-flash-loader) - Load program in flash by ozpropdev
+  * [Project CI Server](https://ci.zemon.name/?guest=1) - David Zemon's CI Server
 
 for more look [here](software.md)
 
