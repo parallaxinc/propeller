@@ -1,7 +1,7 @@
 # Propeller 2 Developer Site
 A collection of resources for Propeller Community members.
 
-<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout" height="200" width="200">&nbsp;&nbsp;&nbsp;&nbsp;<img src="assets/p2-es_rev_a.jpg" alt="P2 Pinout" height="200" width="200">
+[<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click for documentation" height="200" width="200">](https://docs.google.com/document/d/1gn6oaT5Ib7CytvlZHacmrSbVBJsD9t_-kmvjd7nUR6o/edit?usp=sharing)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click for product page" height="200" width="200">](https://www.parallax.com/product/64000-es)
 
 ## Resources
 ### How Do I Find Out The Latest?
