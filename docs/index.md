@@ -42,7 +42,7 @@ by cluso99
     - [P1 Spin interpreter for P2](https://forums.parallax.com/discussion/162858/p1spin) -
 by Dave Hein
     - [p2gcc, p2asm & loadp2](https://github.com/davehein/p2gcc) - P2 C compiler/assembler/linker/loader by Dave Hein
-    - [Catalina](https://forums.parallax.com/discussion/168399/catalina-and-the-p2) - P2 C Compiler/linker by RossH
+    - [Catalina](https://forums.parallax.com/discussion/168399/catalina-and-the-p2) - P1 and P2 C Compiler/linker by Ross Higson
     - [MicroPython](https://forums.parallax.com/discussion/169862/micropython-for-p2) - P2 microPython implementation by Eric R. Smith
     - [pyLoader](https://forums.parallax.com/discussion/168850/python-p2-loader) - P2 binary loader written in python by ozpropdev
   * [flash loader](https://forums.parallax.com/discussion/169608/prop2-flash-loader) - Load program in flash by ozpropdev
