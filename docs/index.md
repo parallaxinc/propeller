@@ -51,10 +51,12 @@ by Dave Hein
 for more look [here](software.md)
 
 ### Hardware
-  * [P2-ES Board](https://www.parallax.com/product/64000-es)
-    - [Documentation](https://docs.google.com/document/d/1gIKAfx5slcwjrAvHnbn5VNReY2SbQxtYkgO8cIzjyyY/edit#heading=h.6frgvwkw4djo)
-    - [Schematic](https://www.parallax.com/downloads/propeller-2-es-eval-board-schematic)
-    - [Design Files](https://www.parallax.com/downloads/propeller-2-es-eval-board-design-files)
+  * [Propeller 2 Products](https://www.parallax.com/product/propeller-2)
+  * [P2-ES Eval Board](https://www.parallax.com/product/64000-es)
+    - [(Rev B) Documentation](https://docs.google.com/document/d/1PH20fQ8j-aRTqocTVBukXeK6bEliXfd7vfKHKlftYk8/edit?usp=sharing)
+    - [(Rev A) Documentation](https://docs.google.com/document/d/1gIKAfx5slcwjrAvHnbn5VNReY2SbQxtYkgO8cIzjyyY/edit?usp=sharing)
+    - [(Rev A/B) Schematics](https://www.parallax.com/downloads/propeller-2-es-eval-board-schematic)
+    - [(Rev A/B) Design Files](https://www.parallax.com/downloads/propeller-2-es-eval-board-design-files)
     - [Support](http://forums.parallax.com/discussion/169367/p2-es-board-support/p1)
   * [P2-ES Accessory Set](https://www.parallax.com/product/64006-es)
     - [Accessory Set Documentation](https://docs.google.com/document/d/1FTGV1Mn1hwayEaKut5Ej6vmWdjirVlP9TQqyA0wRs34/edit)
