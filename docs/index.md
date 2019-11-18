@@ -53,16 +53,21 @@ by Dave Hein
 for more look [here](software.md)
 
 ### Hardware
-  * [Propeller 2 Products](https://www.parallax.com/product/propeller-2)
-  * [P2-ES Eval Board](https://www.parallax.com/product/64000-es)
-    - [(Rev B) Documentation](https://docs.google.com/document/d/1PH20fQ8j-aRTqocTVBukXeK6bEliXfd7vfKHKlftYk8/edit?usp=sharing)
-    - [(Rev A) Documentation](https://docs.google.com/document/d/1gIKAfx5slcwjrAvHnbn5VNReY2SbQxtYkgO8cIzjyyY/edit?usp=sharing)
-    - [(Rev A/B) Schematics](https://www.parallax.com/downloads/propeller-2-es-eval-board-schematic)
-    - [(Rev A/B) Design Files](https://www.parallax.com/downloads/propeller-2-es-eval-board-design-files)
+*On product pages below, expand the Downloads and Additional Resources tabs for documentation, schematics, etc.*
+  * [Propeller 2 Products](https://www.parallax.com/product/propeller-2) - All P2-related products
+  * [P2-ES Eval Board](https://www.parallax.com/product/64000-es) - For experimentation with the P2 engineering samples (2nd release, Rev B silicon)
     - [Support](http://forums.parallax.com/discussion/169367/p2-es-board-support/p1)
-  * [P2-ES Accessory Set](https://www.parallax.com/product/64006-es)
-    - [Accessory Set Documentation](https://docs.google.com/document/d/1FTGV1Mn1hwayEaKut5Ej6vmWdjirVlP9TQqyA0wRs34/edit)
-    - [Accessory Set Schematics](https://www.parallax.com/downloads/p2-es-eval-board-accessory-set-schematic)
+  * [HyperRAM](https://www.parallax.com/product/64004-es) - Limited edition, 16 MB HyperRAM + 32 MB HyperFlash add-on board for P2-ES
+  * [Protoboard](https://www.parallax.com/product/64005-es) - Prototyping board for P2-ES to create custom circuitry with the Propeller 2 microcontroller
+  * [P2-ES Accessory Set](https://www.parallax.com/product/64006-es) - Eight accessory boards in one kit - for the P2-ES board
+    * (a) Control - four pushbuttons and four LEDs
+    * (b) Serial Host - twin USB type A sockets
+    * (c) LED Matrix - a 8x7 grid of green LEDs for Charlieplexing
+    * (d) Digital Video Out - HDMI-type connector
+    * (e) Mini Prototyping - 8x12 grid of plated thru-holes with labled power and I/O
+    * (f) Serial Device - two microUSB type sockets with individual activity LEDs
+    * (g) Goertzel - a set of non-contact position sensing pads
+    * (h) A/V Breakout - 3.5mm Audio in/out, four RCA audio/video, VGA
 
 ### Other
   * [P2 example](https://github.com/parallaxinc/propeller/tree/master/examples) source code
