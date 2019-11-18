@@ -1,7 +1,7 @@
 # Propeller 2 Developer Site
 A collection of resources for Propeller Community members.
 
-[<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](assets/p2-es_rev_a.jpg)
+[<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](assets/p2-es_rev_a.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/P2_Silicon-1.JPG" alt="P2 Silicon Die; click to enlarge" height="200" width="200">](assets/P2_Silicon-1.JPG)
 
 ## Resources
 ### How Do I Find Out The Latest?
