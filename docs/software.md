@@ -1,5 +1,9 @@
 # Propeller 2 Software
 
+## Language Tools (Extra)
+  * [flash loader](https://forums.parallax.com/discussion/169608/prop2-flash-loader) - Load program in flash by ozpropdev
+  * [Project CI Server](https://ci.zemon.name/?guest=1) - David Zemon's CI Server
+
 ## Games
  * [Space Invaders](https://forums.parallax.com/discussion/169478/p2-invaders-cordic-crickets-vga-demo-for-p2-eval-boards) - by ozpropdev
  * [Cordic Crickets](https://forums.parallax.com/discussion/169478/p2-invaders-cordic-crickets-vga-demo-for-p2-eval-boards) - by ozpropdev
