@@ -17,13 +17,13 @@ A collection of resources for Propeller Community members.
   * [TAQOZ ROM-resident Interactive Prompt](https://goo.gl/znBdQw) documentation, by Peter Jakacki
 
 ### FPGA emulation
-  * [Propeller 2 Version 32i Verilog File](https://github.com/parallaxinc/propeller/releases/download/v32i/Prop2_FPGA_v32i.zip) - For P2 emulation on an FPGA board
-  * [Propeller 2 Version 33k Verilog File](https://forums.parallax.com/discussion/169695/new-fpga-files-for-next-silicon-version-5th-final-release-contains-new-rom) - For P2 emulation on an FPGA board
+  * [Propeller 2 Version 33k Verilog File](https://github.com/parallaxinc/propeller/releases/download/v32k/Prop2_FPGA_v32k.zip) - For P2 Rev B emulation on an FPGA board
+    * [Propeller 2 Version 32i Verilog File](https://github.com/parallaxinc/propeller/releases/download/v32i/Prop2_FPGA_v32i.zip) - For P2 Rev A emulation on an FPGA board
   * [Detailed information](http://forums.parallax.com/discussion/162298/prop2-fpga-files-updated-2-june-2018-final-version-32i/p1) is on the forum
   * [P2 FPGA Emulation](http://forums.parallax.com/discussion/144199/propeller-ii-emulation-of-the-p2-on-fpga-boards-prop123-a7-a9-de0-nano-de2-115-etc#latest) discussion
 
 ### Firmware
-  * [boot rom P2 v33j](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v33k.spin2) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
+  * [boot rom P2 v33k](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v33k.spin2) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
     - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
   * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) - treasure trove of information on TAQOZ by Peter Jakacki
 
