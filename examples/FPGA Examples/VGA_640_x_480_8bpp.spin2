@@ -37,10 +37,7 @@ DAT		org
 		setcq	##intensity << 08	'b
 		setcmod	#%01_0_000_0		'enable colorspace conversion
 
-		wrpin	dacmode,#0		'enable dac modes in pins 0..3
-		wrpin	dacmode,#1
-		wrpin	dacmode,#2
-		wrpin	dacmode,#3
+		wrpin	dacmode,#3<<6 + 0	'enable dac modes in pins 0..3
 '
 '
 ' Field loop
@@ -81,12 +78,12 @@ hsync		xcont	m_bs,#0			'horizontal sync
 '
 dacmode		long	%0000_0000_000_1010000000000_01_00000_0
 
-m_bs		long	$CF000000+16		'before sync
-m_sn		long	$CF000000+96		'sync
-m_bv		long	$CF000000+48		'before visible
-m_vi		long	$CF000000+640		'visible
+m_bs		long	$7F010000+16		'before sync
+m_sn		long	$7F010000+96		'sync
+m_bv		long	$7F010000+48		'before visible
+m_vi		long	$7F010000+640		'visible
 
-m_rf		long	$7F000000+640		'visible rlong 8bpp lut
+m_rf		long	$7F080000+640		'visible rlong 8bpp lut
 
 x		res	1
 y		res	1

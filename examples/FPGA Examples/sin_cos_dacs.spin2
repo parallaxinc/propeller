@@ -7,16 +7,15 @@ dat
 
 		hubset	#$FF			'set clock to 80MHz
 
-		wrpin	dacmode,#1		'enable dac mode in pin 1
+		wrpin	dacmode,#3<<6 + 0	'enable dac mode in pins 0..3
+		dirh	#3<<6 + 0
 
 		mov	z,#$1FF			'make 512-sample sin/cos table in lut
 sincos		mov	x,z			'get angle into top 9 bits of x
 		shl	x,#32-9
 		qrotate	#$7F,x			'get sin/cos of (ro,theta)
 		getqx	x			'get cos
-		xor	x,#$80			'make positive 8-bit value
 		getqy	y			'get sin
-		xor	y,#$80			'make positive 8-bit value
 		setbyte	x,y,#1			'get sin into byte1, cos in byte0
 		wrlut	x,z			'write sin:cos into lut bottom bytes
 		djnf	z,#sincos		'make 512 samples
@@ -35,8 +34,8 @@ dacmode		long	%0000_0000_000_1010000000000_01_00000_0
 f1		long	$0040_0000
 f2		long	$0020_0000
 
-m1		long	$0C00_0008
-m2		long	$0C00_0004
+m1		long	$FB07_0008
+m2		long	$FB07_0004
 
 x		res	1
 y		res	1

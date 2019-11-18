@@ -110,20 +110,20 @@ field		mov     x,#27+192+35		'set blank+visible+blank lines
 '
 dacmode		long	%0000_0000_000_1010000000000_01_00000_0
 
-m_sn		long	$CF000000+29		'sync
-m_bc		long	$CF000000+7		'before colorburst
-m_cb		long	$CF000000+18		'colorburst
-m_ac		long	$CF000000+40		'after colorburst
-m_vi		long	$CF000000+256		'visible
-m_av		long	$CF000000+50		'after visible (400 total)
+m_sn		long	$7F010000+29		'sync
+m_bc		long	$7F010000+7		'before colorburst
+m_cb		long	$7F010000+18		'colorburst
+m_ac		long	$7F010000+40		'after colorburst
+m_vi		long	$7F010000+256		'visible
+m_av		long	$7F010000+50		'after visible (400 total)
 
-m_rf		long	$7F000000+256		'visible rflong 8bpp lut
+m_rf		long	$7F080000+256		'visible rflong 8bpp lut
 
-m_hl		long	$CF000000+15		'vertical sync high low 
-m_hh		long	$CF000000+185		'vertical sync high high (200 total)
+m_hl		long	$7F010000+15		'vertical sync high low 
+m_hh		long	$7F010000+185		'vertical sync high high (200 total)
 
-m_ll		long	$CF000000+171		'vertical sync low low
-m_lh		long	$CF000000+29		'vertical sync low high (200 total)
+m_ll		long	$7F010000+171		'vertical sync low low
+m_lh		long	$7F010000+29		'vertical sync low high (200 total)
 
 c_cb		long	$507000_01		'colorburst reference color
 
