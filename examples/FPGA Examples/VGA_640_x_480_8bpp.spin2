@@ -1,6 +1,6 @@
-'*************************************
-'*  VGA 640 x 480 x 16bpp 5:6:5 RGB  *
-'*************************************
+'******************************
+'*  VGA 640 x 480 x 8bpp-lut  *
+'******************************
 
 CON
 
@@ -19,34 +19,38 @@ DAT		org
 '
 		hubset	#$FF			'set clock to 80MHz
 
-		rdfast	##640*350*2/64,##$1000	'set rdfast to wrap on bitmap
+		rdfast	#0,##$1000-$400		'load .bmp palette into lut
+		rep	@.end,#$100
+		rflong	y
+		shl	y,#8
+		wrlut	y,x
+		add	x,#1
+.end
+		rdfast	##640*480/64,##$1000	'set rdfast to wrap on bitmap
 
 		setxfrq ##round(fset)		'set transfer frequency to 25MHz
 
-		'the next 4 lines may be commented out to bypass signal level scaling
+		'the next 4 lines may be commented out to bypass level scaling
 
 		setcy	##intensity << 24	'r	set colorspace for rgb
 		setci	##intensity << 16	'g
 		setcq	##intensity << 08	'b
-		setcmod	#%01_0_000_0		'enable colorspace conversion (may be commented out)
+		setcmod	#%01_0_000_0		'enable colorspace conversion
 
-		wrpin	dacmode,#0		'enable dac modes in pins 0..3
-		wrpin	dacmode,#1
-		wrpin	dacmode,#2
-		wrpin	dacmode,#3
+		wrpin	dacmode,#3<<6 + 0	'enable dac modes in pins 0..3
 '
 '
 ' Field loop
 '
-field		mov	x,#90			'top blanks
+field		mov	x,#33			'top blanks
 		call	#blank
 
-		mov     x,#350			'set visible lines
+		mov     x,#480			'set visible lines
 line		call	#hsync			'do horizontal sync
-		xcont	m_rf,#1			'visible line
+		xcont	m_rf,#0			'visible line
 		djnz    x,#line           	'another line?
 
-		mov	x,#83			'bottom blanks
+		mov	x,#10			'bottom blanks
 		call	#blank
 
 		drvnot	#vsync			'sync on
@@ -66,7 +70,7 @@ blank		call	#hsync			'blank lines
 	_ret_	djnz	x,#blank
 
 hsync		xcont	m_bs,#0			'horizontal sync
-		xzero	m_sn,#1
+		xcont	m_sn,#1
 	_ret_	xcont	m_bv,#0
 '
 '
@@ -74,12 +78,12 @@ hsync		xcont	m_bs,#0			'horizontal sync
 '
 dacmode		long	%0000_0000_000_1010000000000_01_00000_0
 
-m_bs		long	$CF000000+16		'before sync
-m_sn		long	$CF000000+96		'sync
-m_bv		long	$CF000000+48		'before visible
-m_vi		long	$CF000000+640		'visible
+m_bs		long	$7F010000+16		'before sync
+m_sn		long	$7F010000+96		'sync
+m_bv		long	$7F010000+48		'before visible
+m_vi		long	$7F010000+640		'visible
 
-m_rf		long	$2F000000+640		'visible rfword rgb16 (5:6:5)
+m_rf		long	$7F080000+640		'visible rlong 8bpp lut
 
 x		res	1
 y		res	1
@@ -87,5 +91,5 @@ y		res	1
 '
 ' Bitmap
 '
-		orgh	$1000 - 70		'justify pixels at $1000
-		file	"birds_16bpp.bmp"	'rayman's picture (640 x 350)
+		orgh	$1000 - $436	'justify pixels at $1000, pallete at $1000-$400
+		file	"bitmap2.bmp"	'640 x 480, 8pbb-lut

@@ -1,5 +1,6 @@
 '*******************************
 '*  NTSC 256 x 192 x 8bpp-lut  *
+'*      Interrupt-driven       *
 '*******************************
 
 CON
@@ -47,72 +48,82 @@ DAT		org
 
 		setcmod	#%11_1_0000		'set colorspace converter to YIQ mode (composite)
 
+		mov	ijmp1,#field		'set up streamer-empty interrupt
+		setint1	#10
+
+		xcont	#10,#0			'do streamer instruction to start interrupt sequence
+
 		wrpin	dacmode,#1		'enable dac mode in pin 1
 '
 '
-' Field loop
+' Main program
 '
-field           mov	x,#35			'top blanks
-		call	#blank
-
-                mov     x,#192			'set visible lines
-line	        call	#hsync			'do horizontal sync
-		xcont	m_rf,#0			'visible line
-		xcont	m_av,#1			'after visible spacer
-		djnz    x,#line           	'another line?
-
-                mov     x,#27			'bottom blanks
-		call	#blank
+.loop		drvnot	#0			'keep toggling p0
+		jmp	#.loop
+'
+'
+' Field loop via interrupts - issue next streamer command and then resume
+'
+field		mov     x,#27+192+35		'set blank+visible+blank lines
+.line		xcont	m_sn,#2			'horizontal sync
+		resi1
+		xcont	m_bc,#1
+		resi1
+		xcont	m_cb,c_cb
+		resi1
+		xcont	m_ac,#1
+		resi1
+		cmp	x,#27+192+1	wc	'blank line or visible line?
+	if_c	cmpr	x,#27		wc
+	if_nc	xcont	m_vi,#0			'blank line
+	if_c	xcont	m_rf,#0			'visible line
+		resi1
+	        xcont	m_av,#1
+		resi1
+		djnz    x,#.line
 
 		mov	x,#6			'high vertical syncs
 .vlow		xcont	m_hl,#2
+		resi1
 		xcont	m_hh,#1
+		resi1
 		djnz	x,#.vlow
 
 		mov	x,#6			'low vertical syncs
 .vhigh		xcont	m_ll,#2
+		resi1
 		xcont	m_lh,#1
+		resi1
 		djnz	x,#.vhigh
 
 		mov	x,#6			'high vertical syncs
 .vlow2		xcont	m_hl,#2
+		resi1
 		xcont	m_hh,#1
+		resi1
 		djnz	x,#.vlow2
 
                 jmp     #field                  'loop
-'
-'
-' Subroutines
-'
-blank		call	#hsync			'blank lines
-		xcont	m_vi,#0
-		xcont	m_av,#1
-	_ret_	djnz	x,#blank
-
-hsync		xcont	m_sn,#2			'horizontal sync
-		xcont	m_bc,#1
-		xcont	m_cb,c_cb
-	_ret_	xcont	m_ac,#1
 '
 '
 ' Initialized data
 '
 dacmode		long	%0000_0000_000_1010000000000_01_00000_0
 
-m_sn		long	$CF000000+29		'sync
-m_bc		long	$CF000000+7		'before colorburst
-m_cb		long	$CF000000+18		'colorburst
-m_ac		long	$CF000000+40		'after colorburst
-m_vi		long	$CF000000+256		'visible
-m_av		long	$CF000000+50		'after visible (400 total)
+m_sn		long	$7F010000+29		'sync
+m_bc		long	$7F010000+7		'before colorburst
+m_cb		long	$7F010000+18		'colorburst
+m_ac		long	$7F010000+40		'after colorburst
+m_vi		long	$7F010000+256		'visible
+m_av		long	$7F010000+50		'after visible (400 total)
 
-m_rf		long	$7F000000+256		'visible rflong 8bpp lut
+m_rf		long	$7F080000+256		'visible rflong 8bpp lut
 
-m_hl		long	$CF000000+15		'vertical sync high low 
-m_hh		long	$CF000000+185		'vertical sync high high (200 total)
+m_hl		long	$7F010000+15		'vertical sync high low 
+m_hh		long	$7F010000+185		'vertical sync high high (200 total)
 
-m_ll		long	$CF000000+171		'vertical sync low low
-m_lh		long	$CF000000+29		'vertical sync low high (200 total)
+m_ll		long	$7F010000+171		'vertical sync low low
+m_lh		long	$7F010000+29		'vertical sync low high (200 total)
 
 c_cb		long	$507000_01		'colorburst reference color
 

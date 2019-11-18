@@ -44,20 +44,20 @@ BIG BUG NOTICE!!!       SD fail should not stop cog as application may be on Fla
 ''                      _str_hdg has dump header
 ''                +     tweek for P2ASM compiler; alignl long alignment after _str_hdg; _parsehex skip "_"
 
-		138PBJ	Combine 137PBJ
+                138PBJ  Combine 137PBJ
                    a    remove delay1ms before monitor calls taqoz; jmp to _Enter_TAQOZ; remove _str_hdg
 
-Need to:	Cmd_G   use hubset ##$1000_0000 for FC000  +delay1ms           (done)
-			Taqoz to monitor needs to shutdown cogs
-			Monitor to taqoz calls entry_taqoz and no 1ms delay    (done)
-			reset_booter ???                                        ????
-			Command9 needs to respect lmm_bufad not ##_HUBBUF ???
-			_HUBBUF use ROM (FC000 ???)                            (done)
-		Cmd_X	hex mode monitor/list option                           (done) "X"
-			remove heading                                         (done)
-			SD add write sector ???                                        no space!
-			monitor <cr> to repeat list                            (done)
-			<esc> on its own???
+Need to:        Cmd_G   use hubset ##$1000_0000 for FC000  +delay1ms           (done)
+                        Taqoz to monitor needs to shutdown cogs
+                        Monitor to taqoz calls entry_taqoz and no 1ms delay    (done)
+                        reset_booter ???                                        ????
+                        Command9 needs to respect lmm_bufad not ##_HUBBUF ???
+                        _HUBBUF use ROM (FC000 ???)                            (done)
+                Cmd_X   hex mode monitor/list option                           (done) "X"
+                        remove heading                                         (done)
+                        SD add write sector ???                                        no space!
+                        monitor <cr> to repeat list                            (done)
+                        <esc> on its own???
 '' RR20180520   138b    command8 reply1=05 missing wz
 ''                      LL command replaces X                                  (done)
 ''                 c    add write_sector, command24, writeblock                 not verified!!
@@ -82,8 +82,15 @@ Need to:	Cmd_G   use hubset ##$1000_0000 for FC000  +delay1ms           (done)
 '' RR20180526   140i    proposed final SD & Monitor
 ''                 k    fix SD timeout for dead/missing SD card w pullup. CMD0=10ms@35MHz
 '' RR20180527  v141     proposed final SD & Monitor
-'' PBJ20180527		Added SD and FAT32 routines
+'' PBJ20180527          Added SD and FAT32 routines
 **************************************************************** }}
+'' RR20190215  v33_01a  ROM_Booter_v33_01a.spin - tweek SD Booter
+'' RR20190216        b  force release of SD-DO pin (& tweek to make space)
+'' RR20190217        f  combine _SDcard_Init & _readMBR --> Init/CSD/CID/MBR/VOL/FSI/FAT etc
+'' PBJ
+'' RR20190219        h  remove SD_CS pull-up check for Start_SDcard (ROM booter)
+'                    i  fix timeout bug
+'                    j  use "G" for Prop2 silicon v2 (for Prop_Chk response)
 
 '
 '
@@ -119,8 +126,9 @@ CON
 '	ver		=	"B"		'DE2-115
 '	ver		=	"C"		'DE0-Nano / DE0-Nano Bare
 '	ver		=	"D"		'BeMicro-A2
-	ver		=	"E"		'Prop123-A7
+'	ver		=	"E"		'Prop123-A7
 '	ver		=	"F"		'Prop123-A9 / BeMicro-A9, 16 cogs, 12 smart pins
+	ver		=	"G"		'Prop2 Silicon v2
 
 	rx_pin		=	63		'pin serial receiver
 	tx_pin		=	62		'pin serial transmitter
@@ -792,14 +800,17 @@ lut_end
 
 CON
 '------------------------------------------------------------------------------------------------
-  _clockmax     = 200_000_000                ' max clock freq
-  _clockfreq    = 80_000_000
-  _clockfpga    = 20_000_000
+''  _clockmax     = 200_000_000                ' max clock freq
+''  _clockfreq    = 80_000_000
+''  _clockfpga    = 20_000_000
   _cpufreq      = rc_max
+  _1us          = _cpufreq / 1_000_000       ' 1us
+
   delay1s       = _cpufreq                   ' 1s  (xtal * pll)
   delay10ms     = _cpufreq / 100             ' 10ms
   delay1ms      = _cpufreq / 1_000           ' 1ms
-  delay5us      = _cpufreq / 200_000         ' 5us
+  delay5us      = (20_000_000 / 100_000 / 2) - 2        ' 5us @20MHz 100KHz (20MHz/100KHz/2-2=98)       ] {{ tweek }}
+
   _baud         = 115_200
   _bitper       = (_cpufreq / _baud) << 16 + 7            ' 115200 baud, 8 bits
   _txmode       = %0000_0000_000_0000000000000_01_11110_0 'async tx mode, output enabled for smart output
@@ -824,7 +835,7 @@ _TAQOZ_   =       $1B             ' <esc>   goto TAQOZ
 '               HUB ADDRESSES
 '------------------------------------------------------------------------------------------------
   _HUBROM       = $FC000                        ' ROM $FC000
-  _HUBBUF       = $FC000  	                ' overwrite Booter
+  _HUBBUF       = $FC000                        ' overwrite Booter
   _HUBBUFSIZE   = 80                            ' RxString default size for _HUBBUF
 '------------------------------------------------------------------------------------------------
 
@@ -844,7 +855,7 @@ bytescnt        res     1                       ' #bytes to send/recv
 bitscnt         res     1                       ' #bits to be shifted in/out
 ctr1            res     1
 timeout         res     1                       ' = starttime + delay
-spare           res     1
+_AA55           res     1                       ' used to store $AA55 to validate MBR/VOL/FSI
 skiprun         res     1                       ' 1= skip load/run mbr/vol & load/no-run fname
                                                 '\ 1=SDV1, 2=SDV2(byte address), 3=SDHC/SDV2(block address)
 blocksh         res     1                       '/ block shift 0/9 bits
@@ -988,29 +999,26 @@ DAT
 '+-----------------------------------------------------------------------------+
 
 '+-----------------------------------------------------------------------------+
-_Start_SDcard   call    #@_SDcard_Init                  ' initialise & read CSD/CID
-                mov     skiprun,          #0            ' load/run MBR/VOL code
-        if_e    call    #@_readMBR                      ' read MBR/VOL/FSI/FAT
+_Start_SDcard   mov     skiprun,          #0            ' load/run MBR/VOL code                         \ --tweek2--
+                call    #@_SDcard_Init0                 ' Init/CSD/CID/MBR/VOL/FSI/FAT (skiprun=0)      | --tweek2--
         if_e    call    #@_readDIR                      ' read directory for filenames
-''              mov     skiprun,          #0            ' load/run <file> (already 0)
+''              mov     skiprun,          #0            ' load/run <file>              (already 0)
         if_e    call    #@_readFILE                     ' read/load/run the file
+                call    #@_releaseDO                    ' /CS=1, send CLKs, tristate CS/CK/DI/DO        | --tweek2--
                 JMP     #try_serial                     ' failed: so go back and try serial
 '+-----------------------------------------------------------------------------+
-_Run_SDfile     call    #@_SDcard_Init                  ' initialise & read CSD/CID
-''              mov     skiprun,          #1            ' do not load/run MBR/VOL code
-        if_e    call    #@_readMBR1                     ' read MBR/VOL/FSI/FAT (don't run)
+_Run_SDfile     call    #@_SDcard_Init1                 ' Init/CSD/CID/MBR/VOL/FSI/FAT (skiprun=1)      | --tweek2--
         if_e    call    #@_searchDIR                    ' search dir for <fname>
-                mov     skiprun,          #0            ' load/run <file>
-        if_e    call    #@_readFILE                     ' read/load/run the file
+                mov     skiprun,          #0            ' load/run <file>              (skiprun=0)
+_Loadit                                                 '                                               \ {{ tweek }}
+        if_e    call    #@_readFILE                     ' read/load/[run] the file                      / {{ tweek }}
+                call    #@_releaseDO                    ' /CS=1, send CLKs, tristate CS/CK/DI/DO        | --tweek2--
                 RET                                     ' return "NZ" = failed, "Z" if loaded ok
 '+-----------------------------------------------------------------------------+
-_Load_SDfile    call    #@_SDcard_Init                  ' initialise & read CSD/CID
-''              mov     skiprun,          #1            ' do not load/run MBR/VOL code
-        if_e    call    #@_readMBR1                     ' read MBR/VOL/FSI/FAT (don't run)
+_Load_SDfile    call    #@_SDcard_Init1                 ' Init/CSD/CID/MBR/VOL/FSI/FAT (skiprun=1)      | --tweek2--
         if_e    call    #@_searchDIR                    ' search dir for <fname>
-''              mov     skiprun,          #1            ' do not load/run <file> (already 1)
-        if_e    call    #@_readFILE                     ' read/load the file
-                RET                                     ' return "NZ" = failed, "Z" if loaded ok
+''              mov     skiprun,          #1            ' load, do not run <file>      (already 1)
+                jmp     #@_Loadit                       ' if Z go read/load file                        ] {{ tweek }}
 '+-----------------------------------------------------------------------------+
 
 
@@ -1028,22 +1036,25 @@ _Load_SDfile    call    #@_SDcard_Init                  ' initialise & read CSD/
 '+-----------------------------------------------------------------------------+
 '+      Send >74 clocks with /CS=1 & DI=1 starting & ending with CLK=0         +
 '+-----------------------------------------------------------------------------+
-_SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
-                push    pa                              '\ save pa
-                mov     pa,     #sd_cs                  '| ensure we have an SD card
-                call    #@check_pullup                  '|   (pullup on cs)
-                pop     pa                              '| restore pa
-        if_nc   jmp     #@_fail '_pullup                '/
+_SDcard_Init1   mov     skiprun,          #1            ' do not load/run MBR/VOL code                  ] --tweek2--
+                drvl    #sd_cs                          '\ ensure we have an SD card                    \ {{ tweek }}
+                waitx   #30*1                           '| wait >1us                                    |
+                fltl    #sd_cs                          '| /CS=tristate                                 |
+                waitx   #30*5                           '| wait >5us                                    |
+                testp   #sd_cs                      wc  '| /CS=1? pullup?                               /
+        if_nc   jmp     #@_fail_pullup                  '/
 
+_SDcard_Init0   mov     _hubdata,         #hubdata      ' init hub data ptr=$0                          ] --tweek-h--
                 drvh    #sd_cs                          ' cs=1 & output
                 drvl    #sd_ck                          ' ck=0 & output
                 drvh    #sd_di                          ' di=1 & output
 
-                mov     ctr1,             #(96*2)
-.count          waitx   ##delay5us                      '\ 5us+5us (ie 100KHz)
-                outnot  #sd_ck                          '| CLK=0-->1-->0
-                djnz    ctr1,             #.count       '/
-                waitx   ##delay5us                      '  CLK=0 (idle) & /CS=1
+                rep     @.rep,#(96*2)                   '                                               \ {{ tweek }}
+                waitx   #delay5us                       '\ 5us @20MHz 100KHz (20MHz/100KHz/2-2=98)      |
+                outnot  #sd_ck                          '/ CLK=0-->1-->0                                |
+.rep                                                    '                                               |
+                waitx   #delay5us                       '  CLK=0 (idle) & /CS=1                         /
+
 '+-----------------------------------------------------------------------------+
 '+ Software Reset:                                                             +
 '+      CMD0,  PAR=$0,        CRC=$95, REPLY=R1($01)                           +
@@ -1061,9 +1072,9 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
                                                         '\ $01(idle): SD/MMC, not fully validated
   if_nc         jmp     #.Command8                      '/ $00(good): (dane card response)
 '+-----------------------------------------------------------------------------+
-                waitx   ##delay5us                      ' delay 5us
+                waitx   #delay5us                       ' delay 5us @20MHz                              ] {{ tweek }}
                 djnz    ctr1,             #.again0      ' n: try again?
-                jmp     #@_fail '00                     '
+                jmp     #@_fail00                       '
 '+=============================================================================+
 
 ' we know we now have an SD/MMC card but its not fully validated yet...
@@ -1081,11 +1092,11 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
 .idle           and     reply,            ##$FFF        '\
                 cmp     reply,            #$1AA     wz  '/ R7[11:0]=$1AA ?
                 mov     cmdpar2,          ##$40000000   ' preset for SDV2
-  if_ne         jmp     #@_fail '98                     ' n: unknown R7
+  if_ne         jmp     #@_fail98                       ' n: unknown R7
                 jmp     #.Command55                     ' y: CMD55+ACMD41($4000_0000)
 
 .illegal        cmp     replyR1,          #$05      wz  ' $05(illegal cmd) ?
-  if_ne         jmp     #@_fail '08                     ' <>$01/$05 (not idle/illegal)
+  if_ne         jmp     #@_fail08                       ' <>$01/$05 (not idle/illegal)
                 mov     cmdpar2,          #0            ' try SDV1
                                                         ' CMD55+ACMD41($0) fall thru
 '+-----------------------------------------------------------------------------+
@@ -1097,7 +1108,7 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
 '+-----------------------------------------------------------------------------+
                 call    #@_cmdRZA41       ' /CS=0, send cmd, recv R1, /CS=0(ena)
 '+-----------------------------------------------------------------------------+
-  if_c_or_z     jmp     #@_fail '55                     ' <>$01 (not idle)
+  if_c_or_z     jmp     #@_fail55                       ' <>$01 (not idle)
                                                         '              fall thru
 '+-----------------------------------------------------------------------------+
 '+ Check SDV1/SDV2:  (follows CMD55)                                           +
@@ -1110,7 +1121,7 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
                 call    #@_cmdR1          ' /CS=0, send cmd, recv R1, /CS=1
 '+-----------------------------------------------------------------------------+
   if_nc_and_nz  jmp     #.Command55                     '  =$01(busy): CMD55+CMD41 again
-  if_c          jmp     #@_fail '41                     ' <>$00/$01: error
+  if_c          jmp     #@_fail41                       ' <>$00/$01: error
 
                 cmp     cmdpar2,          #0        wz  ' SDV1 ?
         if_z    mov     blocksh,          #9            ' y: #1 SDV1(byte address)
@@ -1125,7 +1136,7 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
 '+-----------------------------------------------------------------------------+
                 call    #@_cmdR1R3        ' /CS=0, send cmd, recv R1+R3, /CS=1
 '+-----------------------------------------------------------------------------+
-  if_c_or_nz    jmp     #@_fail '58                     ' <>$00(good): error
+  if_c_or_nz    jmp     #@_fail58                       ' <>$00(good): error
                 testbn  reply,            #30       wz  ' bit30=CCS=1? $40000000?
         if_z    mov     blocksh,          #9            ' n: #2 SDV2(byte address)
         if_nz   mov     blocksh,          #0            ' y: #3 SDHC/SDV2(block address)
@@ -1141,7 +1152,7 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
                 call    #@_cmdR1          ' /CS=0, send cmd, recv R1, /CS=1
 '+-----------------------------------------------------------------------------+
   if_nc_and_nz  jmp     #.Command16                     '  =$01(idle): again
-  if_c_or_nz    jmp     #@_fail '16                     ' <>$00(good): error
+  if_c_or_nz    jmp     #@_fail16                       ' <>$00(good): error
 '+-----------------------------------------------------------------------------+
 .Command9x      mov     _bufad,           _hubdata      ' where to store data
                 mov     bufad,            _bufad        ' where to store CSD/CID
@@ -1151,17 +1162,18 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
 '+-----------------------------------------------------------------------------+
 .Command9       mov     cmdout,           #CMD9         ' read CSD register
                 call    #@_readREG                      '
+        if_nz   jmp     #@_fail09                       ' "NZ" = failed                                 ] --tweek2--
 '+-----------------------------------------------------------------------------+
 '+ Read CID register (16 bytes):                                               +
 '+      CMD10, PAR=$0,        CRC=$xx, REPLY=R1($00)                           +
 '+-----------------------------------------------------------------------------+
 .Command10      mov     cmdout,           #CMD10        ' read CID register
                 call    #@_readREG                      '
+        if_nz   jmp     #@_fail10                       ' "NZ" = failed                                 ] --tweek2--
 '+-----------------------------------------------------------------------------+
-        _RET_   MODZ    _set                      wz    ' "Z" = success
-'+=============================================================================+
+                                                        '              fall thru
 
-'+-------[ SD: Read MBR/VBR/FSI/FAT ]------------------------------------------+ <--- SD: read mbr/vol/fsi/fat --->
+'+-------[ SD: Read MBR/VOL/FSI/FAT ]------------------------------------------+ <--- SD: read mbr/vol/fsi/fat --->
 '+ On Entry:                                                                   +
 '+      skiprun:        #0 = load/run boot code if found on MBR/VOL            +
 '+                      #1 = do not load/run boot code on MBR/VOL              +
@@ -1175,8 +1187,7 @@ _SDcard_Init    mov     _hubdata,         #hubdata      ' init hub data ptr=$0
 '+-----------------------------------------------------------------------------+
 '+ Read MBR/VBR (Sector 0):                                                    +
 '+-----------------------------------------------------------------------------+
-_readMBR1       mov     skiprun,          #1            ' do not load/run MBR/VOL code
-_readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
+._readMBR       mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
                 call    #@_readSECTOR                   ' read sector
                 skip    skiprun                         ' skips next instr if #1
                 call    #@_validateCSUM                 ' valid -> load & run
@@ -1192,19 +1203,19 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
 ._validateMBR     mov     bufad,            _bufad        ' MBR hub addr
                   add     bufad,            #$1BE         ' offset to PTN0 table
                   rdbyte  reply,            bufad         ' ptn_state
-                  and     reply,            #$7F
-                  cmp     reply,            #0        wz  ' $00/80? inactive/active
-          if_ne   jmp     #@_fail '_mbr                   '
+                  and     reply,            #$7F      wz  ' $00/80? inactive/active                     ] {{ tweek }}
+          if_ne   jmp     #@_fail_mbr                     '
                   add     bufad,            #$4           ' offset to ptn_type
                   rdbyte  reply,            bufad         ' ptn_type
                   cmp     reply,            #$0C      wz  ' $0C=FAT32(LBA)
-          if_ne   cmp     reply,            #$0B      wz  ' $0B=FAT32(<=2TB)
-  ''''    if_ne   cmp     reply,            #$07      wz  ' $07=exFAT             Do not allow!!!
-          if_ne   jmp     #@_fail '_mbr                   '
+          if_ne   cmp     reply,            #$0B      wz  ' $0B=FAT32(CHS)
+  ''''    if_ne   cmp     reply,            #$07      wz  ' $07=exFAT/NTFS        Do not allow!!!
+          if_ne   jmp     #@_fail_mbr                     '
                   add     bufad,         #($1FE-$1BE-$4)  ' offset to $55AA signature
                   rdword  reply,            bufad         ' read
-                  cmp     reply,            ##$AA_55  wz  ' we read it reversed!
-          if_ne   jmp     #@_fail '_mbr                   '
+                  mov     _AA55,            ##$AA_55      ' initialise (reversed)                       \ {{ tweek }}
+                  cmp     reply,            _AA55     wz  ' we read it reversed!                        / {{ tweek }}
+          if_ne   jmp     #@_fail_mbr                     '
 
                   mov     bufad,            _bufad        ' MBR hub addr
                   add     bufad,            #$1BE         ' offset to PTN0 table
@@ -1248,7 +1259,7 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
                   add     bufad,            #$0B          '\ offset to bytes/sector
                   rdword  reply,            bufad         '| read
                   cmp     reply,            ##512     wz  '|
-          if_ne   jmp     #@_fail '_vol                   '/
+          if_ne   jmp     #@_fail_vol                     '/
 
                   add     bufad,            #($0D-$0B)    ' offset to #Sectors/Cluster
                   rdbyte  clustersh,        bufad         '\ calc as shift left 'n'
@@ -1261,7 +1272,7 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
                   add     bufad,            #($10-$0E)    '\ offset to #nooffats
                   rdbyte  reply,            bufad         '| read
                   cmp     reply,            #2        wz  '| $02   PTN0NFATS
-          if_ne   jmp     #@_fail '_vol                   '/
+          if_ne   jmp     #@_fail_vol                     '/
 
                   add     bufad,            #($24-$10)    ' offset to #Sectors/FAT
                   rdlong  dir_begin,        bufad         '\ start of DATA (DIR table)
@@ -1274,8 +1285,8 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
 
                   add     bufad,            #($1FE-$30)   ' offset to $55AA signature
                   rdword  reply,            bufad         ' read
-                  cmp     reply,            ##$AA_55  wz  ' we read it reversed!
-          if_ne   jmp     #@_fail '_vol                   '
+                  cmp     reply,            _AA55     wz  ' we read it reversed!                        ] {{ tweek }}
+          if_ne   jmp     #@_fail_vol                     '
   '+-----------------------------------------------------------------------------+
 
 '+-----------------------------------------------------------------------------+
@@ -1285,7 +1296,7 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
                 call    #@_readSECTOR                   ' read sector
   '+-----------------------------------------------------------------------------+
   '+ Validate FSI...                                                             +
-  '+      verify  +$000[4] = "RRaR" = signature                                  +
+  '+      verify  +$000[4] = "RRaA" = signature                                  +
   '+      verify  +$1E4[4] = "rrAa" = signature                                  +
   '+      verify  +$1FE[2] = $55AA  = signature                                  +
   '+-----------------------------------------------------------------------------+
@@ -1297,8 +1308,8 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
           if_e    cmp     reply,          ##$61417272 wz  ' "rrAa" signature (reversed)
                   add     bufad,            #($1FE-$1E4)  ' offset to signature
                   rdword  reply,            bufad         ' read
-          if_e    cmp     reply,            ##$AA_55  wz  ' $55AA  signature (reversed)
-          if_ne   jmp     #@_fail '_fsi                   '
+          if_e    cmp     reply,            _AA55     wz  ' we read it reversed!                        ] {{ tweek }}
+          if_ne   jmp     #@_fail_fsi                     '
   '+-----------------------------------------------------------------------------+
 
 '+-----------------------------------------------------------------------------+
@@ -1311,6 +1322,21 @@ _readMBR        mov     _blocknr,         #mbr_begin    ' VBR/MBR = SECTOR 0
   '+       nothing to validate                                                   +
   '+-----------------------------------------------------------------------------+
         _RET_   MODZ    _set                      wz    ' "Z" = success
+'+=============================================================================+
+_fail_pullup
+_fail00
+_fail98
+_fail08
+_fail55
+_fail41
+_fail58
+_fail16
+_fail09
+_fail10
+_fail_mbr
+_fail_vol
+_fail_fsi
+        _RET_   MODCZ   _set,_clr                   wcz ' C & NZ = failed                               ] --tweek2--
 '+=============================================================================+
 
 '+-----------------------------------------------------------------------------+
@@ -1359,8 +1385,7 @@ _searchDIR      and     fname+2,          ##$00FFFFFF   ' 12th char must be $00
 .walk_dir         mov     _entries,         #16           ' 16*32byte file entries
                   mov     bufad,            _bufad        ' dir hub locn
   ' scan this sector for filename entry...
-.scan             rdlong  reply,            bufad         '\ check this entry
-                  cmp     reply,            #0        wz  '|  $0 = empty?
+.scan             rdlong  reply,            bufad     wz  '\ check this entry, $0=empty                 ] {{ tweek }}
           if_ne   jmp     #.check                         '|  n:
         _RET_   MODZ      _clr                        wz  '/ return "NZ" = not found
 
@@ -1443,16 +1468,17 @@ _readFILE       mov     _blocknr,         dat_begin     ' DAT SECTOR#
         if_e    RET                                     ' return "Z" = successful load
                                                         ' else fall thru & run
 '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-' load Cog & jmp #$000
-._success       setq    #cog_len-1                      ' length -1
-                rdlong  cog_start0,       _hubdata      ' copy loaded code into cog
-                jmp     #$0                             ' execute loaded cog code
+                                                        ' <-- NZ: load Cog 496 longs & jmp #$000        \ {{ tweek }}
+_success80                                              ' <-- Z:  load cog 128 longs & jmp #$020        |
+                call    #@_releaseDO                    ' /CS=1, send CLKs, tristate CS/CK/DI/DO        |
+        if_ne   mov     reply,            #cog_len-1    ' set to copy whole cog (496 longs)             |
+        if_e    mov     reply,            #cog_len80-1  ' set to copy 512 bytes (128 longs)             |
+                setq    reply                           ' length -1                                     |
+                rdlong  cog_start0,       _hubdata      ' copy loaded code into cog                     |
+        if_ne   jmp     #$0                             ' NZ: execute loaded cog code                   |
+                jmp     #$020                           ' Z:  execute loaded cog code from $080+        /
 '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-' load cog & jmp #$020
-_success80      setq    #cog_len80-1                    ' length -1
-                rdlong  cog_start0,       _hubdata      ' copy loaded code into cog
-                jmp     #$020                           ' execute loaded cog code from $080+
-'+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 
 '+-----------------------------------------------------------------------------+
@@ -1463,18 +1489,18 @@ _readnxtSLOT    add     _bufad,           ##512         ' next data slot
 
 _readSECTOR     mov     blocknr,          _blocknr      ' sector#
                 mov     bufad,            _bufad        ' where to store data
-   '+-----------------------------------------------------------------------------+
-   '+ Read Block/Sector:  (512 bytes)                                             +
-   '+      CMD17, PAR=blocknr,   CRC=$xx, REPLY=R1($??) +n*$FF +($FE+block+CRC16) +
-   '+-----------------------------------------------------------------------------+
-.Command17         mov     bytescnt,         ##512         ' read block (no. bytes)
-                   mov     cmdout,           #CMD17        '
-                   mov     cmdpar,           blocknr       '
-                   shl     cmdpar,           blocksh       ' <<0 or <<9
-   '+-----------------------------------------------------------------------------+
-                   call    #@_readBLOCK                    ' read 512 bytes
-   '+-----------------------------------------------------------------------------+
-                RET                                      ' "Z" = success
+'+-----------------------------------------------------------------------------+
+'+ Read Block/Sector:  (512 bytes)                                             +
+'+      CMD17, PAR=blocknr,   CRC=$xx, REPLY=R1($??) +n*$FF +($FE+block+CRC16) +
+'+-----------------------------------------------------------------------------+
+.Command17      mov     bytescnt,         ##512         ' read block (no. bytes)
+                mov     cmdout,           #CMD17        '
+                mov     cmdpar,           blocknr       '
+                shl     cmdpar,           blocksh       ' <<0 or <<9
+'+-----------------------------------------------------------------------------+
+                call    #@_readBLOCK                    ' read 512 bytes
+'+-----------------------------------------------------------------------------+
+                RET                                     ' "Z"=success, "NZ"=failed
 '+=============================================================================+
 
 '+-----------------------------------------------------------------------------+
@@ -1490,11 +1516,11 @@ _readBLOCK                                              ' CMD17: PAR=sector, 512
                 add     timeout,          ##delay1s     '/
 '+-----------------------------------------------------------------------------+
                 call    #@_cmdRZtoken     ' /CS=0, send cmd, recv R1, /CS=0(ena)
-        if_nz   jmp     #@_fail '17                        ' <>$00(good): error
+        if_nz   RET                                     '<>$00=error="NZ"=failed                        ] --tweek2--
 '+-----------------------------------------------------------------------------+
                 call    #@_getreply                     ' n*$FF+$FE
                 cmp     reply,            #$FE      wz  ' $FE=valid Data Token
-        if_nz   jmp     #@_fail '97                        '
+        if_nz   RET                                     '<>$FE=error="NZ"=failed                        ] --tweek2--
 '+-----------------------------------------------------------------------------+
 .readbyte       call    #@_recvbyte                     ' read data byte
                 wrbyte  reply,            bufad         ' save byte
@@ -1549,10 +1575,10 @@ _getreply       call    #@_recvbyte                     ' recv R1 byte
 
 ' timeout set in CMD0(for CMD0,8,55,A41,58,16) and CMD9,10,17(readblock)
                 getct   replyR1                         '\ timeout ?
-                cmp     replyR1,          timeout   wc  '| c if < timeout
-        if_c    jmp     #@_getreply                     '| n: try again
-                jmp     #@_fail '90                     '/ timeout:
-
+                cmpm    timeout,          replyR1   wc  '| c if timeout < replyR1                       \ --tweek4--
+        if_nc   jmp     #@_getreply                     '| n: try again                                 /
+        _RET_   MODCZ   _set,_clr                   wcz '/ timeout C & NZ = fail                        ] --tweek2--
+'+=============================================================================+
 .doneR1         mov     replyR1,          reply         ' save R1/Token reply
 '+-----------------------------------------------------------------------------+
                 cmp     cmdout,           #CMD8     wz
@@ -1592,9 +1618,16 @@ _sendrecv       mov     reply,            #0            ' clear reply
         _RET_   outl    #sd_ck                          ' CLK=0 on exit
 '+=============================================================================+
 
-'+-----------------------------------------------------------------------------+
-_fail   _RET_   MODCZ   _set,_clr                   wcz ' C & NZ = fail
-'+=============================================================================+
+'+-----------------------------------------------------------------------------+                        \ {{ tweek }}
+'+      /CS=1, Release SD Card DO pin, tristate SD CS/CK/DI/DO                 +                        |
+'+-----------------------------------------------------------------------------+                        |
+_releaseDO      outh    #sd_cs                          ' /CS=1                                         |
+                call    #@_sendFF                       ' 8 CLKs                                        |
+                andn    dirb,             ##($F<<26)    ' tristate CS/CK/DI/DO                          |
+                ret                                 wcz ' restore flags                                 |
+'+=============================================================================+                        /
+spare           long    0                               ' keep here to make monitor/debugger compile to same location as P2-ES
+
 
 ''%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ''%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1610,11 +1643,11 @@ CON
 ''-----------------------------------------------------------------------------------------------
 ''              LMM DEBUGGER - SUPPORTED COMMANDS
 ''-----------------------------------------------------------------------------------------------
-''  xxxxxx - xx xx xx xx ... <cr>  DOWNLOAD:  to cog/lut/hub {addr1} following {byte(s)}
-''  xxxxxx [.xxxxxx] L <cr>        LIST:      from cog/lut/hub {addr1} to < {addr2}
+''  xxxxxx : xx xx xx xx ... <cr>  DOWNLOAD:  to cog/lut/hub {addr1} following {byte(s)}
+''  xxxxxx - [xxxxxx] [L] <cr>     LIST:      from cog/lut/hub {addr1} to < {addr2}, L=longs
 ''  xxxxxx G <cr>                  GOTO:      to cog/lut/hub {addr1}
 ''  Q <cr>                         QUIT:      Quit Rom Monitor and return to the User Program
-''  Rffffffffxxx<cr>               RUN:       Run file from SD
+''  Rffffffffxxx<cr>               RUN:       Run file from SD (case sensitive)
 ''  <esc><cr>                      TAQOZ:     goto TAQOZ
 ''-----------------------------------------------------------------------------------------------
 ''              LMM DEBUGGER - CALL Modes...(not all modes supported)
@@ -1757,7 +1790,6 @@ _HubRx                                                  '                       
 ''            CALL      #@_HubHex                       '                       < call: display hex >
 '' On Return:
 ''      lmm_f = -same-                                  ' mode:     (unchanged)
-''      lmm_x = -same-                                  ' char(s):  (unchanged)
 ''--------------------------------------------------------------------------------------------------
 _HubHexRev      movbyts lmm_x, #%%0123                  ' reversed
 _HubHex8        mov     lmm_f, #_HEX_+0                 ' 8 digits
@@ -1886,7 +1918,7 @@ _HubListLoop
 ' read a long from cog/lut/hub into lmm_x pointed to by lmm_p and inc lmm_p
 .asciiloop    CALL      #_RdLongCogHub                  '                       < call: read cog/hub long >
                 test    lmm_lf, #_LONG_         wz      ' long mode?
-        if_nz	movbyts lmm_x,  #%%0123                 ' y: reverse bytes
+        if_nz   movbyts lmm_x,  #%%0123                 ' y: reverse bytes
 ' convert 4 bytes to visible
                 mov     lmm_f, #4                       ' (lmm_f as temp byte counter)
 .convert        mov     lmm_w, lmm_x                    ' duplicate
@@ -2034,14 +2066,14 @@ _Cmd_What       mov     lmm_x, ##("?"+_CR_<<8+_LF_<<16) ' unknown
 '-------------------------------------------------------
 _Cmd_CR       ' repeat previous LIST command
                 mov     lmm_w, lmm_lf                   ' check valid list saved
-                and	lmm_w, #_MODE                   '
-                cmp	lmm_w, #_LIST           wz      '
+                and     lmm_w, #_MODE                   '
+                cmp     lmm_w, #_LIST           wz      '
         if_ne   jmp     #@_Cmd_What                     ' invalid
-                mov	lmm_f, lmm_lf                   '\ restore last saved list params
-                mov	lmm_p, lmm_lp                   '|
-                mov	lmm_p2, lmm_lp2                 '/
+                mov     lmm_f, lmm_lf                   '\ restore last saved list params
+                mov     lmm_p, lmm_lp                   '|
+                mov     lmm_p2, lmm_lp2                 '/
               CALL      #@_HubList                      '
-                jmp	#@_HubMonitor                   '
+                jmp     #@_HubMonitor                   '
 '-------------------------------------------------------
 ' LIST: get optional 2nd param: [yyyyyy]  {addr2} optionally followed by "L" (L=long)
 _Cmd_List
@@ -2074,7 +2106,7 @@ _Cmd_List
 _Cmd_G        ' xxxxxxG<cr>    GOSUB cog/lut/hub address
               POP       lmm_w                           ' pop stack
                 cmp     lmm_x, ##$FC000         wz      ' is it a ROM reboot?
-        if_z    waitx	##delay1ms			' allow char to get out
+        if_z    waitx   ##delay1ms                      ' allow char to get out
         if_z    hubset  ##$1000_0000                    ' y: reboot h/w
                 CALL    lmm_x                           ' call cog/lut/hub addr in lmm_x (not #lmm_x)
                 jmp     #@_HubMonitor                   '
@@ -2158,14 +2190,14 @@ _Download       mov     lmm_p2,           lmm_x         ' save download addr(hex
 
 .hub            cmp     lmm_c,            #3        wc  ' c if <3 chars (byte)
         if_c    wrbyte  lmm_x,            lmm_p2        ' write a byte to hub
-        if_c    add     lmm_p2, 	#1            ' PTR++ (+1)
+        if_c    add     lmm_p2,         #1            ' PTR++ (+1)
         if_c    jmp     #.loop
                 cmp     lmm_c,            #5        wc  ' c if <5 chars (word)
         if_c    wrword  lmm_x,            lmm_p2        ' write a word to hub
-        if_c    add     lmm_p2, 	#2            ' PTR++ (+2)
+        if_c    add     lmm_p2,         #2            ' PTR++ (+2)
         if_c    jmp     #.loop
-                wrlong  lmm_x,  	lmm_p2        ' write a long to hub
-                add     lmm_p2, 	#4            ' PTR++ (+4)
+                wrlong  lmm_x,          lmm_p2        ' write a long to hub
+                add     lmm_p2,         #4            ' PTR++ (+4)
                 jmp     #.loop
 ''===============================================================================================
 
@@ -2283,10 +2315,9 @@ _ParseFname     mov     lmm_c,  #4                      ' 4 chars per call
         _RET_   djnz    lmm_c,  #.loop                  ' <4 chars
 ''===============================================================================================
 
-_str_vers       byte    "P2-MONITOR V1.0",$0D,$0A,0
+_str_vers       byte    "P2-MONITOR V1.3",$0D,$0A,0
 ''===============================================================================================
                 alignl
-
 
 '*******************************************************************************
 '*                                                                             *
@@ -2298,36 +2329,38 @@ _str_vers       byte    "P2-MONITOR V1.0",$0D,$0A,0
 
 CON
         '''''''''''''' SERIAL BUFFERS ''''''''''
-	rxbuffers       = $180
-	rxrd		= $0C
-	rxwr		= $0E
+        rxbuffers       = $180
+        rxrd            = $0C
+        rxwr            = $0E
+''	lastkey		= $10
         rxsize          = $0E80
 
         codeorg         = $1000
         ramdict         = $B400                 ' dictionary can be moved elsewhere at runtime'
 
-	sys_clk         = 80_000_000
-        nscnt           = 100000/(sys_clk/1000000)
+'        sys_clk         = 23_000_000		' RCFAST
+        sys_clk         = 20_000_000		' FPGA
+'        nscnt           = 100000/(sys_clk/1000000)
 
-	''        baud_rate       = 115200
-	''        baudval         = (sys_clk/baud_rate)<<16
+        ''        baud_rate       = 115200
+        ''        baudval         = (sys_clk/baud_rate)<<16
 
 
 
 ' 180524 - implement 10-bit short literals and 9-bit task register addresses for compact fat32 variables'
 
-	w               =       $F800           ' wordcode offset for 10-bit literals
+        w               =       $F800           ' wordcode offset for 10-bit literals
         _IF             =       $FC00           ' IF relative forward branch 0 to 127 words
         _UNTIL          =       $FC80           ' UNTIL relative reverse branch 0 to 127 words
-	opunused	= 	$FD00
-	rg		= 	$FE00          ' task/cog register 8-bit offset
-	fat		=	$FF00
-	registers       = 	rg                         'Variables used by kernel + general-purpose
-        tasks           = 	rg+$D0    	' 2 longs/task * 8 cogs
+        opunused        =       $FD00
+        rg              =       $FE00          ' task/cog register 8-bit offset
+        fat             =       $FF00
+        registers       =       rg                         'Variables used by kernel + general-purpose
+        tasks           =       rg+$D0          ' 2 longs/task * 8 cogs
 
         SKIPZ           =       _IF+01
 
-	ex              =       1               ' EXITs (jump to hub wordcode instead of call)
+        ex              =       1               ' EXITs (jump to hub wordcode instead of call)
 
         _FALSE          =       w+0
         _0              =       w+0
@@ -2348,10 +2381,10 @@ CON
 
 CON
 ' Offsets in LUT for stacks
-	datstk          = $000
-	brastk          = $020
-	lpstk           = $030
-	retstk          = $040
+        datstk          = $000
+        brastk          = $020
+        lpstk           = $030
+        retstk          = $040
 
 ' The LUT is essentially free from $80 onwards
 
@@ -2380,12 +2413,12 @@ defining        = $80
 
 CON
 
-flashpins	= spi_cs<<24+spi_do<<16+spi_di<<8+spi_ck
-sdpins		= sd_cs<<24+sd_do<<16+sd_di<<8+sd_ck
+flashpins       = spi_cs<<24+spi_do<<16+spi_di<<8+spi_ck
+sdpins          = sd_cs<<24+sd_do<<16+sd_di<<8+sd_ck
 
-WW		= $FFFF
+WW              = $FFFF
 
-cntm    	= $1F           ' mask for nfa count byte to mask off atrs'
+cntm            = $1F           ' mask for nfa count byte to mask off atrs'
 
 ' Dictionary header attribute flags
 pubatr  = 0
@@ -2408,7 +2441,7 @@ pr      = priatr<<6           'private (can be removed from the dictionary)
 DAT
 
                 orgh
-		alignw
+                alignw
 
 ''-------[ Start TAQOZ ]----------------------------------------------------- <--- start TAQOZr --->
 _Start_TAQOZ    call    #@_reset_booter                 ' reset the booters interrupts and autobaud
@@ -2424,8 +2457,8 @@ _Enter_TAQOZ
                 wrlong  fx,PTRB++
 
 
-		'mov	fx,##_ReEnter_TAQOZ & WW
-		'wrlong	fx,#4
+                'mov    fx,##_ReEnter_TAQOZ & WW
+                'wrlong fx,#4
 _ReEnter_TAQOZ
 {
                 coginit #7,##@RESET
@@ -2439,11 +2472,11 @@ _ReEnter_TAQOZ
                 coginit #0,##@RESET
 
 dat
-		orgh
+                orgh
 
-taqoz_version    	long    1_0
-taqoz_time		long	180530_0135
-taqoz_name		byte	"142 "	' use exactly 4 characters = 1 long'
+taqoz_version           long    1_1
+taqoz_time              long    190219_1900
+taqoz_name              byte    "v33h"  ' use exactly 4 characters = 1 long'
 
 
                 orgh
@@ -2456,7 +2489,7 @@ EMIT    word    rg+linenum,WFETCH
         word    rg+uemit,QJMP
         word    CONEMIT,EXIT
 
-SPACES3	word	_3
+SPACES3 word    _3
 SPACES  word    _BL,SWAP
 '
 ' EMITS ( ch cnt -- )
@@ -2467,7 +2500,7 @@ QEMIT
         word    w+echo,CHKFLG,SKIPZ,EMIT+ex
 DROPEX  word    DROP,EXIT
 
-' mov	txpin,#tx_pin
+' mov   txpin,#tx_pin
 _CON    word    rg+uemit,CLRL,EXIT
 ' direct output to a smartpin (after init)
 _COM    word    _PIN,_WORD,WRACK
@@ -2498,7 +2531,7 @@ AEMIT   word    QCHAR,_ZEQ
         word    _IF+02,DROP
 DOT     word    w+".",EMIT+ex
 SCORE   word    w+"_",EMIT+ex
-PRTTICK	word	w+"'",EMIT+ex
+PRTTICK word    w+"'",EMIT+ex
 
 
 CHKFLG  word    rg+fflags,BITQ,EXIT
@@ -2542,15 +2575,7 @@ LINC    word    _1,SWAP,PLUSST,EXIT
 FETCHX  word    FETCH,EXIT
 
 ''''''''''''''''''' SMARTPIN MODES '''''''''''''''''
-
 {
-%AAAA_BBBB_FFF_PPPPPPPPPPPPP_TT_MMMMM_0
- %AAAA:    �� �A�� "! input selector
- %BBBB:    �� �B�� "! input selector
- %FFF:    �� �A�� "! and �� �B�� "! input logic/filtering (after �� �A�� "! and �� �B�� "! input selectors)
- %P..P:    low-level pin control (needs final silicon to fully operate)
- %TT:    pin DIR/OUT control (default = %00)
- %MMMMM:    00000   = smart pin off (default)
 ( * OUT signal overridden )
 
 00 100*  = pulse/cycle output
@@ -2559,46 +2584,60 @@ FETCHX  word    FETCH,EXIT
 00 111*  = NCO duty
 01 000*  = PWM triangle
 01 001*  = PWM sawtooth
+
+
 }
 
-MUTE    word    _ATPIN,_FLOAT,_0,_WRPIN,EXIT
+WRFNC	word	F,_SHL1,_WRPIN,L,EXIT
 
-MHZ     word    W1000,MUL16
-KHZ     word    W1000,MUL16
+MUTE    word	F,_0,_WRPIN,EXIT
+
+MHZ     word    w+1000,MUL16
+KHZ     word    w+1000,MUL16
 HZ      word    NCOCNT
 NCO     word    w+%01_00110
 ' ( Y X mode -- )       mode    prescaler  value
 ' SMART ( n mode -- )
-SETNCO  word    _SHL1,_ATPIN,LOW,_WRPIN,_1,_WXPIN,_WYPIN,EXIT
+SETNCO  word    WRFNC,_1,_WXPIN,_WYPINX+ex
 
 ' DUTY ( val -- ) $4E 100.1110
 DUTY    word    w+%01_00111,SETNCO+ex
 
 ' -1/2 /CLKHZ/20000     == HZCON
 ' NCOCNT ( freq -- ncocnt )     HZCON #10000 */ ;
-HZCON   word    CONL
-        long    536870
-NCOCNT  word    HZCON,_WORD,10000,MULDIV,EXIT
+' pub NCOCNT ( hz -- cntval )	CLKHZ 4 << SWAP U/ $10.0000.0000. ROT UM// DROP NIP ;
+
+'                      |<------ fudged this from a 4
+NCOCNT	word	CLKHZ,_4,_SHL,SWAP,UDIVIDE,_0,w+$10,ROT
+UMDIV	word	UMDIVMOD64,DROP,NIP,EXIT
+
+'' pub SETNCO ( val mode --)	WRFNC 1 WXPIN WYPIN ;
 
 ' BLINK ( pin -- )
 BLINK   word    _PIN,_2,HZ+ex
 
+
 '--- TRIANGLE PWM MODE
 ' PWM ( duty frame div -- )     @PIN LOW $50 WRPIN SWAP 16 << + WXPIN WYPIN ;
-PWM     word    w+$50
-PWM1    word    L,_WRPIN,SWAP,_SHL16,PLUS,_WXPIN,_WYPIN,EXIT
-SAW     word    w+$52,PWM1+ex
+PWM     word    w+$52
+PWM1    word    L,_WRPIN,SWAP,_SHL16,_OR,_WXPIN,_WYPINX+ex
+SAW     word    w+$50,PWM1+ex
 ' SAW ( duty frame div -- )     @PIN LOW $50 WRPIN SWAP 16 << + WXPIN WYPIN ;
 
 
-ns      word    _WORD,nscnt,UDIVIDE,EXIT
+ns	word	w+1000,MULTIPLY,_LONG
+	long	$D4A51000
+	word	w+$E8,CLKHZ,UMDIV,UDIVIDE,EXIT
+
 ' transistion mode
 ' PW ( width -- )
-PW      word    L,w+%01_00101_0,_WRPIN,_WXPIN,EXIT
+PW      word    L,w+%01_00101,WRFNC
+_WXPINX	word	_WXPIN,EXIT
 PULSE   word    _1
+_WYPINX
 PULSES  word    _WYPIN,EXIT
 ' HILO ( high low -- )
-HILO    word    L,w+%01_00100_0,_WRPIN,SWAP,OVERPLUS,SWAP,_SHL16,_OR,_WXPIN,EXIT
+HILO    word    w+%01_00100,WRFNC,SWAP,OVERPLUS,SWAP,_SHL16,_OR,_WXPINX+ex
 
 
 
@@ -2633,7 +2672,7 @@ SYNTX   word    w+$78
 
 
 {
-pub TX		WYPIN ;
+pub TX          WYPIN ;
 pub SERIAL ( pin -- )           PIN ' TX uemit W! ;
 
 }
@@ -2643,8 +2682,8 @@ pub SERIAL ( pin -- )           PIN ' TX uemit W! ;
 W1000000
         word    CONL
         long    1000000
-W1000   word    CONL
-        long    1000
+'W1000   word    CONL
+'        long    1000
 
 CLKHZ   word    CONL
         long    sys_clk
@@ -2654,8 +2693,8 @@ CLKMHZ  word    CONL
         long    sys_clk/1000000
 
 ' ADDRESS OF TAQOZ BACKUP/RESTORE IN FLASH'
-BRORG	word	CONL
-	long	$F0000
+BRORG   word    CONL
+        long    $F0000
 
 
 BUFFERS word    CONL
@@ -2678,7 +2717,7 @@ REBOOT  word    w+1,HUBSW+ex
 WE      word    w+2,HUBSW+ex
 WP      word    w+3
 HUBSW   word    w+28,_SHL
-HUBEX	word	_HUBSET,EXIT
+HUBEX   word    _HUBSET,EXIT
 
 ' 1=80MZ 2=40MHZ 3=20MHZ 4=10MHZ 5=5MHZ
 CLKDIV  word    _1,_MAX,w+$1FF,SWAP,_SHR,HUBEX+ex
@@ -2748,7 +2787,7 @@ Also as long as the first character and last character are valid (0..9,prefix,su
 11:59  11.59  #5_000_000
 }
 
-OVEQ	word	THIRD,_EQ,EXIT
+OVEQ    word    THIRD,_EQ,EXIT
 
 _NUMBER ' ( str -- value digits | false )
         word    rg+4,CLRL                                               ' REG0L = 0
@@ -2858,13 +2897,13 @@ QFNUM   'word   _TRUE,rg+wordbuf,DUP,STRLEN,ADO,IX,CFETCH,DECQ,_AND,LOOP,QDUP,IF
 ''' dumb compiler for literals - improve later - just needs to optimize the number of bytes needed
 LITCOMP ' ( n -- ) compile the literal according to size
         word    DUP,_SHR16,_IF+07
-        	' Compile long
+                ' Compile long
         word    w+_LONG,COMPW                               ' compile the _LONG instruction
         word    DUP,_SHR16,SWAP,COMPW,COMPW+ex                                  ' compile the long itself
-        	' Compile 2 bytes - 16bits
-.L1     word    DUP,W+10,_SHR,_IF+03			' 10 BIT LITERAL?'
-        word	w+_WORD,COMPW,COMPW+ex
-.L2     	' Compile short literal directly
+                ' Compile 2 bytes - 16bits
+.L1     word    DUP,W+10,_SHR,_IF+03                    ' 10 BIT LITERAL?'
+        word    w+_WORD,COMPW,COMPW+ex
+.L2             ' Compile short literal directly
         word    _WORD,w,PLUS,COMPW+ex
 
 
@@ -2873,7 +2912,7 @@ _BEGIN_ word    ATCODES,w+$BE
 '''
 ''' MARK ( addr tag -- tag&addr ) Merge tag and addr by shifting tag into hi word
 MARK    word    w+24,_SHL
-ORX	word	_OR,EXIT
+ORX     word    _OR,EXIT
 
 ' UNMARK        ( tag&addr -- addr tag )
 UNMARK  word    DUP,MINUS1,_SHR8,_AND,SWAP,w+24,_SHR,EXIT
@@ -2952,7 +2991,7 @@ STRST   word    OVER,STRLEN,INC,CMOVE,EXIT
 ' $= ( str1 str2 -- flg )
 STREQ   word    OVER,STRLEN,OVER,STRLEN,_EQ
         word    _IF+14,DUP,STRLEN,ADO
-	word	CFETCHINC,IX,CFETCH,_NEQ,_IF+03,DROP,_0,LEAVE,LOOP,_ZNE,EXIT
+        word    CFETCHINC,IX,CFETCH,_NEQ,_IF+03,DROP,_0,LEAVE,LOOP,_ZNE,EXIT
         word    DROP2,FALSE+ex
 
 
@@ -3031,7 +3070,7 @@ _NFATICK
 
 ' 03,D,U,P,CPAL,CPAH'
 ' CPA ( nfa -- cpa )
-NFACPA	word    CFETCHINC,w+cntm,_AND,PLUS,EXIT
+NFACPA  word    CFETCHINC,w+cntm,_AND,PLUS,EXIT
 
 
 ' ' <name>  ( -- pfa ) Find the address of the following word - zero if not found or its CFA/PFA
@@ -3046,7 +3085,7 @@ ATICK   word    TICK,LITCOMP+ex
 
 WALIGN   word   INC,_1,_ANDN,EXIT
 
-_ALIGNL	word	_4
+_ALIGNL word    _4
 ' ALIGN ( address align -- val00  )                                     1- SWAP OVER + SWAP ANDN ;
 _ALIGN  word    DEC,SWAP,OVERPLUS,SWAP,_ANDN,EXIT
 
@@ -3121,7 +3160,7 @@ PREDEF  word    w+preatr,SDEF+ex
 PRIDEF  word    w+priatr
 SDEF    word    NEWDEF
 ' SETATR ( code -- )
-SETATR  word  	_6,_SHL,ATNAMES,CFETCH,w+cntm,_AND,_OR,ATNAMES,CSTORE,EXIT
+SETATR  word    _6,_SHL,ATNAMES,CFETCH,w+cntm,_AND,_OR,ATNAMES,CSTORE,EXIT
 
 ' Update "here" pointer to point to current free position which "codes" pointer is now at
 ' Also unsmudge the headers tag
@@ -3199,7 +3238,7 @@ RCMOVE  word    ROT,OVERPLUS,DEC,ROT,THIRD,PLUS,DEC,ROT,pRCMOVE,EXIT
 
 { *** TIMING *** }
 
-secs    word    W1000,MUL16
+secs    word    w+1000,MUL16
 ' ms ( n -- ) Wait for n milliseconds
 ms      word    QDUP,ZEXIT,_LONG
         long    sys_clk/1000
@@ -3256,8 +3295,8 @@ SETDMP  word  RPOP,rg+dmm,_6,CMOVE,EXIT
 
 DUMP    word    rg+dmp,WFETCH,rg+dmp,CLRW,QDUP,SKIPZ,AJMP,DUMPB+ex
 
-DMPA	word	PRTADR,IX,_16,rg+dcnt,CLRC,EXIT
-DSPACE	word	SPACE,rg+dcnt,CINC,rg+dcnt,CFETCH,_3,_AND,IFEXIT,SPACE+ex
+DMPA    word    PRTADR,IX,_16,rg+dcnt,CLRC,EXIT
+DSPACE  word    SPACE,rg+dcnt,CINC,rg+dcnt,CFETCH,_3,_AND,IFEXIT,SPACE+ex
 { QUICK DUMP }
 QD      word    w+$20
 '' DUMP ( addr cnt -- ) Hex dump of hub RAM - }
@@ -3268,16 +3307,16 @@ DMPLP   word      DUMPASC
 RAM     word    rg+dmm,_8,ERASE,EXIT
 
 ' QUICK WORD DUMP '
-QW	word	w+$20
+QW      word    w+$20
 { DUMP as WORDs }
 DUMPW   word    ADO
         word      DMPA,ADO,IX,DWFETCH,PRTWORD,DSPACE,_2,PLOOP
-	word 	  DMPLP+ex
+        word      DMPLP+ex
 
 { DUMP as LONGs }
 DUMPL   word    ADO
         word      DMPA,ADO,IX,DFETCH,PRTLONG,DSPACE,_4,PLOOP
-	word 	  DMPLP+ex
+        word      DMPLP+ex
 
 { DUMP as ASCII WIDE }
 DUMPAW  word    w+128,DUMPS+ex
@@ -3289,10 +3328,10 @@ DUMPS   word    ROT2
         word      IX,OVER,ATYPE
         word    DUP,PLOOP,DROP
         word    RAM+ex
-ATYPE	word	ADO,IX,DCFETCH,AEMIT,LOOP,EXIT
+ATYPE   word    ADO,IX,DCFETCH,AEMIT,LOOP,EXIT
 
 PRTADR  word    CRLF,IX,DUP,_SHR16,DUP,_IF+03,DROP,PRTLONG,PRTCOL+ex,PRTHEX,PRTWORD
-PRTCOL	word	w+":",EMIT,SPACE+ex
+PRTCOL  word    w+":",EMIT,SPACE+ex
 
 DUMPASC word      SPACES3,PRTTICK,IX,_16,ADO,IX,DCFETCH,AEMIT,LOOP,PRTTICK+ex
 
@@ -3304,7 +3343,7 @@ COGSET  word    _WORD,COGLUT,WSTORE,_WORD,COGDUMP,rg+dmp,WSTOREX+ex
 COGDUMP
         word    ADO,IX,_7,_AND,_ZEQ,_IF+09,CRLF,SPACE,SPACE,IX,_SHR8,PRTHEX,IX,PRTBYTE,PRTCOL
 ''        word    IX,_3,_AND,SKIPNZ,SPACE
-	word	IX
+        word    IX
 COGLUT  word    COGFETCH,PRTLONG,DSPACE,LOOP,EXIT
 
 
@@ -3324,12 +3363,12 @@ DEBUG   word    PRTSTKS
         word    CRLF+ex
 
 
-PRTP	word    CRLF,PRTSTR
+PRTP    word    CRLF,PRTSTR
         byte    $0D,"P:",0
-	word	EXIT
+        word    EXIT
 lsio
 
-	word	PRTP
+        word    PRTP
         word    w+62,_0,DO,IX,w+10,DIVIDE,PRINT,LOOP
         word    PRTP
         word    w+62,_0,DO,IX,w+10,UMOD,PRINT,LOOP
@@ -3376,7 +3415,7 @@ RHASH   word    DROP,ATPAD,rg+double,CLRL,EXIT
 
 ' <D> ( d1 -- n1 ) ' Store high long of double for formating
 DNUM    word    rg+double
-STOREX	word	STORE,EXIT
+STOREX  word    STORE,EXIT
 
 
 ' . ( n -- ) Print the number off the stack
@@ -3389,7 +3428,7 @@ UPRT    word    LHASH,HASHS,RHASH
 
 ' PRINT$ ( adr -- ) Print the null or 8th bit terminated string - stops on any non-printable character
 PRINTSTR
-	word	DUP,INC,SWAP,DCFETCH,QDUP,_IF+02,EMIT,PRINTSTR+ex
+        word    DUP,INC,SWAP,DCFETCH,QDUP,_IF+02,EMIT,PRINTSTR+ex
 pstrxt  word    DROP,RAM+ex
 
 ' since printing a 32-bit binary number with formatting can be quite long, this one prints directly
@@ -3400,13 +3439,13 @@ PRTBIN  word    w+"%",EMIT,_BL,FOR,DUP,w+31,_SHR,w+"0",PLUS,EMIT,_SHL1,forNEXT,D
 
 
 {
-	.AS" Format string spec:
-	#       Convert one digit (default is decimal)
-	~       Toggle leading zero suppression
-	\       pad leading zeros with spaces
-	$|      Hexadecimal
-	*|      Convert all remaining digits
-	4|      Convert 4 digits
+        .AS" Format string spec:
+        #       Convert one digit (default is decimal)
+        ~       Toggle leading zero suppression
+        \       pad leading zeros with spaces
+        $|      Hexadecimal
+        *|      Convert all remaining digits
+        4|      Convert 4 digits
 }
 DZEQ    word    DUP2,_OR,_ZEQ,EXIT
 
@@ -3485,7 +3524,7 @@ SCRUB   word    ATHERE,rg+codes,STORE
 ''      restore end-of-line delimiter to a CR
         word    _13,rg+delim+1,CSTORE
 ''      print long line of dashes
-PRTDASH word    CR,w+"-",w+64,EMITS+ex
+PRTDASH word    CR,w+"-",w+79,EMITS+ex
 
 ' ( ch -- ) write a character into the next free position in the word buffer
 PUTCHAR word    rg+wordcnt,CFETCHINC,PLUS,CSTOREX+ex
@@ -3537,8 +3576,8 @@ ctrls
         word    _2,OVER,_EQ,_IF+06,DROP
         word    _0,w+$100,_SHL8
         word    DUMPB,FALX+ex
-'               ^Z^Z cold start
-        word    w+$1A,OVER,_EQ          '''rg,prevch+1,CFETCH,w+$1A,_EQ,_AND
+'               ^K  --- ^Z^Z cold start
+        word    w+$0B,OVER,_EQ          '''rg,prevch+1,CFETCH,w+$1A,_EQ,_AND
         word    _IF+03,DROP,COLDST,RESET        '''SCRUB,FALX+ex
 ignore2
         word    w+$1B,OVER,_EQ,_IF+03,DROP,SCRUB,TRUEX+ex                               ' ESC will cancel line
@@ -3601,11 +3640,11 @@ TASK    word    _3,_SHL,_WORD,tasks,PLUS,EXIT
 }
 
 IDLE    word    INITSTKS
-        word    ATID,_8,ERASE
+        word    ATID,_8,ERASE					' clear this cog's task registers
 idlp    word    _1,ATID,_3,PLUS,CPLUSST                         ' increment task+3 to indicate Tachyon running
-        word    w+10,ms                                         ' do nothing for a bit - saves power
+        'word    w+10,ms                                         ' do nothing for a bit - saves power (but not with P2)
         word    ATID,WFETCH                                     ' fetch cog's task variable
-        word    QDUP,_UNTIL+11                                  ' until it is non-zero
+        word    QDUP,_UNTIL+09                                  ' until it is non-zero
         word    ACALL                                           ' Execute
         word    ATID,CLRW                                       ' clear run address only if it has returned back to idle
         word    IDLE+ex
@@ -3641,27 +3680,27 @@ FIXDICT         ' Copy dictionary from ROM to area just before copied ROM in ban
         long    ramdict
         word    _WORD,enddict-romdict,CMOVE
 ''              initialize task registers
-	word	rg+0,w+$100,ERASE
+        word    rg+0,w+$100,ERASE
 ''              free memory                   backup
         word    _WORD,codeorg
         word    DUP,rg+here,STORE,rg+here-4,STORE
-	word	_word,endcode,DATORG
+        word    _word,endcode,DATORG
         word    _LONG
         long    ramdict
-	word    rg+names,STORE
+        word    rg+names,STORE
 ''        word    DUP,rg+names,STORE,rg+oldnames,STORE
 '               reset cold start
-XCOLD  	word    _CON,PRTSTR
+XCOLD   word    _CON,PRTSTR
         byte    "x",$0D,$0A,"  Cold start",0
-   	word    _WORD,$A55A,rg+cold,WSTOREX+ex
+        word    _WORD,$A55A,rg+cold,WSTOREX+ex
 
 
 { *** MAIN TERMINAL CONSOLE ***  }
 TERMINAL
         word    InitRP,INITSP                                           ' Init the internal stack and setup external stack space
         word    WP,w+50,ms                                                      ' a little startup delay (also wait for serial cog)
-	word	w+$10,w+$160,ERASE
-	''      performing a check for a saved session
+        word    w+$10,w+$160,ERASE
+        ''      performing a check for a saved session
         word    rg+cold,WFETCH,_WORD,$A55A,_NEQ,SKIPZ,COLDST
         word    _CON
         word    rg+keypoll,CLRW,rg+accept,CLRW
@@ -3669,10 +3708,7 @@ TERMINAL
         word    _1,rg+fflags,WSTORE
 
         ''      Show VERSION with optional CLS (default CR)
-        'word   w+3,PEN
-        word    CRLF
-        'word   REVERSE
-        word    PRTDASH,CRLF,PRTVER
+        word    CRLF,PRTDASH,CRLF,DECIMAL,PRTVER
 ''      word    _GETRND,rg+bootsig,STORE
 
         ''      ^A abort autostart with ^A
@@ -3680,15 +3716,13 @@ TERMINAL
         ''      check for an AUTORUN
         word    rg+autovec,WFETCH,QDUP,SKIPZ,ACALL
         ''      Set the rx buffer size
-.L0	word	DECIMAL
-        ''      echo on
+.L0     ''      echo on
         word    w+echo,rg+fflags,CSTORE
         ''      default delimiter is a space character
         word    _BL,rg+delim,CSTORE
-''	word	MOUNT
-''	word	w+"!",w+rxbuffers,CSTORE
+
         '
-CONSOLE word    InitRP,SCRUB,CRLF       '',PLAIN
+CONSOLE word    InitRP,SCRUB,CRLF
         ''      Stop compilation
 CS1     word    w+defining,CLRFLG
         '
@@ -3738,8 +3772,9 @@ compword
 chkeol  word    rg+delim+1,CFETCH,_13,_EQ
         word    DUP,_IF+(eol01-.L0)/2
         ''      Yes, put a space between any user input and response
-.L0     word    rg+accept,WFETCH,SKIPNZ,SPACE
-''      word    PROMPT
+.L0     word    rg+accept,WFETCH,QDUP,_IF+02,ACALL,eol01+ex
+	word	PRTSTR
+	byte	" --- ",0
         ''      and are we in a definition or interactive?
 eol01   word    DUP,w+defining,CHKFLG,_AND
         ''      If not interactive then CRLF (no other response)
@@ -3777,15 +3812,17 @@ UNKNOWN word    rg+fflags+1,CFETCH,_4,_AND,_ZEQ
         ''      Display position in line of error
 nfdef   word    PRTSTR
         byte    9,9,"  error in ",0
-        word    ATNAMES,INC,PRINTSTR,PRTSTR
+	''	display latest definition
+        word    ATNAMES,CFETCHINC,w+$1F,_AND,CTYPE,PRTSTR
         byte    "  at ",0
         ''      Spit out offending word
         word    rg+wordbuf,PRINTSTR,SPACE
         ''      discard but echo remainder of line
-.L0     word    KEY,DUP,_13,_NEQ,_IF+02,EMIT,.L0+ex
-.L1     word    DROP
+.L0     word    WKEY,DUP,_13,_NEQ,_IF+02,EMIT,.L0+ex,DROP
+	'word	DEBUG
+
         ''      count errors and force a new line to display error
-ERROR   word    rg+errors,WINC,w+$10A,EMIT
+ERROR   word    rg+errors,WINC	'',CR,w+$10A,EMIT
 ERRSTR  word    PRTSTR
         byte    " *error* ",7,$0D,$0A,$0B,0
         '
@@ -3822,16 +3859,16 @@ PUTKEY
 
 ' KEY ( -- ch ) if ch is zero then no key was read
 KEY
-        word    rg+keychar,CFETCH,QDUP,_IF+06      		' read a "key" that was forced with KEY!
+        word    rg+keychar,CFETCH,QDUP,_IF+06                   ' read a "key" that was forced with KEY!
         word    rg+keychar,FETCH,_SHR8,rg+keychar,STORE,CHKKEY+ex
         word    rg+ukey,WFETCH,_IF+06,rg+ukey,WFETCH,ACALL
-	word 	DUP,IFEXIT,DOPOLL+ex
+        word    DUP,IFEXIT,DOPOLL+ex
 CONKEY  word    READRX
 DOKEY   word    DUP,_IF+07
-        word    BITS8,DUP,_ZEQ,ZEXIT                    	' return as if non-zero
-        word    w+$0100,PLUS,EXIT                            	' otherwise add $100 to a null
+        word    BITS8,DUP,_ZEQ,ZEXIT                            ' return as if non-zero
+        word    w+$0100,PLUS,EXIT                               ' otherwise add $100 to a null
        '
-DOPOLL  word    rg+keypoll,QJMP                         	' execute background polling while waiting for input
+DOPOLL  word    rg+keypoll,QJMP                                 ' execute background polling while waiting for input
         word    EXIT
 
 ' keep a track of the position of the this key on the input line (useful for assembler etc)
@@ -3854,11 +3891,11 @@ COMMENT
 .L0     word    KEY,_13,_EQ,_UNTIL+04                                   ' terminate comment on a CR
         word    _13,rg+keychar,STOREX+ex                                ' force a CR back into the key stream on exit
 
-PAREN	word    KEY,DUP,QEMIT,w+")",_EQ,_UNTIL+06,EXIT
+PAREN   word    KEY,DUP,QEMIT,w+")",_EQ,_UNTIL+06,EXIT
 
-IFDEF	word    NFATICK,_ZEQ,ZEXIT,BRACE+ex
+IFDEF   word    NFATICK,_ZEQ,ZEXIT,BRACE+ex
 
-IFNDEF	word    NFATICK,ZEXIT
+IFNDEF  word    NFATICK,ZEXIT
         ''''
 ' Block comments - allow nested  operation
         ''''
@@ -3906,10 +3943,10 @@ PRTVER
         byte    "  Parallax P2  .:.:--TAQOZ--:.:.  V",0
         word    _WORD,@taqoz_version,FETCH,PRTAST
         byte    "#~#.#--",0
-	word	_WORD,@taqoz_name,_4,CTYPE
+        word    _WORD,@taqoz_name,_4,CTYPE
         word    w+9,SPACES,_WORD,@taqoz_time,FETCH,PRTAST
-	byte	"6|-4|",0
-	word	CRLF+ex
+        byte    "6|-4|",0
+        word    CRLF+ex
 
 
 {
@@ -3953,15 +3990,15 @@ PRTCYC  word    DUP,DECIMAL,PRINT,PRTSTR
         ''      DUP CLKHZ < IF 100 * 3 >> ELSE
 REPLAP  word    DUP,CLKHZ,LT,_IF+17,w+100,MULTIPLY,_3,_SHR,.L0+ex
         ''      CLKHZ U// PRINT DOT #1000 CLKHZ */ PRINT ." sec" EXIT THEN
-        word    CLKHZ,UDIVMOD,PRINT,DOT,W1000,CLKHZ,MULDIV,PRINT,PRTSTR
+        word    CLKHZ,UDIVMOD,PRINT,DOT,w+1000,CLKHZ,MULDIV,PRINT,PRTSTR
         byte    "sec",0
         word    EXIT
         ''      DUP #999999 > IF #1,000,000 U// PRINT DOT  #1000 U/ PRINT ." ms " EXIT THEN
-.L0     word    DUP,W1000000,EQGT,_IF+11,W1000000,UDIVMOD,PRINT,DOT,W1000,UDIVIDE,PRINT,PRTSTR
+.L0     word    DUP,W1000000,EQGT,_IF+11,W1000000,UDIVMOD,PRINT,DOT,w+1000,UDIVIDE,PRINT,PRTSTR
         byte    "ms ",0
         word    EXIT
         '       DUP #999 > IF #1,000 U// PRINT DOT PRINT ." us" EXIT THEN
-.L1     word    DUP,W1000,EQGT,_IF+09,W1000,UDIVMOD,PRINT,DOT,PRINT,PRTSTR
+.L1     word    DUP,w+1000,EQGT,_IF+09,w+1000,UDIVMOD,PRINT,DOT,PRINT,PRTSTR
         byte    "us ",0
         word    EXIT
         '       PRINT ." ns "
@@ -4032,7 +4069,7 @@ _END    word    _TRUE,_ECHO
         word    _2,CLRFLG+ex
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''
-'		 SERIAL FLASH
+'                SERIAL FLASH
 ''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 
@@ -4052,11 +4089,11 @@ SFRD1   word    SFINS,_0,SPIRD,SPIX+ex
 
         ''( Read serial Flash serial number )
 SFSID   word    w+$4B,SFINS
-SFRDD	word	_0,SPIRDL,SPIRDL
-SFRDL	word	_0,SPIRDL,SPIX+ex
+SFRDD   word    _0,SPIRDL,SPIRDL
+SFRDL   word    _0,SPIRDL,SPIX+ex
         ''( Read serial Flash Jedec ID )
 SFJID   word    w+$9F,SFINS,SFRDL+ex
-PRTSF	word	SFJID,PRTL,SPACE,SFSID,PRTL,SCORE,PRTL+ex
+PRTSF   word    SFJID,PRTL,SPACE,SFSID,PRTL,SCORE,PRTL+ex
 
         ''( addr -- )
 SFER4   word    w+$20
@@ -4075,24 +4112,24 @@ SFWRPAGE word   w+$02,SFWE,SPIWM,w+256,SPITX,SPIX+ex
 
 
         '' BACKUP the first 64K of memory into flash
-BACKUP	word	SFJID,DUP,INC,_AND,ZEXIT	'EXIT IF BLANK ID'
+BACKUP  word    SFJID,DUP,INC,_AND,ZEXIT        'EXIT IF BLANK ID'
         '' Write block 0 to Flash block 0
-  	word    BRORG,SFER64
-	word	_WORD,brstr,FETCH,_4,STORE
-	word	_0,BRORG,w+64,KB
+        word    BRORG,SFER64
+        word    _WORD,brstr,FETCH,_4,STORE
+        word    _0,BRORG,w+64,KB
         ''SFWRS ( hubsrc sfdst cnt -- )
 SFWRS   word    ROT,SWAP,ADO,IX,OVER,SFWRPAGE,SPINNER,w+256,PLUS,w+256,PLOOP,DROPEX+ex
 SFRDW   word    _0,SPIRD,_0,SPIRD,_SHL8,ORX+ex
         '' SFR ( addr -- )
 SFRD    word    _3,SFINS,SPIWM,EXIT
 
-brstr	byte	"TAQO"
-	'' RESTORE TAQOZ from FLASH by copying to $1.0000 first'
-RESTORE	word	BRORG,INC4,SFFETCH,_WORD,brstr,FETCH,_EQ,ZEXIT
-''	word	BRORG,_WORD,$1000,PLUS,_WORD,$1000,_WORD,$F000,SFRDS,EXIT
-	word	_WORD,$1000,BRORG,OVERPLUS,SWAP,_WORD,$F000
-	'' ( sfadr dst cnt -- ) '' read block from SF to RAM
-SFRDS	word    ROT,SFRD,SPIRX
+brstr   byte    "TAQO"
+        '' RESTORE TAQOZ from FLASH by copying to $1.0000 first'
+RESTORE word    BRORG,INC4,SFFETCH,_WORD,brstr,FETCH,_EQ,ZEXIT
+''      word    BRORG,_WORD,$1000,PLUS,_WORD,$1000,_WORD,$F000,SFRDS,EXIT
+        word    _WORD,$1000,BRORG,OVERPLUS,SWAP,_WORD,$F000
+        '' ( sfadr dst cnt -- ) '' read block from SF to RAM
+SFRDS   word    ROT,SFRD,SPIRX
 SPIX    word    SPICE,EXIT
 {
 
@@ -4100,7 +4137,7 @@ SPIX    word    SPICE,EXIT
 SFRDS   word    ROT,SFRD,ADO,_0,SPIRD,IX,CSTORE,LOOP,SPIX+ex
 }
 
-	'' SFC@
+        '' SFC@
 SFCFETCH
         word    SFRD,_0,SPIRD,SPIX+ex
         ''pub SFW@
@@ -4117,234 +4154,234 @@ SF      word    SETDMP,SFCFETCH,SFWFETCH,SFFETCH
 '''''''''''''''''''''''''' SD CARD SUPPORT '''''''''''''''''''''''''''
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 CON
-SDCS	= w|sd_cs
-SDCK	= w|sd_ck
-SDBUFS	= $10000
+SDCS    = w|sd_cs
+SDCK    = w|sd_ck
+SDBUFS  = $10000
 
-dtk	= w|$FE
+dtk     = w|$FE
 
-BLKSIZ	= w|512
+BLKSIZ  = w|512
 DAT
 
-_sdpins	word	CONL
-	long	sdpins
+_sdpins word    CONL
+        long    sdpins
 
 
-SDBUF	word	CONL
-	long	SDBUFS
+SDBUF   word    CONL
+        long    SDBUFS
 
-' pub SD? ( -- flg )		*SDCS PIN L 200 WAIT F 200 WAIT R H ;
-SDQ	word	SDCS,_PIN,L,w+200,WAIT,F,w+200,WAIT,R,H,EXIT
+' pub SD? ( -- flg )            *SDCS PIN L 200 WAIT F 200 WAIT R H ;
+SDQ     word    SDCS,_PIN,L,w+200,WAIT,F,w+200,WAIT,R,H,EXIT
 
 ' pri SDCLK
-SDCLK	word	MINUS1,SPIWR8,EXIT
-SDCLK3	word	SDCLK
-SDCLK2	word	SDCLK,SDCLK+ex
+SDCLK   word    MINUS1,SPIWR8,EXIT
+SDCLK3  word    SDCLK
+SDCLK2  word    SDCLK,SDCLK+ex
 
 ' pri TOKEN ( marker -- flgX )
-TOKEN	word	_WORD,20000
-tklp	word	OVER,_0,SPIRD,_NEQ,_IF+07,DEC,DUP,_ZEQ,_IF+02,NIP,EXIT
-	word	tklp+ex
-	word	DROP2,TRUE,EXIT
+TOKEN   word    _WORD,20000
+tklp    word    OVER,_0,SPIRD,_NEQ,_IF+07,DEC,DUP,_ZEQ,_IF+02,NIP,EXIT
+        word    tklp+ex
+        word    DROP2,TRUE,EXIT
 
 ' pub ACMD ( data acmd -- res )
-ACMD	word	_0,w+55,CMD,DROP
+ACMD    word    _0,w+55,CMD,DROP
 ' pub CMD    ( data cmd -- res )
-CMD	word	DUP,w+sdcmd,CSTORE
-	word	_sdpins,SPIPINS,SDCLK
-	word	SPIWRC,SPIWRL
-	word	w+sdcrc,CFETCH,SPIWR8,RSTCRC
-SDRES	word	_0,w+1000,FOR,SPIRD,BITS8,DUP,w+$FF,_NEQ,QNEXT,DROP,EXIT
-'SDRES	word	_0,SPIRD,BITS8,DUP,w+$FF,_NEQ,_UNTIL+06,EXIT
+CMD     word    DUP,w+sdcmd,CSTORE
+        word    _sdpins,SPIPINS,SDCLK
+        word    SPIWRC,SPIWRL
+        word    w+sdcrc,CFETCH,SPIWR8,RSTCRC
+SDRES   word    _0,w+1000,FOR,SPIRD,BITS8,DUP,w+$FF,_NEQ,QNEXT,DROP,EXIT
+'SDRES  word    _0,SPIRD,BITS8,DUP,w+$FF,_NEQ,_UNTIL+06,EXIT
 
 
 ' pri STAT@ ( -- stat )
-SDSTAT	word	_0,w+13,CMD,SDRES,_SHL8,ORX+ex
+SDSTAT  word    _0,w+13,CMD,SDRES,_SHL8,ORX+ex
 {
 '' pri SDERR? ( -- flg ; return SD bit flag errors)
-SDERRQ	word	_0,SDQ,_ZEQ,_1,_AND,_OR
-	word	w+_sdrd,FETCH,_ZEQ,_2,_AND,_OR
-	word	w+_sdwr,FETCH,_ZEQ,_4,_AND,_OR
-	word	w+ocr,FETCH,_ZEQ,_8,_AND,_OR
-	word	EXIT
+SDERRQ  word    _0,SDQ,_ZEQ,_1,_AND,_OR
+        word    w+_sdrd,FETCH,_ZEQ,_2,_AND,_OR
+        word    w+_sdwr,FETCH,_ZEQ,_4,_AND,_OR
+        word    w+ocr,FETCH,_ZEQ,_8,_AND,_OR
+        word    EXIT
 }
 '' pri SD4@ ( -- long )
-SDRD4	word	_0,SPIRD,SPIRD,SPIRD,SPIRD,EXIT
+SDRD4   word    _0,SPIRD,SPIRD,SPIRD,SPIRD,EXIT
 '' pri SDDAT! ( adr -- ) read info into memory
-SDDATST	word	dtk,TOKEN,_IF+08,w+16,ADO,_0,SPIRD,IX,CSTORE,LOOP,SDCLK3+ex
-	word	DROPEX+ex
+SDDATST word    dtk,TOKEN,_IF+08,w+16,ADO,_0,SPIRD,IX,CSTORE,LOOP,SDCLK3+ex
+        word    DROPEX+ex
 
-RSTCRC	word	w+$95
-SETCRC	word	w+sdcrc,CSTORE,EXIT
-INITSX	word	w+sdcmd,SETC
-	word	_5,FOR,RSTCRC,_0,_0,CMD,_1,_EQ,QNEXT,ZEXIT
-	word	_5,FOR,w+$87,SETCRC,w+$1AA,_8,CMD,_1,_EQ,QNEXT,ZEXIT
-	word	SDRD4,w+$1AA,_EQ,ZEXIT
-	word	_0,_WORD,1000,_0,DO
-	word	w+30,MASK,w+41,ACMD,_IF+09,SPICE,SDCK,_PIN,w+200,FOR,H,L,forNEXT,isd1+ex
-	word	INC,LEAVE
-isd1	word	LOOP,ZEXIT
-	word	_0,w+58,CMD,IFEXIT,SDRD4,DUP,w+ocr,STORE,ZEXIT
-	word	_0,w+10,CMD,_ZEQ,_IF+02,w+cid,SDDATST
-	word	_0,w+9,CMD,_ZEQ,ZEXIT,w+csd,SDDATST+ex
+RSTCRC  word    w+$95
+SETCRC  word    w+sdcrc,CSTORE,EXIT
+INITSX  word    w+sdcmd,SETC
+        word    _5,FOR,RSTCRC,_0,_0,CMD,_1,_EQ,QNEXT,ZEXIT
+        word    _5,FOR,w+$87,SETCRC,w+$1AA,_8,CMD,_1,_EQ,QNEXT,ZEXIT
+        word    SDRD4,w+$1AA,_EQ,ZEXIT
+        word    _0,_WORD,1000,_0,DO
+        word    w+30,MASK,w+41,ACMD,_IF+09,SPICE,SDCK,_PIN,w+200,FOR,H,L,forNEXT,isd1+ex
+        word    INC,LEAVE
+isd1    word    LOOP,ZEXIT
+        word    _0,w+58,CMD,IFEXIT,SDRD4,DUP,w+ocr,STORE,ZEXIT
+        word    _0,w+10,CMD,_ZEQ,_IF+02,w+cid,SDDATST
+        word    _0,w+9,CMD,_ZEQ,ZEXIT,w+csd,SDDATST+ex
 
 '' Initialise the SD card in SPI mode and return with the OCR
 '' pub !SD ( -- ocr|false )
-INITSD	word	_sdpins,SPIPINS
-	word	w+sdvars,w+(sdend-sdvars),ERASE
-	word	SDBUF,_4,_SHL9,ERASE	' erase all n file buffers
-	word	w+_sector,w+16,w+$FF,CFILL
-	word	SDQ,_IF+10,SDCLK3,w+20,FOR,INITSX,w+sdcmd,CFETCH,w+9,_EQ,QNEXT,DROP
-	word	w+ocr,FETCHX+ex
+INITSD  word    _sdpins,SPIPINS
+        word    w+sdvars,w+(sdend-sdvars),ERASE
+        word    SDBUF,_4,_SHL9,ERASE    ' erase all n file buffers
+        word    w+_sector,w+16,w+$FF,CFILL
+        word    SDQ,_IF+10,SDCLK3,w+20,FOR,INITSX,w+sdcmd,CFETCH,w+9,_EQ,QNEXT,DROP
+        word    w+ocr,FETCHX+ex
 
 ''  Write from src to xdst in the SD
 '' pub SDWR    ( src sect -- flg  )
-SDWR	word	SDCLK3
-	word	w+24,CMD,_ZEQ,_IF+11
-	word	SDCLK3,dtk,SPIWR8,BLKSIZ,SPITX
-	word	_0,TOKEN,w+$FF,TOKEN,_AND,sdwr1+ex
-	word	_FALSE
-sdwr1	word	DUP,w+_sdwr,STORE,SPIX+ex
+SDWR    word    SDCLK3
+        word    w+24,CMD,_ZEQ,_IF+11
+        word    SDCLK3,dtk,SPIWR8,BLKSIZ,SPITX
+        word    _0,TOKEN,w+$FF,TOKEN,_AND,sdwr1+ex
+        word    _FALSE
+sdwr1   word    DUP,w+_sdwr,STORE,SPIX+ex
 
-'' pub FLUSH ( force -- )		wrflg C@ OR IF SDBUF @sector @ SDWR DROP wrflg C~ THEN ;
-FLUSH	word	w+wrflg,CFETCH,_OR,ZEXIT
-	word	SDBUF,w+_sector,FETCH,SDWR,DROP,w+wrflg,CLRC,EXIT
+'' pub FLUSH ( force -- )               wrflg C@ OR IF SDBUF @sector @ SDWR DROP wrflg C~ THEN ;
+FLUSH   word    w+wrflg,CFETCH,_OR,ZEXIT
+        word    SDBUF,w+_sector,FETCH,SDWR,DROP,w+wrflg,CLRC,EXIT
 
-'' pri SDRDBK ( dst -- )	BLKSIZ SPIRX sdsum ! 0 SPIRD SPIRD 1 OR ;
-SDRDBK	word	BLKSIZ,SPIRX,w+sdsum,STORE,_0,SPIRD,SPIRD,_1,ORX+ex
+'' pri SDRDBK ( dst -- )        BLKSIZ SPIRX sdsum ! 0 SPIRD SPIRD 1 OR ;
+SDRDBK  word    BLKSIZ,SPIRX,w+sdsum,STORE,_0,SPIRD,SPIRD,_1,ORX+ex
 { pri SDRDBLK ( dst -- crc|flg )
-	BLKSIZ SPI>BUF
-	--- read crc and force as true flag
-	0 SPIRD SPIRD 1 OR
-	;
+        BLKSIZ SPI>BUF
+        --- read crc and force as true flag
+        0 SPIRD SPIRD 1 OR
+        ;
 }
 '' pub SECTOR ( sect -- sdbuf )
-SECTOR	word	DUP,w+_sector,FETCH,_EQ,_IF+02,DROP,SDBUF+ex
-SECTORF	word	_0,FLUSH,DUP,w+_sector,STORE,SDBUF,SDRD,SDBUF,EXIT
+SECTOR  word    DUP,w+_sector,FETCH,_EQ,_IF+02,DROP,SDBUF+ex
+SECTORF word    _0,FLUSH,DUP,w+_sector,STORE,SDBUF,SDRD,SDBUF,EXIT
 '' pub SDRD    ( sector dst --  )
-SDRD	word	SWAP,w+17,CMD,DUP,_ZEQ,_IF+11
-	word	DROP,SDRES,dtk,_EQ,_IF+02,SDRDBK,sdrd1+ex
-	word	SDCLK2,SDSTAT,DROP2,_0
-sdrd1	word	SDCLK,DUP,w+_sdrd,STORE,w+seccrc,STORE,SPIX+ex
+SDRD    word    SWAP,w+17,CMD,DUP,_ZEQ,_IF+11
+        word    DROP,SDRES,dtk,_EQ,_IF+02,SDRDBK,sdrd1+ex
+        word    SDCLK2,SDSTAT,DROP2,_0
+sdrd1   word    SDCLK,DUP,w+_sdrd,STORE,w+seccrc,STORE,SPIX+ex
 
 
 '' pub SDRDS    ( sector dst cnt -- crc | false )
-		' convert cnt to sectors '
-SDRDS	word	BLKSIZ,_ALIGN,_SHR9
-		'   multiblock read   --  command not accepted '
-	word	ROT2,SWAP,w+18,CMD,_IF+03,DROP2,_FALSE,.sd1+ex
-		' process read token and read block if available '
-	word	SDRES,dtk,_EQ,_IF+09,SWAP,FOR,DUP,SDRDBK,BLKSIZ,PLUS,forNEXT,.sd1+ex
-		' ELSE '
-	word	DROP2,SDCLK2,SDSTAT,DROP,SPICE,_FALSE
-.sd1	word	SDCLK,SPICE
-	word	DUP,w+_sdrd,STORE
-	word	_0,w+12,CMD,_ZEQ,_UNTIL+05,SPIX+ex
+                ' convert cnt to sectors '
+SDRDS   word    BLKSIZ,_ALIGN,_SHR9
+                '   multiblock read   --  command not accepted '
+        word    ROT2,SWAP,w+18,CMD,_IF+03,DROP2,_FALSE,.sd1+ex
+                ' process read token and read block if available '
+        word    SDRES,dtk,_EQ,_IF+09,SWAP,FOR,DUP,SDRDBK,DROP,BLKSIZ,PLUS,forNEXT,.sd1+ex
+                ' ELSE '
+        word    DROP2,SDCLK2,SDSTAT,DROP,SPICE,_FALSE
+.sd1    word    SDCLK,SPICE
+        word    DUP,w+_sdrd,STORE
+        word    _0,w+12,CMD,_ZEQ,_UNTIL+05,SPIX+ex
 
 '' SDWRS ( hubsrc sdadr cnt -- )
-SDWRS	word	BLKSIZ,_ALIGN,_SHR9
-	word	ADO,DUP,IX,SECTOR,BLKSIZ,CMOVE
-	word	_1,FLUSH,BLKSIZ,PLUS,LOOP,DROPEX+ex
+SDWRS   word    BLKSIZ,_ALIGN,_SHR9
+        word    ADO,DUP,IX,SECTOR,BLKSIZ,CMOVE
+        word    _1,FLUSH,BLKSIZ,PLUS,LOOP,DROPEX+ex
 
 
 
-SDADRW	word	w+wrflg,SETC
-'' pub SDADR ( xaddr -- addr )	L>S ( @SECTOR + ) SECTOR SDBUF + ;
-SDADR	word	L2S,w+opensect,FETCH,PLUS,SECTOR,PLUS,EXIT
-'' pub SD@ ( xaddr -- long )	RDSDA @ ;
-SDFETCH	word	SDADR,FETCH,EXIT
-SDSTORE	word	SDADRW,STORE,EXIT
-SDCFETCH word	SDADR,CFETCH,EXIT
-SDCSTORE word	SDADRW,CSTORE,EXIT
-SDWFETCH word	SDADR,WFETCH,EXIT
+SDADRW  word    w+wrflg,SETC
+'' pub SDADR ( xaddr -- addr )  L>S ( @SECTOR + ) SECTOR SDBUF + ;
+SDADR   word    L2S,w+opensect,FETCH,PLUS,SECTOR,PLUS,EXIT
+'' pub SD@ ( xaddr -- long )    RDSDA @ ;
+SDFETCH word    SDADR,FETCH,EXIT
+SDSTORE word    SDADRW,STORE,EXIT
+SDCFETCH word   SDADR,CFETCH,EXIT
+SDCSTORE word   SDADRW,CSTORE,EXIT
+SDWFETCH word   SDADR,WFETCH,EXIT
 SD      word    SETDMP,SDCFETCH,SDWFETCH,SDFETCH
 
 
 '' @FAT ( fat# -- sector )
-ATFAT	word	w+sectfat,FETCH,MULTIPLY
-	word	ATBOOT,w+rsvd,WFETCH,PLUS,PLUS,EXIT
-ATROOT	word	w+rootdir,FETCHX+ex
-ATBOOT	word	w+partitions+8,FETCHX+ex
+ATFAT   word    w+sectfat,FETCH,MULTIPLY
+        word    ATBOOT,w+rsvd,WFETCH,PLUS,PLUS,EXIT
+ATROOT  word    w+rootdir,FETCHX+ex
+ATBOOT  word    w+partitions+8,FETCHX+ex
 '' cd! ( sect str -- )
-' CDST	word	w+cwdsect,STOREX+ex
+' CDST  word    w+cwdsect,STOREX+ex
 
-RDFAT	word	ATBOOT,SECTORF,w+fat32,w+90,CMOVE
-	'word	w+sectclust,CFETCH,ENCODE,w+clshift,CSTORE
-	word	w+rsvd,WFETCH,w+sectfat,FETCH,w+fats,CFETCH,MULTIPLY
-	word	w+rootcl,FETCH,DEC2
-	word	CLSECT2,PLUS,PLUS
-	word	w+rootdir,STORE
-		'' save time by precalculating FAT table addresses
-	word	_0,ATFAT,w+fat1,STORE,_1,ATFAT,w+fat1+4,STORE
-	word	EXIT
+RDFAT   word    ATBOOT,SECTORF,w+fat32,w+90,CMOVE
+        'word   w+sectclust,CFETCH,ENCODE,w+clshift,CSTORE
+        word    w+rsvd,WFETCH,w+sectfat,FETCH,w+fats,CFETCH,MULTIPLY
+        word    w+rootcl,FETCH,DEC2
+        word    CLSECT2,PLUS,PLUS
+        word    w+rootdir,STORE
+                '' save time by precalculating FAT table addresses
+        word    _0,ATFAT,w+fat1,STORE,_1,ATFAT,w+fat1+4,STORE
+        word    EXIT
 '' CLUST>SECT ( clust# -- sector )
-CLSECT	word	w+rootcl,FETCH,MINUS
-CLSECT2	word	w+sectclust,CFETCH,MULTIPLY,ATBOOT,PLUS,EXIT
+CLSECT  word    w+rootcl,FETCH,MINUS
+CLSECT2 word    w+sectclust,CFETCH,MULTIPLY,ATBOOT,PLUS,EXIT
 
-AMOUNT	word	SDQ,ZEXIT,w+mounted,CFETCH,IFEXIT
-MOUNT	word	INITSD,_ZEQ,_IF+01,ERRSTR+ex
-	word	_0,SECTORF,w+$1FE,PLUS,WFETCH,_WORD,$AA55,_EQ
-	word	ZEXIT
-	word	w+fat32,w+(fatend-fat32),ERASE
-	word	w+$1BE,SDBUF,PLUS,w+partitions,w+64,CMOVE
-	word	RDFAT,ROOT,w+mounted,SETC
-PRTFAT	word	w+cid,_8,ATYPE
-	word	SPACE,w+serial,FETCH,PRTLONG,SPACE
-	word	w+volname,w+11,CTYPE
-	word	w+sectclust,CFETCH,_SHR1,PRINT,w+"k",EMIT
-	word	SPACE,w+sdsize,FETCH,W+11,_SHR,PRTDECL,w+"M",EMIT+ex
+AMOUNT  word    SDQ,ZEXIT,w+mounted,CFETCH,IFEXIT
+MOUNT   word    INITSD,_ZEQ,_IF+01,ERRSTR+ex
+        word    _0,SECTORF,w+$1FE,PLUS,WFETCH,_WORD,$AA55,_EQ
+        word    ZEXIT
+        word    w+fat32,w+(fatend-fat32),ERASE
+        word    w+$1BE,SDBUF,PLUS,w+partitions,w+64,CMOVE
+        word    RDFAT,ROOT,w+mounted,SETC
+PRTFAT  word    w+cid,_8,ATYPE
+        word    SPACE,w+serial,FETCH,PRTLONG,SPACE
+        word    w+volname,w+11,CTYPE
+        word    w+sectclust,CFETCH,_SHR1,PRINT,w+"k",EMIT
+        word    SPACE,w+sdsize,FETCH,W+11,_SHR,PRTDECL,w+"M",EMIT+ex
 
 ' DIR '
-PRTDIR	word	AMOUNT
-	word	_0,FOPEN,CRLF,PRTFAT
-	word	ATROOT,_SHL9,w+sectclust,CFETCH,_SHL9,ADO
-	word	IX,SDFETCH,_IF+(.L2-.L1)/2
-.L1	word	CRLF,IX,SDADR,DUP,w+8,CTYPE
-	word	DUP,_8,PLUS,DUP,CFETCH,w+$20,_NEQ,_IF+05
-	word	DOT,DUP,_3,CTYPE,.L0+ex
-	word	_4,SPACES
-.L0	word	SPACE,SWAP,FSECT,PRTL
-	word	SPACES3,IX,SDADR,PRTDATE
-	word	SPACES3,w+fsize-8,PLUS,FETCH,PRTDECL
-.L2	word	w+32,PLOOP,CRLF+ex
+PRTDIR  word    AMOUNT
+        word    _0,FOPEN,CRLF,PRTFAT
+        word    ATROOT,_SHL9,w+sectclust,CFETCH,_SHL9,ADO
+        word    IX,SDFETCH,_IF+(.L2-.L1)/2
+.L1     word    CRLF,IX,SDADR,DUP,w+8,CTYPE
+        word    DUP,_8,PLUS,DUP,CFETCH,w+$20,_NEQ,_IF+05
+        word    DOT,DUP,_3,CTYPE,.L0+ex
+        word    _4,SPACES
+.L0     word    SPACE,SWAP,FSECT,PRTL
+        word    SPACES3,IX,SDADR,PRTDATE
+        word    SPACES3,w+fsize-8,PLUS,FETCH,PRTDECL
+.L2     word    w+32,PLOOP,CRLF+ex
 
 '' .DATE ( diradr -- )
-PRTDATE	word	DUP,w+fdate,PLUS,WFETCH
-	word	DUP,_SHR9,_WORD,1980,PLUS,PRTDEC4
-	word	DUP,_5,_SHR,BITS4,PRTDEC2,w+$1F,_AND,PRTDEC2
-	''
-	word	w+ftime,PLUS,WFETCH,DUP,w+11,_SHR,PRTDEC2
-	word	_5,_SHR,w+$3F,_AND,PRTDEC2+ex
+PRTDATE word    DUP,w+fdate,PLUS,WFETCH
+        word    DUP,_SHR9,_WORD,1980,PLUS,PRTDEC4
+        word    DUP,_5,_SHR,BITS4,PRTDEC2,w+$1F,_AND,PRTDEC2
+        ''
+        word    w+ftime,PLUS,WFETCH,DUP,w+11,_SHR,PRTDEC2
+        word    _5,_SHR,w+$3F,_AND,PRTDEC2+ex
 
 
 
 ' FSECT ( diradr -- sector )'
-FSECT	word	w+fclstl,OVERPLUS,WFETCH,SWAP,w+fclsth,PLUS,WFETCH,W2L
-C2S	word	w+rootcl,FETCH,MINUS,w+sectclust,CFETCH,MULTIPLY,ATROOT,PLUS,EXIT
+FSECT   word    w+fclstl,OVERPLUS,WFETCH,SWAP,w+fclsth,PLUS,WFETCH,W2L
+C2S     word    w+rootcl,FETCH,MINUS,w+sectclust,CFETCH,MULTIPLY,ATROOT,PLUS,EXIT
 
-ROOT	word	ATROOT
+ROOT    word    ATROOT
 ' FOPEN ( sect -- )
-FOPEN	word	w+_fread,CLRL,w+opensect,STOREX+ex
+FOPEN   word    w+_fread,CLRL,w+opensect,STOREX+ex
 
-FLOAD	word	FOPEN,rg+ukey,WFETCH,w+fkey,WSTORE
-	word	_WORD,FGET,SETKEY+ex
+FLOAD   word    FOPEN,rg+ukey,WFETCH,w+fkey,WSTORE
+        word    _WORD,FGET,SETKEY+ex
 
-FGET	word	w+_fread,FETCH,SDCFETCH,QDUP,_ZEQ
-	word	_IF+08,w+fkey,WFETCH,QDUP
-	word	_IF+04,SETKEY,w+fkey,CLRW,FALX+ex
-	word	w+_fread,LINC+ex
+FGET    word    w+_fread,FETCH,SDCFETCH,QDUP,_ZEQ
+        word    _IF+08,w+fkey,WFETCH,QDUP
+        word    _IF+04,SETKEY,w+fkey,CLRW,FALX+ex
+        word    w+_fread,LINC+ex
 
 ' FREAD ( sdsrc hubdst bytes -- )'
-FREAD	word	_ALIGNL,ADO,IX,OVERPLUS,SDFETCH,IX,STORE
-FLOOP	word	_4,PLOOP,DROP,EXIT
+FREAD   word    _ALIGNL,ADO,IX,OVERPLUS,SDFETCH,IX,STORE
+FLOOP   word    _4,PLOOP,DROP,EXIT
 
 ' FWRITE ( hubsrc sddst bytes -- )'
-FWRITE	word	_ALIGNL,ADO,IX,OVERPLUS,FETCH,IX,SDSTORE,FLOOP+ex
+FWRITE  word    _ALIGNL,ADO,IX,OVERPLUS,FETCH,IX,SDSTORE,FLOOP+ex
 {
 ' RENAME THE CURRENTLY OPEN FILE'
 RENAME
-: FNAME		GETWORD
-FNAME	word	GETWORD
+: FNAME         GETWORD
+FNAME   word    GETWORD
 
 To print a file:
 $1B780 FOPEN 0 SD PRINT$
@@ -4355,109 +4392,109 @@ $1B780 FOPEN 0 SD PRINT$
 
 
 ''''''''''''''''''''''''''''''
-'	SD CARD
+'       SD CARD
 ''''''''''''''''''''''''''''''
 
-	org	$0010 '...$0110'
+        org     $0010 '...$0110'
 sdvars
-ocr		res	4
-cid		res	16
-csd		res	16
-sdcrc		res	1
-sdcmd		res	1
-_sdrd		res	4
-_sdwr		res	4
+ocr             res     4
+cid             res     16
+csd             res     16
+sdcrc           res     1
+sdcmd           res     1
+_sdrd           res     4
+_sdwr           res     4
 
-sdsum		res	4
+sdsum           res     4
 wrflg
-wrflgs		res	4
+wrflgs          res     4
 
-seccrc		res	16
-_sector		res	16
-mounted		res	1
+seccrc          res     16
+_sector         res     16
+mounted         res     1
 
-partitions	res	64
-opensect	res	4	' starting sector of open file'
-_fread		res	4
-fkey		res	2
+partitions      res     64
+opensect        res     4       ' starting sector of open file'
+_fread          res     4
+fkey            res     2
 sdend
 
 ''''''''''''''''''''''''''''''
-'	FAT32
+'       FAT32
 ''''''''''''''''''''''''''''''
 
 fat32
-		res	3
-oemname		res	8
-''		  res	8
-bytesect	res	2
-''		  res	2
-sectclust	res	1
-rsvd		res	2
-fats		res	1
-		res	15
-sdsize		res	4	' Number of sectors * byte/sect (512) = capacity'
-''		  res	4
-sectfat		res	4	' Number of sectors per FAT table'
-		res	2	' fatflags'
-		res	2	' fatver'
-rootcl		res	4	' Cluster Number of the Start of the Root Directory'
-		res	2	' info = Sector Number of the FileSystem Information Sector  (from part start)
-		res	2	' boot = Sector Number of the Backup Boot Sector (from part start)
-		res	12
+                res     3
+oemname         res     8
+''                res   8
+bytesect        res     2
+''                res   2
+sectclust       res     1
+rsvd            res     2
+fats            res     1
+                res     15
+sdsize          res     4       ' Number of sectors * byte/sect (512) = capacity'
+''                res   4
+sectfat         res     4       ' Number of sectors per FAT table'
+                res     2       ' fatflags'
+                res     2       ' fatver'
+rootcl          res     4       ' Cluster Number of the Start of the Root Directory'
+                res     2       ' info = Sector Number of the FileSystem Information Sector  (from part start)
+                res     2       ' boot = Sector Number of the Backup Boot Sector (from part start)
+                res     12
 ' offset 64
-		res	3
-serial		res	4	' serial number of partition
-volname		res	11	' volume name
-fatname		res	8	' always FAT32 - (don't trust)
+                res     3
+serial          res     4       ' serial number of partition
+volname         res     11      ' volume name
+fatname         res     8       ' always FAT32 - (don't trust)
 ' 96 '
 ''''''''''''''''''''''''''''''
 ' create room for some system variables in this table
 
-rootdir		res	4	' sector address of root directory
-fat1		res	4
-fat2		res	4
-cwdsect		res	4
-'cwdstr		res	16
+rootdir         res     4       ' sector address of root directory
+fat1            res     4
+fat2            res     4
+cwdsect         res     4
+'cwdstr         res     16
 fatend
 
 ''''''''''''''''''''''''''''''
-' 	DIRECTORY STRUCTURE'
+'       DIRECTORY STRUCTURE'
 ''''''''''''''''''''''''''''''
-		org 0
+                org 0
 
-fnam		res	8
-fext		res	3
-fatr		res	1
-		res	1	' MUST BE 00'
-fcms		res	1
-fctime		res	2
-fcdate		res	2
-fadate		res	2
-fclsth		res	2
-ftime		res	2
-fdate		res	2
-fclstl		res	2
-fsize		res	4
+fnam            res     8
+fext            res     3
+fatr            res     1
+                res     1       ' MUST BE 00'
+fcms            res     1
+fctime          res     2
+fcdate          res     2
+fadate          res     2
+fclsth          res     2
+ftime           res     2
+fdate           res     2
+fclstl          res     2
+fsize           res     4
 
 '
 '***************************************** HUBEXEC CODE ***************************
 '
-		orgh
+                orgh
                 alignw
 _hubexec
 
 ' !SP - init the data stack pointer
 INITSP          mov     datptr,#datstk
                 mov     depth,#0
-        _ret_   mov     tos,##$DEADBEEF         	' marker
+        _ret_   mov     tos,##$DEADBEEF                 ' marker
 
 {
-		dirl	#rx_pin			'disable receiver
-		wrpin	#%00_11111_0,#rx_pin	'configure rx_pin for asynchronous receive, always input
+                dirl    #rx_pin                 'disable receiver
+                wrpin   #%00_11111_0,#rx_pin    'configure rx_pin for asynchronous receive, always input
 
-		wrpin	#%01_11110_0,#tx_pin	'configure tx_pin for asynchronous transmit, always output
-		dirh	#tx_pin			'enable transmitter
+                wrpin   #%01_11110_0,#tx_pin    'configure tx_pin for asynchronous transmit, always output
+                dirh    #tx_pin                 'enable transmitter
 }
 
 InitTaqoz
@@ -4465,52 +4502,57 @@ InitTaqoz
                 loc     PTRA,#@IDLE&$FFFF               ' default startup into Instruction Pointer
                 tjnz    fx,#INITSTKS
 ' COG 0 CONSOLE '
-                dirh    #tx_pin                 	'set tx output high
-		wypin	#$0D,#tx_pin
+                dirh    #tx_pin                         'set tx output high
+                wypin   #$0D,#tx_pin
                 loc     PTRA,#@TERMINAL&$FFFF
-		dirh    #rx_pin
-		'setse1	#%001_111111
-		rdpin	fz,#rx_pin wc			' clear rx?
-		setint1	#0
-		mov 	rxwrC,#0
-		wrlong 	rxwrC,#rxrd
+                dirh    #rx_pin
+                'setse1 #%001_111111
+                rdpin   rxz,#rx_pin wc                   ' clear rx?
+                setint1 #0
+                mov     rxwrC,#0
+                wrlong  rxwrC,#rxrd
 
-		setse1  #%110<<6+rx_pin        		'set se1 to trigger on  rx char event?????
-                mov     ijmp1,##@taqoz_rxisr     	'set int1 jump vector to receive buffer
-		setint1	#4
+                setse1  #%110<<6+rx_pin                 'set se1 to trigger on  rx char event?????
+                mov     ijmp1,##@taqoz_rxisr            'set int1 jump vector to receive buffer
+                setint1 #4
 
 INITSTKS        call    #INITSP
 INITLP          mov     lpptr,#lpstk
                 mov     braptr,#brastk
 INITRP  _ret_   mov     retptr,#retstk
 
-taqoz_rxisr	shl 	rxlong,#8
-                rdpin   fz,#rx_pin       		' recv byte (bits31:24) from rx pin
-		shr	fz,#24
-		or	rxlong,fz wz
-		cmp	rxlong,##$1B1B1B1B wz		' esc esc esc esc break'
-	if_z	coginit #0,##@RESET
-		mov	rxwrP,rxwrC
-		add	rxwrP,#rxbuffers
-		wrbyte	fz,rxwrP
-		incmod	rxwrC,##rxsize-1
-		wrword	rxwrC,#rxwr
-		reti1
-'_rxrd		long	rxrd
-'_rxwr		long	rxwr
+' ( SERIAL RECEIVE INTERRUPT SERVICE ROUTINE )'
+taqoz_rxisr     shl     rxlong,#8
+                rdpin   rxz,#rx_pin                      ' recv byte (bits31:24) from rx pin
+                shr     rxz,#24
+                or      rxlong,rxz wz
+                cmp     rxlong,##$1B1B1B1B wz           ' esc esc esc esc break'
+        if_z    coginit #0,#0   ''#@RESET
 
-READRX		rdword	r0,#rxrd
-		cmp	r0,rxwrC wz
-	if_z	jmp	#@rr1
-		mov	r1,r0
-		add	r1,#rxbuffers
-		rdbyte	acc,r1
-		incmod	r0,##rxsize-1
-		wrword	r0,#rxrd
-rr1		jmp	#PUSHACC
+		cmp	rxlong,##$1A1A1A1A wz		' check for sequence '
+	if_z	decod	rxz,#28				' reboot via hub'
+	if_z	hubset	rxz
+                mov     rxwrP,rxwrC
+                add     rxwrP,#rxbuffers
+                wrbyte  rxz,rxwrP
+		wrbyte	rxz,#lastkey			' write directly to global variable in low hub'
+                incmod  rxwrC,##rxsize-1
+                wrword  rxwrC,#rxwr
+                reti1
 
-DEBUGGER	setint1	#0
-		jmp 	#\_Start_Monitor	' \ forces absolute address '
+
+READRX          rdword  r0,#rxrd
+                cmp     r0,rxwrC wz
+        if_z    jmp     #@rr1
+                mov     r1,r0
+                add     r1,#rxbuffers
+                rdbyte  acc,r1
+                incmod  r0,##rxsize-1
+                wrword  r0,#rxrd
+rr1             jmp     #PUSHACC
+
+DEBUGGER        setint1 #0
+                jmp     #\_Start_Monitor        ' \ forces absolute address '
 
 
 
@@ -4576,7 +4618,7 @@ _CLK                    mov     tepin,tos
 ' WRACK ( data -- )     Write smartpin data and wait for empty then ack
 WRACK                   wypin   tos,pinreg
 .wait                   testp   pinreg  wc              '..wait for buffer empty
-        	if_nc   jmp     #.wait
+                if_nc   jmp     #.wait
                         akpin   pinreg                  '..acknowledge pin
                         jmp     #DROP
 
@@ -4824,8 +4866,8 @@ _INCMOD '( mod dst -- )
                 jmp     #DROP2
 }
 
-_SETDACS	setdacs	tos
-		jmp	#DROP
+_SETDACS        setdacs tos
+                jmp     #DROP
 
 
 _GETRND         getrnd  fx
@@ -4837,7 +4879,7 @@ _HUBSET
 
 
 
-
+{
 ' WS2812 ( array ledcnt -- ) pin is in cog "pinreg" - line RET is done at HL, not here
 ' Will transmit a whole array of 24-bit words each back to back in WS2812 timing format
 ' line idles low and resets/synchs with low =>50us
@@ -4845,8 +4887,8 @@ _HUBSET
 ' A one is transmitted as 800ns high by 450ns low HHL
 ' The low period between each led is about 400ns longer but inconsequential
 ' <30us/LED
-wsdly 	      long	sys_clk/2500000
-WSLED	      rdbyte 	r2,##wsdly
+wsdly         long      sys_clk/2500000
+WSLED         rdbyte    r2,##wsdly
               sub       tos1,#1         ' offset for 24-bit long alignment
 .l2           rdlong    fx,tos1          ' read next long
               add       tos1,#3         ' but leds are 3 bytes apart
@@ -4862,6 +4904,8 @@ WSLED	      rdbyte 	r2,##wsdly
               djnz      r1,#.lp
               djnz      tos,#.l2        ' read the next long as long as we can (tos = count)
               jmp       #DROP2          ' tx line left low to synch - discard stack parameters, all done.
+
+}
 
 {
 ' VER ( -- verptr )
@@ -4948,55 +4992,55 @@ _LOOKUP '( index array -- value )
                 jmp     #DROP
 }
 
-NEWCOG		coginit tos,##@RESET
-		jmp	#DROP
+NEWCOG          coginit tos,##@RESET
+                jmp     #DROP
 
 
 
 {
 
-dPRTIP		call	#dCRLF
-''		mov	P,PTRA
-''		shr	P,#16
-		call	#dPRTWORD
-		mov	P,PTRA
-		jmp	#dPRTWORD
+dPRTIP          call    #dCRLF
+''              mov     P,PTRA
+''              shr     P,#16
+                call    #dPRTWORD
+                mov     P,PTRA
+                jmp     #dPRTWORD
 
-dPRTX		mov	R1,#$20
-		call	#TX
-		mov	P,fx
+dPRTX           mov     R1,#$20
+                call    #TX
+                mov     P,fx
 dPRTWORD
-		mov	R1,P
-		shr	R1,#12
-		call	#HEXASC
-		mov	R1,P
-		shr	R1,#8
-		call	#HEXASC
-		mov	R1,P
-		shr	R1,#4
-		call	#HEXASC
-		mov	R1,P
-		call	#HEXASC
-		mov	R1,#$20
-		call	#TX
-		ret
+                mov     R1,P
+                shr     R1,#12
+                call    #HEXASC
+                mov     R1,P
+                shr     R1,#8
+                call    #HEXASC
+                mov     R1,P
+                shr     R1,#4
+                call    #HEXASC
+                mov     R1,P
+                call    #HEXASC
+                mov     R1,#$20
+                call    #TX
+                ret
 '
-HEXASC		and	R1,#$0F
-		add	R1,#$30
-		cmp	R1,#$3A wc
-	if_nc	add	R1,#7
+HEXASC          and     R1,#$0F
+                add     R1,#$30
+                cmp     R1,#$3A wc
+        if_nc   add     R1,#7
 TX
-		wypin	R1,#tx_pin		'..send byte
-.wait		testp	#tx_pin		wc	'..wait for buffer empty
- if_nc		jmp	#.wait
-		akpin	#tx_pin			'..acknowledge pin
-		waitx	#200
-		ret
+                wypin   R1,#tx_pin              '..send byte
+.wait           testp   #tx_pin         wc      '..wait for buffer empty
+ if_nc          jmp     #.wait
+                akpin   #tx_pin                 '..acknowledge pin
+                waitx   #200
+                ret
 
-dCRLF		mov	R1,#$0D
-		call	#TX
-		mov	R1,#$0A
-		jmp	#TX
+dCRLF           mov     R1,#$0D
+                call    #TX
+                mov     R1,#$0A
+                jmp     #TX
 '}
 
 
@@ -5064,7 +5108,7 @@ pfmt            res 4
 
 
 delim           res 2           ' the delimiter used in text input and a save location
-dcnt		res 1
+dcnt            res 1
 prefix          res 1           ' NUMBER input prefix
 uprompt         res 2           ' pointer to code to execute when Forth prompts for a new line
 accept          res 2           ' pointer to code to execute when Forth accepts a line to interpret (0=ok)
@@ -5169,9 +5213,9 @@ braptr          long    0                               ' branch stack pointer t
 lpptr           long    0
 retptr          long    0                               ' return stack pointer to LUT
 ' COG 21
-depth           long    0
 lap1            long    0
 lap2            long    0
+depth           long    0
 ' #0024
 pinreg          long    0
 tepin           long    0
@@ -5182,10 +5226,10 @@ clockpins       long 0                                  ' I/O mask for CLOCK ins
 clkdly          long 0
 
 ' #0029 rx isr variables
-rxlong		long 0
-fz		long 0
-rxwrP		long 0
-rxwrC		long 0
+rxlong          long 0
+rxz              long 0
+rxwrP           long 0
+rxwrC           long 0
 
 
 
@@ -5199,10 +5243,10 @@ tos2                    long    $DEADBEE3
 tos3                    long    $DEADBEE4
 
 ' top of loop stack registers
-limit1                  long    0
 index                   long    0
-limit2                  long    0
+limit1                  long    0
 index2                  long    0
+limit2                  long    0
 
 branchadr               long    0
 seed                    long    1
@@ -5219,44 +5263,44 @@ ACALL                   call    #POPX                   ' get wordcode into X
 ' wordcode order: ASM,THREADED,HUBEXEC,IF,UNTIL,REG,LIT9
 ''
 {
-	w               =       $F800           ' wordcode offset for 10-bit literals
+        w               =       $F800           ' wordcode offset for 10-bit literals
         _IF             =       $FC00           ' IF relative forward branch 0 to 127 words
         _UNTIL          =       $FC80           ' UNTIL relative reverse branch 0 to 127 words
-	opunused	= 	$FD00
-	rg		= 	$FE00          ' task/cog register 8-bit offset
-	fat		=	$FF00
+        opunused        =       $FD00
+        rg              =       $FE00          ' task/cog register 8-bit offset
+        fat             =       $FF00
 }
 
 ' constants used by doNEXT decode
 cogadr                  long    496
-threaded		long	(_hubexec-1)&$FFFF
-calls			long	$F800-1
+threaded                long    (_hubexec-1)&$FFFF
+calls                   long    $F800-1
 shorts                  long    $FC00-1
-branches		long	$FD00-1
+branches                long    $FD00-1
 
 
 doCALL                  call    fx                      ' could call cog or hub code - use ret to return
 doNEXT                  rdword  fx,PTRA++               ' read word code instruction
-doCODE                  cmp     cogadr,fx wc        	' wordcode below $1F0 are cog addresses - just call
+doCODE                  cmp     cogadr,fx wc            ' wordcode below $1F0 are cog addresses - just call
         if_nc           jmp     #doCALL
                         cmp     threaded,fx wc          ' just call if it is asm code - either cog or in hubexec range below wordcodes
         if_nc           jmp     #THREAD                  ' if not then just execute as threaded code - needs to save IP
-                        cmp     calls,fx wc         	' special opcodes? (at high end for branches, short literals, registers etc)
+                        cmp     calls,fx wc             ' special opcodes? (at high end for branches, short literals, registers etc)
         if_nc           jmp     #doCALL                 ' hubexec - execute as cog code '
                         cmp     shorts,fx wc                        '
-	if_nc           jmp     #doSHORT                 ' LIT short 9-bit literal
+        if_nc           jmp     #doSHORT                 ' LIT short 9-bit literal
                         cmp     branches,fx wc
         if_nc           jmp     #doBRANCH               ' IF UNTIL conditional relative branch code
 '
 ' REG OP ( -- addr ) - the byte offset is relative to the regptr for that task
 doREG
-                	zerox   fx,#8
+                        zerox   fx,#8
                         add     fx,regptr
                         jmp     #doPUSHX
 doSHORT
-         		zerox   fx,#9               ' push 10-bit literal
-doPUSHX			call	#PUSHX
-			jmp	#doNEXT
+                        zerox   fx,#9               ' push 10-bit literal
+doPUSHX                 call    #PUSHX
+                        jmp     #doNEXT
 
 ' Call wordcode - Save IP and load with new IP from call
 '
@@ -5271,7 +5315,7 @@ THREAD
 '
 ' Conditional with 7-bit signed word displacement
 doBRANCH
-                 	tjnz    tos,#dj1                ' discard flag and continue w/o jumping
+                        tjnz    tos,#dj1                ' discard flag and continue w/o jumping
                                                         ' take the jump - X has instruction wordcode
                         test    fx,#$80 wz              ' reverse jump? nz
                         and     fx,#$7F                         ' mask displacement
@@ -5281,14 +5325,14 @@ dj1                     call    #DROP                   ' discard condition flag
                         jmp     #doNEXT
 
 {
-dPRTPA			mov	R1,PA
-			jmp	#TXR1
+dPRTPA                  mov     R1,PA
+                        jmp     #TXR1
 }
 
 '###################################################################################'
 
-_ASM			call	PTRA
-			jmp	#EXIT
+_ASM                    call    PTRA
+                        jmp     #EXIT
 
 STRLEN  ' ( str -- len )
                         rdfast  #0,tos
@@ -5344,7 +5388,7 @@ QDUP                    tjz     tos,#_NOP
 DUP                     mov     fx,tos                  ' Read directly from the top of the data stack
                         jmp     #PUSHX                  ' Push the internal X register onto the datastack
 
-OVERPLUS	_ret_	add	tos,tos1
+OVERPLUS        _ret_   add     tos,tos1
 
 DUP2                    call    #OVER
 ' OVER ( n1 n2 -- n1 n2 n1 ) - 1us
@@ -5458,7 +5502,7 @@ _SHL                    shl     tos1,tos
 _ROL                    rol     tos1,tos
                         jmp     #DROP
 
-_SHL16		_ret_	shl	tos,#16
+_SHL16          _ret_   shl     tos,#16
 
 _SHL9           _ret_   shl     tos,#9
 ' 8<<
@@ -5793,7 +5837,7 @@ PUSHX           mov     ACC,#0          ' clear it for next operation
                 mov     tos1,tos
                 mov     tos,fx          ' replace tos with X (DEFAULT)
                 add     depth,#1        ' the depth variable indexes bytes in LUT
-        _ret_   modcz   0,0 wc 		' clear C for some operations that use this to determine behaviour
+        _ret_   modcz   0,0 wc          ' clear C for some operations that use this to determine behaviour
 
 
 
@@ -5808,9 +5852,9 @@ CONL                    rdlong  fx,PTRA
                         call    #PUSHX
                         jmp     #EXIT
 {
-CONW			rdword  fx,PTRA
-			call    #PUSHX
-			jmp     #EXIT
+CONW                    rdword  fx,PTRA
+                        call    #PUSHX
+                        jmp     #EXIT
 }
 
 ' INLINE:
@@ -5874,11 +5918,18 @@ _RQPIN                  rqpin   fx,pinreg
 ' AKPIN  ( -- )
 _AKPIN          _ret_   wrpin   #1,pinreg
 
+{
 ' BEGIN RDPIN $80 AND 0= UNTIL
 WAITPIN                 rdpin   fx,pinreg
                         testb   fx,#7 wz
                 if_nz   jmp     #WAITPIN
                         ret
+}
+
+WAITPIN			testp	pinreg wc
+		if_nc	jmp	#WAITPIN
+			ret
+
 
 ' TXDAT ( buf cnt -- )  write buffer direct to WYPIN
 _TXDAT                  rdfast  #0,tos+1
@@ -5933,60 +5984,89 @@ M1                      long    -1
 
 
 '************************************* SERIAL I/O **************************************
-SEROUT		mov	txpin,tos
-		jmp	#DROP
+SEROUT          mov     txpin,tos
+                jmp     #DROP
 
 
-CONEMIT		mov	R1,tos
-TXR1		mov	txpin,#tx_pin
+CONEMIT         mov     R1,tos
+TXR1            mov     txpin,#tx_pin
                 wypin   r1,txpin             '..send byte
-		waitx	#0
+                waitx   #0
 .wait           testp   txpin         wc      '..wait for buffer empty
  if_nc          jmp     #.wait
                 jmp     #DROP
-txpin		long	tx_pin
+txpin           long    tx_pin
 
 
 '********************** SPI READ/WRITE *********************
 
-' 461.7us/512
-' SPI>BUF ( dst cnt -- sum )
+' Read bytes in from SPI to memory
+' SPI>BUF ( dst cnt -- sum ) 461.7us/512
 SPIRX           wrfast  #0,tos1
                 mov     tos1,#0
 .L0             rep     @.end,#8                ' 8 bits
-                outnot  sck                     ' clock (low high or low high)
-                outnot  sck
-                testp   miso wc                 ' read data from card
-                rcl     r1,#1                   ' shift in msb first
-.end            wfbyte  r1
-                add     tos1,r1
+                 outnot  sck                     ' clock (low high or low high)
+		 rcl     r1,#1                   ' shift in msb first
+                 outnot  sck
+		 nop
+                 testp   miso wc                 ' read data from card
+.end
+		rcl     r1,#1                   ' shift in msb first
+                wfbyte  r1
                 djnz    tos,#.L0
                 jmp     #DROP
 
+
+' Read 32-bits from SPI'
 SPIRDL
                 rep     @sre1,#32
                 skip    #1
 ' SPIRD ( dat -- dat+rd )
-SPIRD           rep     @sre1,#8                ' 8 bits
-                outnot  sck                     ' clock (low high)
-                outnot  sck
-                testp   miso wc                 ' read data from card
-                rcl     tos,#1                  ' shift in msb first
+SPIRD
+                rep     @sre1,#8                ' 8 bits
+                 outnot  sck                     ' clock (low high)
+RWAIT		 nop
+                 outnot  sck
+		 nop
+                 testp   miso wc                 ' read data from card
+                 rcl     tos,#1                  ' shift in msb first
 sre1            ret
 
-' 474.6us/512
-' SPITX ( src bytes -- )
-SPITXE          drvl    ss
+
+' Write bytes from memory to SPI '
+' SPITX ( src bytes -- ) ' 474.6us/512
+SPITXE		drvl	ss
+          	drvl    sck
 SPITX           rdfast  #0,tos1
-.L0             rfbyte  r1
-                shl     r1,#24
-                rep     @.L1 , #8
-                rol     r1,#1 wc                ' output next msb
-                outc    mosi
-                outnot  sck                     ' clock
-                outnot  sck                     ' clock
-.L1             djnz    tos,#.L0
+.L0             rfbyte  fx
+                shl     fx,#24
+		mov	r1,#8
+		call	#SPITX8
+             	djnz    tos,#.L0
                 jmp     #DROP2
+
+
+' SMARTPINS? TRY CLOCKING ENABLED   C=1 in %CIOHHHLLL ?
+
+' Write SD Command
+SPIWRC		and     tos,#$3F
+		or      tos,#$40
+' SPIWR8 ( byte -- )
+' Shift 8 bits from data[0..7] out and leave data on stack (restored with other bytes zeroed)
+'
+SPIWR8          shl     tos , #24               ' left justify 8-bit data s
+		mov	r1,#8
+SPIWR		drvl	ss
+           	drvl    sck
+		call	#POPX			' POP VALUE '
+SPITX8		rep     @.L1,r1
+                 rol     fx,#1 wc               ' output next msb
+                 outc    mosi
+                 outnot  sck                     ' clock
+		 nop
+                 outnot  sck                     ' clock
+.L1            ret
+
 
 SPIWRL		mov	r1,#32
 		jmp	#SPIWR
@@ -5997,23 +6077,8 @@ SPIWR16		shl	tos,#16
 		mov	r1,#16
 		jmp	#SPIWR
 
-' Write SD Command
-SPIWRC		and     tos,#$3F
-		or      tos,#$40
-' SPIWR8 ( byte -- )
-' Shift 8 bits from data[0..7] out and leave data on stack (restored with other bytes zeroed)
-'
-SPIWR8          shl     tos , #24               ' left justify 8-bit data s
-		mov	r1,#8
-SPIWR           drvl    ss                      ' chip enable
-                rep     @.L1 , r1
-                rol     tos,#1 wc               ' output next msb
-                outc    mosi
-                outnot  sck                     ' clock
-                outnot  sck                     ' clock
-.L1             jmp	#DROP
-
-SPICE   _ret_   outh    ss
+SPICE  		drvh    ss
+	_ret_	drvh	sck			' P2 shares clock as ce with other boot devices'
 
 
 ' I2C support
@@ -6056,280 +6121,280 @@ romdict
 ' The count field is left blank but filled in at cold boot so that these do not need to be calculated when defining
 '
         ''      CNT,NAME,ATR,addr16
-        byte 3, 	"DUP"
+        byte 3,         "DUP"
         word DUP
-        byte 4, 	"OVER"
+        byte 4,         "OVER"
         word OVER
-        byte 4, 	"SWAP"
+        byte 4,         "SWAP"
         word SWAP
-        byte 3, 	"ROT"
+        byte 3,         "ROT"
         word ROT
-        byte 4, 	"-ROT"
+        byte 4,         "-ROT"
         word ROT2
-        byte 4, 	"DROP"
+        byte 4,         "DROP"
         word DROP
-        byte 3, 	"3RD"
+        byte 3,         "3RD"
         word THIRD
-        byte 3, 	"4TH"
+        byte 3,         "4TH"
         word FOURTH
 
-        byte 5, 	"2DROP"
+        byte 5,         "2DROP"
         word DROP2
-        byte 5, 	"3DROP"
+        byte 5,         "3DROP"
         word DROP3
-        byte 3, 	"NIP"
+        byte 3,         "NIP"
         word NIP
-        byte 5, 	"2SWAP"
+        byte 5,         "2SWAP"
         word DSWAP
-        byte 4, 	"2DUP"
+        byte 4,         "2DUP"
         word DUP2
-        byte 4, 	"?DUP"
+        byte 4,         "?DUP"
         word QDUP
 
 ' BITWISE LOGIC
-        byte 3, 	"AND"
+        byte 3,         "AND"
         word _AND
-        byte 4, 	"ANDN"
+        byte 4,         "ANDN"
         word _ANDN
-        byte 2, 	"OR"
+        byte 2,         "OR"
         word _OR
-        byte 3, 	"XOR"
+        byte 3,         "XOR"
         word _XOR
 
-''        byte 5, 	"ZEROX"
+''        byte 5,       "ZEROX"
 ''        word _ZEROX
 
 ' SHIFT'
-        byte 3, 	"ROL"
+        byte 3,         "ROL"
         word _ROL
-        byte 3, 	"ROR"
+        byte 3,         "ROR"
         word _ROR
-        byte 2, 	">>"
+        byte 2,         ">>"
         word _SHR
-        byte 2, 	"<<"
+        byte 2,         "<<"
         word _SHL
-        byte 3, 	"SAR"
+        byte 3,         "SAR"
         word _SAR
-        byte 2, 	"2/"
+        byte 2,         "2/"
         word _SHR1
-        byte 2, 	"2*"
+        byte 2,         "2*"
         word _SHL1
-        byte 2, 	"4/"
+        byte 2,         "4/"
         word _SHR2
-        byte 2, 	"4*"
+        byte 2,         "4*"
         word _SHL2
-        byte 3, 	"8<<"
+        byte 3,         "8<<"
         word _SHL8
-        byte 4, 	"16>>"
+        byte 4,         "16>>"
         word _SHR16
-        byte 3, 	"8>>"
+        byte 3,         "8>>"
         word _SHR8
-        byte 3, 	"9<<"
+        byte 3,         "9<<"
         word _SHL9
-        byte 3, 	"9>>"
+        byte 3,         "9>>"
         word _SHR9
 
-        byte 3, 	"REV"
+        byte 3,         "REV"
         word _REV
-        byte 2, 	"|<"
+        byte 2,         "|<"
         word MASK
-        byte 2, 	">|"
+        byte 2,         ">|"
         word ENCODE
 
-        byte 2, 	">N"
+        byte 2,         ">N"
         word BITS4
-        byte 2, 	">B"
+        byte 2,         ">B"
         word BITS8
-        byte 2, 	">9"
+        byte 2,         ">9"
         word BITS9
-        byte 4, 	"BITS"
+        byte 4,         "BITS"
         word BITS
 
 
-        byte 3, 	"NOT"
+        byte 3,         "NOT"
         word _NOT
 
 ' COMPARISON
-        byte 1, 	"="
+        byte 1,         "="
         word _EQ
-        byte 2, 	"<>"
+        byte 2,         "<>"
         word _NEQ
 
-        byte 2, 	"0="
+        byte 2,         "0="
         word _ZEQ
-        byte 3, 	"0<>"
+        byte 3,         "0<>"
         word _ZNE
-        byte 2, 	"0<"
+        byte 2,         "0<"
         word _ZLT
-        byte 1, 	"<"
+        byte 1,         "<"
         word LT
-        byte 2, 	"U<"
+        byte 2,         "U<"
         word _ULT
-        byte 1, 	">"
+        byte 1,         ">"
         word GT
-        byte 2, 	"U>"
+        byte 2,         "U>"
         word UGT
-        byte 2, 	"<="
+        byte 2,         "<="
         word LTEQ
-        byte 2, 	"=>"
+        byte 2,         "=>"
         word EQGT
-        byte 6, 	"WITHIN"
+        byte 6,         "WITHIN"
         word WITHIN
 
-        byte 5, 	"DUPC@"
+        byte 5,         "DUPC@"
         word DUPCFT
 
-        byte 2, 	"C@"
+        byte 2,         "C@"
         word CFETCH
-        byte 2, 	"W@"
+        byte 2,         "W@"
         word WFETCH
-        byte 1, 	"@"
+        byte 1,         "@"
         word FETCH
-        byte 3, 	"C+!"
+        byte 3,         "C+!"
         word CPLUSST
-        byte 2, 	"C!"
+        byte 2,         "C!"
         word CSTORE
-        byte 4, 	"C@++"
+        byte 4,         "C@++"
         word CFETCHINC
-        byte 3, 	"W+!"
+        byte 3,         "W+!"
         word WPLUSST
-        byte 2, 	"W!"
+        byte 2,         "W!"
         word WSTORE
-        byte 2, 	"+!"
+        byte 2,         "+!"
         word PLUSST
-        byte 1, 	"!"
+        byte 1,         "!"
         word STORE
 
-        byte 4, 	"BIT!"
+        byte 4,         "BIT!"
         word BITST
-        byte 3, 	"SET"
+        byte 3,         "SET"
         word SET
-        byte 3, 	"CLR"
+        byte 3,         "CLR"
         word CLR
-        byte 4, 	"SET?"
+        byte 4,         "SET?"
         word BITQ
 
 
 
 ' MATHS
-        byte 2, 	"1+"
+        byte 2,         "1+"
         word INC
-        byte 2, 	"1-"
+        byte 2,         "1-"
         word DEC
-        byte 2, 	"2+"
+        byte 2,         "2+"
         word INC2
-        byte 2, 	"2-"
+        byte 2,         "2-"
         word DEC2
-        byte 2, 	"4+"
+        byte 2,         "4+"
         word INC4
-        byte 1, 	"+"
+        byte 1,         "+"
         word PLUS
-        byte 1, 	"-"
+        byte 1,         "-"
         word MINUS
 
-        byte 3, 	"UM*"
+        byte 3,         "UM*"
         word UMMUL
-        byte 1, 	"*"
+        byte 1,         "*"
         word MULTIPLY
-        byte 2, 	"W*"
+        byte 2,         "W*"
         word MUL16
 
-        byte 1, 	"/"
+        byte 1,         "/"
         word DIVIDE
-        byte 2, 	"U/"
+        byte 2,         "U/"
         word UDIVIDE
-        byte 3, 	"U//"
+        byte 3,         "U//"
         word UDIVMOD
-        byte 2, 	"//"
+        byte 2,         "//"
         word UMOD
-        byte 2, 	"*/"
+        byte 2,         "*/"
         word MULDIV
-        byte 4, 	"UM//"
+        byte 4,         "UM//"
         word UMDIVMOD64
 
-        byte 3, 	"C++"
+        byte 3,         "C++"
         word CINC
-        byte 3, 	"C--"
+        byte 3,         "C--"
         word CDEC
-        byte 3, 	"W++"
+        byte 3,         "W++"
         word WINC
-        byte 3, 	"W--"
+        byte 3,         "W--"
         word WDEC
-        byte 2, 	"++"
+        byte 2,         "++"
         word LINC
-        byte 2, 	"--"
+        byte 2,         "--"
         word LDEC
 
-        byte 3, 	"RND"
+        byte 3,         "RND"
         word _RND
-        byte 6, 	"GETRND"
+        byte 6,         "GETRND"
         word _GETRND
-        byte 4, 	"SQRT"
+        byte 4,         "SQRT"
         word _SQRT
-	byte 7, 	"SETDACS"
+        byte 7,         "SETDACS"
         word _SETDACS
 
-        byte 1, 	"~"
+        byte 1,         "~"
         word CLRL
-        byte 2, 	"~~"
+        byte 2,         "~~"
         word SETL
-        byte 2, 	"W~"
+        byte 2,         "W~"
         word CLRW
-        byte 3, 	"W~~"
+        byte 3,         "W~~"
         word SETW
-        byte 2, 	"C~"
+        byte 2,         "C~"
         word CLRC
-        byte 3, 	"C~~"
+        byte 3,         "C~~"
         word SETC
 
-        byte 3, 	"L>S"
+        byte 3,         "L>S"
         word L2S
-        byte 2, 	">W"
+        byte 2,         ">W"
         word TOW
-        byte 3, 	"L>W"
+        byte 3,         "L>W"
         word L2W
-        byte 3, 	"W>B"
+        byte 3,         "W>B"
         word W2B
-        byte 3, 	"W>L"
+        byte 3,         "W>L"
         word W2L
-        byte 3, 	"B>W"
+        byte 3,         "B>W"
         word B2W
-        byte 3, 	"B>L"
+        byte 3,         "B>L"
         word B2L
 
 
 
-        byte 4, 	"MINS"
+        byte 4,         "MINS"
         word _MINS
-        byte 4, 	"MAXS"
+        byte 4,         "MAXS"
         word _MAXS
-        byte 3, 	"MIN"
+        byte 3,         "MIN"
         word _MIN
-        byte 3, 	"MAX"
+        byte 3,         "MAX"
         word _MAX
 
-        byte 3, 	"ABS"
+        byte 3,         "ABS"
         word _ABS
 
-        byte 7, 	"-NEGATE"
+        byte 7,         "-NEGATE"
         word MNEGATE
-        byte 7, 	"?NEGATE"
+        byte 7,         "?NEGATE"
         word QNEGATE
-        byte 6, 	"NEGATE"
+        byte 6,         "NEGATE"
         word NEGATE
 
 
 ' CONSTANTS '
-        byte 2, 	"ON"
+        byte 2,         "ON"
         word MINUS1
-        byte 4, 	"TRUE"
+        byte 4,         "TRUE"
         word MINUS1
-        byte 2, 	"-1"
+        byte 2,         "-1"
         word MINUS1
 
-        byte 5, 	"FALSE"
+        byte 5,         "FALSE"
         word _0
-        byte 3, 	"OFF"
+        byte 3,         "OFF"
         word _0
 
 
@@ -6370,496 +6435,496 @@ romdict
         word _CASE
 
 ' LOOPS'
-        byte 3, 	"ADO"
+        byte 3,         "ADO"
         word ADO
-        byte 2, 	"DO"
+        byte 2,         "DO"
         word DO
-        byte 4, 	"LOOP"
+        byte 4,         "LOOP"
         word LOOP
-        byte 5, 	"+LOOP"
+        byte 5,         "+LOOP"
         word PLOOP
-        byte 3, 	"FOR"
+        byte 3,         "FOR"
         word FOR
-        byte 4, 	"NEXT"
+        byte 4,         "NEXT"
         word forNEXT
-        byte 5, 	"?NEXT"
+        byte 5,         "?NEXT"
         word QNEXT
-        byte 1, 	"I"
+        byte 1,         "I"
         word IX
-        byte 1, 	"J"
+        byte 1,         "J"
         word J
-        byte 5, 	"LEAVE"
+        byte 5,         "LEAVE"
         word LEAVE
-        byte 3, 	"IC@"
+        byte 3,         "IC@"
         word ICFETCH
-        byte 2, 	"I+"
+        byte 2,         "I+"
         word IPLUS
-        byte 6, 	"BOUNDS"
+        byte 6,         "BOUNDS"
         word BOUNDS
 
 
 ' -------------I/O---------------
 
-        byte 1, 	"H"
+        byte 1,         "H"
         word H
-        byte 1, 	"L"
+        byte 1,         "L"
         word L
-        byte 1, 	"T"
+        byte 1,         "T"
         word _T
-        byte 1, 	"F"
+        byte 1,         "F"
         word F
-        byte 1, 	"R"
+        byte 1,         "R"
         word R
-        byte 4, 	"HIGH"
+        byte 4,         "HIGH"
         word HIGH
-        byte 3, 	"LOW"
+        byte 3,         "LOW"
         word LOW
-        byte 5, 	"FLOAT"
+        byte 5,         "FLOAT"
         word _FLOAT
 
-        byte 4, 	"PIN@"
+        byte 4,         "PIN@"
         word PINTEST
 
 
-''      byte 6, 	"SHROUT"
+''      byte 6,         "SHROUT"
 ''      word SHROUT
-''      byte 6, 	"SHRINP"
+''      byte 6,         "SHRINP"
 ''      word SHRINP
 
 ' SMARTPIN INSTRUCTIONS
-        byte 5, 	"WRPIN"
+        byte 5,         "WRPIN"
         word _WRPIN
-        byte 5, 	"WXPIN"
+        byte 5,         "WXPIN"
         word _WXPIN
-        byte 5, 	"WYPIN"
+        byte 5,         "WYPIN"
         word _WYPIN
 
-        byte 5, 	"RDPIN"
+        byte 5,         "RDPIN"
         word _RDPIN
-        byte 5, 	"RQPIN"
+        byte 5,         "RQPIN"
         word _RQPIN
-        byte 5, 	"AKPIN"
+        byte 5,         "AKPIN"
         word _AKPIN
 
-        byte 7, 	"WAITPIN"
+        byte 7,         "WAITPIN"
         word WAITPIN
 
-        byte 5, 	"WRACK"
+        byte 5,         "WRACK"
         word WRACK
 
 
 
-        byte 3, 	"PIN"
+        byte 3,         "PIN"
         word _PIN
-        byte 4, 	"@PIN"
+        byte 4,         "@PIN"
         word _ATPIN
 
 
-        byte 2, 	"ns"
+        byte 2,         "ns"
         word ns
-        byte 2, 	"PW"
+        byte 2,         "PW"
         word PW
-        byte 5, 	"PULSE"
+        byte 5,         "PULSE"
         word PULSE
-        byte 6, 	"PULSES"
+        byte 6,         "PULSES"
         word PULSES
-        byte 4, 	"HILO"
+        byte 4,         "HILO"
         word HILO
 
 
 
 ' SMARTPIN NCO/PWM
-        byte 4, 	"DUTY"
+        byte 4,         "DUTY"
         word DUTY
-        byte 3, 	"NCO"
+        byte 3,         "NCO"
         word NCO
-        byte 2, 	"HZ"
+        byte 2,         "HZ"
         word HZ
-        byte 3, 	"KHZ"
+        byte 3,         "KHZ"
         word KHZ
-        byte 3, 	"MHZ"
+        byte 3,         "MHZ"
         word MHZ
-        byte 4, 	"MUTE"
+        byte 4,         "MUTE"
         word MUTE
-        byte 5, 	"BLINK"
+        byte 5,         "BLINK"
         word BLINK
-        byte 3, 	"PWM"
+        byte 3,         "PWM"
         word PWM
-        byte 3, 	"SAW"
+        byte 3,         "SAW"
         word SAW
 
 
 ' SMARTPIN ASYNCH
-        byte 3, 	"BIT"
+        byte 3,         "BIT"
         word BIT
-        byte 4, 	"BAUD"
+        byte 4,         "BAUD"
         word BAUDST
-        byte 3, 	"TXD"
+        byte 3,         "TXD"
         word TXD
-        byte 3, 	"RXD"
+        byte 3,         "RXD"
         word RXD
 
-        byte 5, 	"TXDAT"
+        byte 5,         "TXDAT"
         word _TXDAT
 
 {
-        byte c, 	"PA@"
+        byte c,         "PA@"
         word PAFETCH
-        byte c, 	"PB@"
+        byte c,         "PB@"
         word PBFETCH
-        byte c, 	"PA!"
+        byte c,         "PA!"
         word PASTORE
-        byte c, 	"PB!"
+        byte c,         "PB!"
         word PBSTORE
-        byte c, 	"DACLR"
+        byte c,         "DACLR"
         word DACLR
-        byte c, 	"DBCLR"
+        byte c,         "DBCLR"
         word DBCLR
-        byte c, 	"PASET"
+        byte c,         "PASET"
         word PASET
-        byte c, 	"DASET"
+        byte c,         "DASET"
         word DASET
-        byte c, 	"PBSET"
+        byte c,         "PBSET"
         word PBSET
-        byte c, 	"DBSET"
+        byte c,         "DBSET"
         word DBSET
-        byte c, 	"PACLR"
+        byte c,         "PACLR"
         word PACLR
-        byte c, 	"PBCLR"
+        byte c,         "PBCLR"
         word PBCLR
  }
 
-        byte 5, 	"WAITX"
+        byte 5,         "WAITX"
         word DELTA
-        byte 7, 	"WAITCNT"
+        byte 7,         "WAITCNT"
         word WAITCNTS
 
 
 
-        byte 6, 	"REBOOT"
+        byte 6,         "REBOOT"
         word REBOOT
-        byte 5, 	"RESET"
+        byte 5,         "RESET"
         word RESET
-        byte 5, 	"0EXIT"
+        byte 5,         "0EXIT"
         word ZEXIT
-        byte 4, 	"EXIT"
+        byte 4,         "EXIT"
         word EXIT
-''      byte 6, 	"SKIPNZ"
+''      byte 6,         "SKIPNZ"
 ''      word SKIPNZ
 
-        byte 3, 	"NOP"
+        byte 3,         "NOP"
         word _NOP
-        byte 4, 	"CALL"
+        byte 4,         "CALL"
         word ACALL
-        byte 4, 	"JUMP"
+        byte 4,         "JUMP"
         word AJMP
 
 
-        byte 2, 	">R"
+        byte 2,         ">R"
         word PUSHR
-        byte 2, 	"R>"
+        byte 2,         "R>"
         word RPOP
-        byte 2, 	">L"
+        byte 2,         ">L"
         word PUSHL
-        byte 2, 	"L>"
+        byte 2,         "L>"
         word LPOP
-        byte 3, 	"!SP"
+        byte 3,         "!SP"
         word INITSP
-        byte 5, 	"DEPTH"
+        byte 5,         "DEPTH"
         word _DEPTH
 
-        byte 4, 	"COG@"
+        byte 4,         "COG@"
         word COGFETCH
-        byte 4, 	"COG!"
+        byte 4,         "COG!"
         word COGSTORE
-        byte 4, 	"LUT@"
+        byte 4,         "LUT@"
         word LUTFETCH
-        byte 4, 	"LUT!"
+        byte 4,         "LUT!"
         word LUTSTORE
 
-        byte 5, 	"COGID"
+        byte 5,         "COGID"
         word _COGID
-        byte 7, 	"COGINIT"
+        byte 7,         "COGINIT"
         word _COGINIT
-        byte 7, 	"COGSTOP"
+        byte 7,         "COGSTOP"
         word _COGSTOP
 
-	byte 6, 	"NEWCOG"
+        byte 6,         "NEWCOG"
         word NEWCOG
 
-        byte 6, 	"COGATN"
+        byte 6,         "COGATN"
         word _COGATN
-        byte 7, 	"POLLATN"
+        byte 7,         "POLLATN"
         word _POLLATN
-        byte 6, 	"SETEDG"
+        byte 6,         "SETEDG"
         word _SETEDG
-        byte 7, 	"POLLEDG"
+        byte 7,         "POLLEDG"
         word _POLLEDG
 
 
 
 
-        byte 3, 	"KEY"
+        byte 3,         "KEY"
         word KEY
-	byte 4, 	"WKEY"
+        byte 4,         "WKEY"
         word WKEY
-        byte 4, 	"KEY!"
+        byte 4,         "KEY!"
         word PUTKEY
 
-''      byte 7, 	"keypoll"
+''      byte 7,         "keypoll"
 ''      word rg+keypoll
 
-        byte 3, 	"CON"
+        byte 3,         "CON"
         word _CON
-        byte 4, 	"NONE"
+        byte 4,         "NONE"
         word NONE
-        byte 3, 	"COM"
+        byte 3,         "COM"
         word _COM
 
 
-''      byte 7, 	"DISCARD"
+''      byte 7,         "DISCARD"
 ''      word DISCARD
 
-        byte 6, 	"CONKEY"
+        byte 6,         "CONKEY"
         word CONKEY
-        byte 7, 	"CONEMIT"
+        byte 7,         "CONEMIT"
         word CONEMIT
-	byte 6, 	"SEROUT"
+        byte 6,         "SEROUT"
         word SEROUT
 
-        byte 4, 	"EMIT"
+        byte 4,         "EMIT"
         word EMIT
-        byte 5, 	"EMITS"
+        byte 5,         "EMITS"
         word EMITS
 
-        byte 4, 	"CRLF"
+        byte 4,         "CRLF"
         word CRLF
-        byte 2, 	"CR"
+        byte 2,         "CR"
         word CR
-        byte 3, 	"CLS"
+        byte 3,         "CLS"
         word CLS
 {
-        byte 3, 	"DOT"
+        byte 3,         "DOT"
         word DOT
 }
-        byte 5, 	"SPACE"
+        byte 5,         "SPACE"
         word SPACE
-        byte 6, 	"SPACES"
+        byte 6,         "SPACES"
         word SPACES
 
 ' DUMP MEMORY
-        byte 3, 	"RAM"
+        byte 3,         "RAM"
         word RAM
-        byte 5, 	"DUMP:"
+        byte 5,         "DUMP:"
         word SETDMP
-        byte 4, 	"DUMP"
+        byte 4,         "DUMP"
         word DUMP
-        byte 5, 	"DUMPW"
+        byte 5,         "DUMPW"
         word DUMPW
-        byte 5, 	"DUMPL"
+        byte 5,         "DUMPL"
         word DUMPL
-        byte 5, 	"DUMPA"
+        byte 5,         "DUMPA"
         word DUMPA
-        byte 6, 	"DUMPAW"
+        byte 6,         "DUMPAW"
         word DUMPAW
-        byte 2, 	"QD"
+        byte 2,         "QD"
         word QD
-	byte 2, 	"QW"
+        byte 2,         "QW"
         word QW
 
-        byte 5, 	"DEBUG"
+        byte 5,         "DEBUG"
         word DEBUG
-        byte 4, 	"lsio"
+        byte 4,         "lsio"
         word lsio
 
-        byte 3, 	"COG"
+        byte 3,         "COG"
         word _COG
-        byte 3, 	"LUT"
+        byte 3,         "LUT"
         word _LUT
 
-        byte 2, 	"KB"
+        byte 2,         "KB"
         word KB
-        byte 2, 	"MB"
+        byte 2,         "MB"
         word MB
-        byte 1, 	"M"
+        byte 1,         "M"
         word M
 
 
 ' PRINTING
 
-        byte 1, 	"."
+        byte 1,         "."
         word PRT
-        byte 5, 	"PRINT"
+        byte 5,         "PRINT"
         word PRT
 
-        byte 3, 	".AS"
+        byte 3,         ".AS"
         word PRTAS
         byte 4+im,      ".AS",$22
         word PRTASR
 
-        byte 5, 	".DECL"
+        byte 5,         ".DECL"
         word PRTDECL
-        byte 5, 	".DEC4"
+        byte 5,         ".DEC4"
         word PRTDEC4
-''        byte 5, 	".DEC2"
+''        byte 5,       ".DEC2"
 ''        word PRTDEC2
 
-''      byte c, 	"@PAD"
+''      byte c,         "@PAD"
 ''      word ATPAD
-        byte 4, 	"HOLD"
+        byte 4,         "HOLD"
         word HOLD
-''      byte 5, 	">CHAR"
+''      byte 5,         ">CHAR"
 ''      word BINASC
-        byte 2, 	"#>"
+        byte 2,         "#>"
         word RHASH
-        byte 2, 	"<#"
+        byte 2,         "<#"
         word LHASH
-        byte 1, 	"#"
+        byte 1,         "#"
         word HASH
-        byte 2, 	"#S"
+        byte 2,         "#S"
         word HASHS
-        byte 3, 	"<D>"
+        byte 3,         "<D>"
         word DNUM
 
-        byte 2, 	"U."
+        byte 2,         "U."
         word UPRT
-        byte 4, 	".DEC"
+        byte 4,         ".DEC"
         word PRTDEC
-        byte 4, 	".BIN"
+        byte 4,         ".BIN"
         word PRTBIN
 
-	byte 2, 	".H"
+        byte 2,         ".H"
         word PRTHEX
-        byte 2, 	".B"
+        byte 2,         ".B"
         word PRTB
-        byte 5, 	".BYTE"
+        byte 5,         ".BYTE"
         word PRTBYTE
-        byte 2, 	".W"
+        byte 2,         ".W"
         word PRTW
-        byte 5, 	".WORD"
+        byte 5,         ".WORD"
         word PRTWORD
-        byte 2, 	".L"
+        byte 2,         ".L"
         word PRTL
-        byte 5, 	".LONG"
+        byte 5,         ".LONG"
         word PRTLONG
 
-        byte 5, 	".ADDR"
+        byte 5,         ".ADDR"
         word PRTADR
 
 
-        byte 6, 	"PRINT$"
+        byte 6,         "PRINT$"
         word PRINTSTR
-        byte 4, 	"LEN$"
+        byte 4,         "LEN$"
         word STRLEN
 
         byte 1+im,      $22
         word _STRING_
         byte 2+im,      $2E,$22
         word _PSTR_          ' ."
-        byte 5, 	"CTYPE"
+        byte 5,         "CTYPE"
         word CTYPE
 
 
 
 
-        byte 5, 	"?EXIT"
+        byte 5,         "?EXIT"
         word IFEXIT
 
-''      byte c, 	"MOVBYTES"
+''      byte c,         "MOVBYTES"
 ''      word _MOVBYTES
 
 ' MEMORY BLOCKS
-        byte 5, 	"DATA?"
+        byte 5,         "DATA?"
         word DATAQ
-        byte 5, 	"ERASE"
+        byte 5,         "ERASE"
         word ERASE
-        byte 4, 	"FILL"
+        byte 4,         "FILL"
         word CFILL
-        byte 5, 	"CMOVE"
+        byte 5,         "CMOVE"
         word CMOVE
-        byte 6, 	"<CMOVE"
+        byte 6,         "<CMOVE"
         word RCMOVE
 
 ' TIMING
-        byte 1, 	"s"
+        byte 1,         "s"
         word secs
-        byte 2, 	"ms"
+        byte 2,         "ms"
         word ms
-        byte 2, 	"us"
+        byte 2,         "us"
         word us
 
 ' LAP TIMING
-        byte 4, 	"CNT@"
+        byte 4,         "CNT@"
         word _GETCNT
-        byte 3, 	"LAP"
+        byte 3,         "LAP"
         word LAP
-        byte 4, 	"LAP@"
+        byte 4,         "LAP@"
         word LAPFETCH
-        byte 4, 	".LAP"
+        byte 4,         ".LAP"
         word PRTLAP
-        byte 3, 	".ms"
+        byte 3,         ".ms"
         word PRTMS
 
 
 ' RADIX
-        byte 3, 	"HEX"
+        byte 3,         "HEX"
         word HEX
-        byte 3, 	"DEC"
+        byte 3,         "DEC"
         word DECIMAL
-        byte 3, 	"BIN"
+        byte 3,         "BIN"
         word BIN
 
-        byte 2, 	".S"
+        byte 2,         ".S"
         word PRTSTK
 
 
 ' DICTIONARY
-        byte 5, 	"WORDS"
+        byte 5,         "WORDS"
         word WORDS
-        byte 6, 	"@WORDS"
+        byte 6,         "@WORDS"
         word ATNAMES
-        byte 4, 	"GET$"
+        byte 4,         "GET$"
         word _GETWORD
-        byte 6, 	"SEARCH"
+        byte 6,         "SEARCH"
         word SEARCH
-        byte 3, 	"$>#"
+        byte 3,         "$>#"
         word NUMBER
 
-        byte 5, 	"@DATA"
+        byte 5,         "@DATA"
         word ATDAT
-        byte 4, 	"HERE"
+        byte 4,         "HERE"
         word ATHERE
-        byte 5, 	"@HERE"
+        byte 5,         "@HERE"
         word rg+here
-        byte 6, 	"@CODES"
+        byte 6,         "@CODES"
         word rg+codes
 
 ' TABLES
-''        byte 6, 	"LOOKIN"
+''        byte 6,       "LOOKIN"
 ''        word LOOKIN
-''        byte 6, 	"LOOKUP"
+''        byte 6,       "LOOKUP"
 ''        word _LOOKUP
 
 
 ' VARIABLES
-        byte 5, 	"uemit"
+        byte 5,         "uemit"
         word rg+uemit
-        byte 4, 	"ukey"
+        byte 4,         "ukey"
         word rg+ukey
-        byte 4, 	"char"
+        byte 4,         "char"
         word w+lastkey
-        byte 5, 	"delim"
+        byte 5,         "delim"
         word rg+delim
-        byte 5, 	"names"
+        byte 5,         "names"
         word rg+names
 
-        byte 4, 	"TASK"
+        byte 4,         "TASK"
         word TASK
-        byte 3, 	"REG"
+        byte 3,         "REG"
         word ATREG
-        byte 5, 	"@WORD"
+        byte 5,         "@WORD"
         word rg+wordbuf
-        byte 4, 	"SPIN"
+        byte 4,         "SPIN"
         word SPINNER
 
 
@@ -6875,18 +6940,18 @@ romdict
         byte 3+im,      "[",$22,"]"
         word COMPSTR
 
-        byte 5, 	"NULL$"
+        byte 5,         "NULL$"
         word NULLSTR
-        byte 2, 	"$!"
+        byte 2,         "$!"
         word STRST
-        byte 2, 	"$="
+        byte 2,         "$="
         word STREQ
 
 
 ' DEFINITIONS
 '
 
-	byte 3,      "ASM"
+        byte 3,      "ASM"
         word _ASM
 
         byte 6+im,      "FORGET"
@@ -6914,7 +6979,7 @@ romdict
         word ENDDEF
         byte 1+im,      "["
         word UNDEF
-	byte 1+im,      "]"
+        byte 1+im,      "]"
         word REDEF
         byte 1+im,      "'"
         word ATICK
@@ -6986,233 +7051,234 @@ romdict
         word IFDEF
 
 
-''        byte 4, 	"IDLE"
+''        byte 4,       "IDLE"
 ''        word IDLE
 
-''        byte 4, 	".VER"
+''        byte 4,       ".VER"
 ''        word PRTVER
-        byte 5, 	"TAQOZ"
+        byte 5,         "TAQOZ"
         word _TAQOZ
-        byte 4, 	"TERM"
+        byte 4,         "TERM"
         word TERMINAL
-        byte 4+im, 	"AUTO"
+        byte 4+im,      "AUTO"
         word AUTORUN
 
-        byte 5, 	"SPIRD"
+        byte 5,         "SPIRD"
         word SPIRD
-        byte 6, 	"SPIRDL"
+        byte 6,         "SPIRDL"
         word SPIRDL
-        byte 5, 	"SPIWB"
+        byte 5,         "SPIWB"
         word SPIWR8
-        byte 5, 	"SPICE"
+        byte 5,         "SPICE"
         word SPICE
-        byte 5, 	"SPIWC"
+        byte 5,         "SPIWC"
         word SPIWRC
-        byte 5, 	"SPIWW"
+        byte 5,         "SPIWW"
         word SPIWR16
-        byte 5, 	"SPIWM"
+        byte 5,         "SPIWM"
         word SPIWM
-	byte 5, 	"SPIWL"
+        byte 5,         "SPIWL"
         word SPIWRL
-        byte 7, 	"SPIPINS"
+        byte 7,         "SPIPINS"
         word SPIPINS
-        byte 5, 	"SPIRX"
+        byte 5,         "SPIRX"
         word SPIRX
-        byte 6, 	"SPITXE"
+        byte 6,         "SPITXE"
         word SPITXE
-        byte 5, 	"SPITX"
+        byte 5,         "SPITX"
         word SPITX
 {
-        byte 5, 	"CLKIN"
+        byte 5,         "CLKIN"
         word CLKIN
-        byte 6, 	"CLKOUT"
+        byte 6,         "CLKOUT"
         word CLKOUT
-        byte 5, 	"CLOCK"
+        byte 5,         "CLOCK"
         word CLOCK
+
+        byte 5,         "WSLED"
+        word WSLED
 }
 
-        byte 5, 	"WSLED"
-        word WSLED
-
-        byte 4, 	"WAIT"
+        byte 4,         "WAIT"
         word WAIT
 
-        byte 6, 	"CLKDIV"
+        byte 6,         "CLKDIV"
         word CLKDIV
-        byte 6, 	"RCSLOW"
+        byte 6,         "RCSLOW"
         word RCSLOW
 
 
-        byte 6, 	"HUBSET"
+        byte 6,         "HUBSET"
         word _HUBSET
-        byte 2, 	"WP"
+        byte 2,         "WP"
         word WP
-        byte 2, 	"WE"
+        byte 2,         "WE"
         word WE
 
 
-        byte 5, 	"CLKHZ"
+        byte 5,         "CLKHZ"
         word CLKHZ
-''        byte 6, 	"CLKMHZ"
+''        byte 6,       "CLKMHZ"
 ''        word CLKMHZ
 
 {
-        byte 7, 	"BUFFERS"
+        byte 7,         "BUFFERS"
         word BUFFERS
-        byte 3, 	"ROM"
+        byte 3,         "ROM"
         word ROM
-        byte 6, 	"IRQVEC"
+        byte 6,         "IRQVEC"
         word IRQVEC
 
-        byte 4, 	"PTRA"
+        byte 4,         "PTRA"
         word w+PTRA
-        byte 4, 	"PTRB"
+        byte 4,         "PTRB"
         word w+PTRB
-        byte 4, 	"DIRA"
+        byte 4,         "DIRA"
         word w+DIRA
-        byte 4, 	"DIRB"
+        byte 4,         "DIRB"
         word w+DIRB
-        byte 4, 	"OUTA"
+        byte 4,         "OUTA"
         word w+OUTA
-        byte 4, 	"OUTB"
+        byte 4,         "OUTB"
         word w+OUTB
-        byte 3, 	"INA"
+        byte 3,         "INA"
         word w+INA
-        byte 3, 	"INB"
+        byte 3,         "INB"
         word w+INB
 }
 
-        byte 5, 	"ERROR"
+        byte 5,         "ERROR"
         word ERROR
 
-        byte 6, 	"SFPINS"
+        byte 6,         "SFPINS"
         word SFPINS
-        byte 3, 	"SF?"
+        byte 3,         "SF?"
         word SFSTAT
-        byte 4, 	"SFWE"
+        byte 4,         "SFWE"
         word SFWE
-        byte 5, 	"SFINS"
+        byte 5,         "SFINS"
         word SFINS
-        byte 4, 	"SFWD"
+        byte 4,         "SFWD"
         word SFWD
-        byte    5, 	"SFSID"
+        byte    5,      "SFSID"
         word SFSID
-        byte    5, 	"SFJID"
+        byte    5,      "SFJID"
         word SFJID
-        byte    5, 	"SFER4"
+        byte    5,      "SFER4"
         word SFER4
-        byte    6, 	"SFER32"
+        byte    6,      "SFER32"
         word SFER32
-        byte    6, 	"SFER64"
+        byte    6,      "SFER64"
         word SFER64
-        byte    7, 	"SFERASE"
+        byte    7,      "SFERASE"
         word SFERALL
-        byte    6, 	"SFWRPG"
+        byte    6,      "SFWRPG"
         word SFWRPAGE
 
-        byte    6, 	"BACKUP"
+        byte    6,      "BACKUP"
         word BACKUP
-        byte    7, 	"RESTORE"
+        byte    7,      "RESTORE"
         word RESTORE
-        byte    5, 	"SFRDS"
+        byte    5,      "SFRDS"
         word SFRDS
 
-        byte    5, 	"SFWRS"
+        byte    5,      "SFWRS"
         word SFWRS
-        byte    4, 	"SFC@"
+        byte    4,      "SFC@"
         word SFCFETCH
-        byte    4, 	"SFW@"
+        byte    4,      "SFW@"
         word SFWFETCH
-        byte    3, 	"SF@"
+        byte    3,      "SF@"
         word SFFETCH
-        byte    2, 	"SF"
+        byte    2,      "SF"
         word SF
-	byte    3, 	".SF"
+        byte    3,      ".SF"
         word PRTSF
 
 
-	byte 5, 	"SDBUF"
-	word SDBUF
-	byte 6, 	"sdpins"
-	word _sdpins
-	byte 5, 	"MOUNT"
-	word MOUNT
-	byte 3, 	"DIR"
-	word PRTDIR
-	byte 3, 	"!SD"
-	word INITSD
-	byte 3, 	"!SX"
-	word INITSX
-	byte 3, 	"SD?"
-	word SDQ
-	byte 3, 	"CMD"
-	word CMD
-	byte 4, 	"ACMD"
-	word ACMD
-''	byte 3, 	"csd"
-''	word csd
-	byte 3, 	"cid"
-	word w+cid
-	byte 4, 	"SDWR"
-	word SDWR
-	byte 5, 	"SDRDS"
-	word SDRDS
-	byte 5, 	"SDWRS"
-	word SDWRS
-	byte 5, 	"FLUSH"
-	word FLUSH
-	byte 5, 	"FOPEN"
-	word FOPEN
-	byte 5, 	"FLOAD"
-	word FLOAD
-	byte 4, 	"FGET"
-	word FGET
-	byte 5, 	"FREAD"
-	word FREAD
-	byte 6, 	"FWRITE"
-	word FWRITE
+        byte 5,         "SDBUF"
+        word SDBUF
+        byte 6,         "sdpins"
+        word _sdpins
+        byte 5,         "MOUNT"
+        word MOUNT
+        byte 3,         "DIR"
+        word PRTDIR
+        byte 3,         "!SD"
+        word INITSD
+        byte 3,         "!SX"
+        word INITSX
+        byte 3,         "SD?"
+        word SDQ
+        byte 3,         "CMD"
+        word CMD
+        byte 4,         "ACMD"
+        word ACMD
+''      byte 3,         "csd"
+''      word csd
+        byte 3,         "cid"
+        word w+cid
+        byte 4,         "SDWR"
+        word SDWR
+        byte 5,         "SDRDS"
+        word SDRDS
+        byte 5,         "SDWRS"
+        word SDWRS
+        byte 5,         "FLUSH"
+        word FLUSH
+        byte 5,         "FOPEN"
+        word FOPEN
+        byte 5,         "FLOAD"
+        word FLOAD
+        byte 4,         "FGET"
+        word FGET
+        byte 5,         "FREAD"
+        word FREAD
+        byte 6,         "FWRITE"
+        word FWRITE
 
-	byte 6, 	"SECTOR"
-	word SECTOR
-	byte 4, 	"SDRD"
-	word SDRD
-	byte 5, 	"SDRDS"
-	word SDRDS
-	byte 5, 	"SDADR"
-	word SDADR
-	byte 3, 	"SD@"
-	word SDFETCH
-	byte 3, 	"SD!"
-	word SDSTORE
-	byte 4, 	"SDC@"
-	word SDCFETCH
-	byte 4, 	"SDC!"
-	word SDCSTORE
-	byte 4, 	"SDW@"
-	word SDWFETCH
-	byte 2, 	"SD"
-	word SD
+        byte 6,         "SECTOR"
+        word SECTOR
+        byte 4,         "SDRD"
+        word SDRD
+        byte 5,         "SDRDS"
+        word SDRDS
+        byte 5,         "SDADR"
+        word SDADR
+        byte 3,         "SD@"
+        word SDFETCH
+        byte 3,         "SD!"
+        word SDSTORE
+        byte 4,         "SDC@"
+        word SDCFETCH
+        byte 4,         "SDC!"
+        word SDCSTORE
+        byte 4,         "SDW@"
+        word SDWFETCH
+        byte 2,         "SD"
+        word SD
 
-''	byte 5, 	"RDFAT"
-''	word RDFAT
-	byte 4, 	"@FAT"
-	word ATFAT
-	byte 5, 	"@BOOT"
-	word ATBOOT
-	byte 5, 	"@ROOT"
-	word ATROOT
-''	byte 7, 	"CL>SECT"
-''	word CLSECT
-	byte 3, 	"fat"
-	word w+fat32
+''      byte 5,         "RDFAT"
+''      word RDFAT
+        byte 4,         "@FAT"
+        word ATFAT
+        byte 5,         "@BOOT"
+        word ATBOOT
+        byte 5,         "@ROOT"
+        word ATROOT
+''      byte 7,         "CL>SECT"
+''      word CLSECT
+        byte 3,         "fat"
+        word w+fat32
 
 
-        byte 3, 	"END"
+        byte 3,         "END"
         word _END
         long    0
 enddict
         alignl
 
+' feel free to go to the end of memory $FFFFF
 
 {{
 +------------------------------------------------------------------------------------------------------------------------------+
@@ -7231,4 +7297,3 @@ enddict
 |ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         |
 +------------------------------------------------------------------------------------------------------------------------------+
 }}
-

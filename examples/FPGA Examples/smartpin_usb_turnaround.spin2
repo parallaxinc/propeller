@@ -1,3 +1,11 @@
+' NOTE:	All USB smart pin modes have been consolidated to %11011.
+'
+'	WXPIN is now used to set up the sub-modes and the NCO:
+'		bit 15 = 0 for device mode, 1 for host mode
+'		bit 14 = 0 for low-speed mode, 1 for full-speed mode
+'		bits 13..0 = NCO frequency
+
+
 ' USB demo program
 ' - outputs SOP, $00..$FF bytes, then EOP from cog0
 ' - input status monitored by cog1
@@ -12,6 +20,7 @@ con
 	fclk	=	80_000_000.0
 	fusb	=	12_000_000.0
 	nco	=	round((fusb / fclk) * 65536.0)
+	mode	=	%01<<14 + nco	'device mode and full-speed mode
 
 dat
 '
@@ -25,11 +34,11 @@ dat
 
 		wrpin	#%1_11011_0,#dp	'configure DP pin (passive)
 		wrpin	#%1_11011_0,#dm	'configure DM pin (the brain)
-		wxpin	##nco,#dm	'configure 12Mbps
+		wxpin	##mode,#dm	'configure 12Mbps
 
 		or	dira,#%11	'enable smart pins 1 and 0
 
-		wypin	#3,#dm		'set J state (like IDLE, but driven)
+		wypin	#1,#dm		'set J state (like IDLE, but driven)
 
 		waitx	##1000		'allow cog1 time to start
 

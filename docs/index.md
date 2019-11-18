@@ -23,13 +23,15 @@ A collection of resources for Propeller Community members.
   * [P2 FPGA Emulation](http://forums.parallax.com/discussion/144199/propeller-ii-emulation-of-the-p2-on-fpga-boards-prop123-a7-a9-de0-nano-de2-115-etc#latest) discussion
 
 ### Firmware
-  * [boot rom P2 v33j](http://forums.parallax.com/discussion/comment/1465155/#Comment_1465155) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
-    - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/v32i%20FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
+  * [boot rom P2 v33j](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v33k.spin2) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
+    - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
   * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) - treasure trove of information on TAQOZ by Peter Jakacki
 
 ### Software
   * IDEs
-    - [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS)
+    - PNut - Parallax P2 IDE (built for Windows- can be used with wine on Linux and MacOS)
+      - [PNut v33k](https://github.com/parallaxinc/propeller/releases/download/v33k/PNut_v33k.exe) - for P2 Rev B (2nd -ES silicon, as used on the Rev B P2 Eval boards and available in the P2 sample 4-packs)
+      - [PNut v32i](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - for P2 Rev A (1st -ES silicon, as used on the Rev A P2 Eval boards)
     - [FlexGUI (formerly Spin2gui)](https://github.com/totalspectrum/flexgui/releases) - IDE for P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
 [BASIC](https://github.com/totalspectrum/spin2cpp/blob/master/doc/basic.md) and
 [C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) by Eric R. Smith
