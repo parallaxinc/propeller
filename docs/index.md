@@ -1,7 +1,7 @@
 # Propeller 2 Developer Site
 A collection of resources for Propeller Community members.
 
-[<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](https://github.com/parallaxinc/propeller/blob/master/docs/assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](https://github.com/parallaxinc/propeller/blob/master/docs/assets/p2-es_rev_a.jpg)
+[<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](assets/p2-es_rev_a.jpg)
 
 ## Resources
 ### How Do I Find Out The Latest?
@@ -17,7 +17,7 @@ A collection of resources for Propeller Community members.
   * [TAQOZ ROM-resident Interactive Prompt](https://goo.gl/znBdQw) documentation, by Peter Jakacki
 
 ### Hardware
-Propeller 2 early adopters may experiment with two options: 1) limited-edition boards and silicon engineering samples (below) or, 2) design emulatation on supported FPGAs (following).
+Propeller 2 early adopters may experiment with two options: 1) limited-edition boards and silicon engineering samples (below) or, 2) design emulation on supported FPGAs (following).
 #### Parallax Boards and Silicon
 *On the following product pages, expand the Downloads and Additional Resources tabs for documentation, schematics, and more.*
   * [Propeller 2 Products](https://www.parallax.com/product/propeller-2) - All P2-related products
