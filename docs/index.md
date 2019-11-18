@@ -29,7 +29,9 @@ A collection of resources for Propeller Community members.
 
 ### Software
   * IDEs
-    - [PNut](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - Parallax P2 IDE (windows, can be used with wine on Linux and MacOS)
+    - PNut - Parallax P2 IDE (built for Windows- can be used with wine on Linux and MacOS)
+      - [PNut v33k](https://github.com/parallaxinc/propeller/releases/download/v33k/PNut_v33k.exe) - for P2 Rev B (2nd -ES silicon, as used on the Rev B P2 Eval boards and available in the P2 sample 4-packs)
+      - [PNut v32i](https://github.com/parallaxinc/propeller/releases/download/v32i/PNut_v32i.exe) - for P2 Rev A (1st -ES silicon, as used on the Rev A P2 Eval boards)
     - [FlexGUI (formerly Spin2gui)](https://github.com/totalspectrum/flexgui/releases) - IDE for P1 and P2 [Spin](https://github.com/totalspectrum/spin2cpp/blob/master/doc/spin.md),
 [BASIC](https://github.com/totalspectrum/spin2cpp/blob/master/doc/basic.md) and
 [C](https://github.com/totalspectrum/spin2cpp/blob/master/doc/c.md) by Eric R. Smith
