@@ -1,0 +1,188 @@
+'********************************************
+'*  Use Goertzel board to drive HDMI board  *
+'********************************************
+
+CON		gtzl_base	= 40		'must be a multiple of 8
+		hdmi_base	= 8		'must be a multiple of 8
+
+		hdmi_color	= %011		'RGB bit-enables for luma8 mode (%000 = orange)
+
+		freq	= 250_000_000.0		'system clock frequency must be 250 MHz for HDMI
+		buffer	= $400			'sample buffer start (1 KB)		
+		bitmap	= $800			'bitmap buffer start (300 KB)
+
+
+DAT		org
+
+                hubset  ##%1_000001_0000011000_1111_10_00       'config PLL, 20MHz/2*25*1 = 250MHz
+                waitx   ##20_000_000 / 200                      'allow crystal+PLL 5ms to stabilize
+                hubset  ##%1_000001_0000011000_1111_10_11       'switch to PLL
+
+		setq	##($7FFFF - @end_of_pgm)/4		'clear hub RAM
+		wrlong	#0,##@end_of_pgm
+
+		coginit	#1,##@pgm_gtzl		'launch Goertzel
+		coginit	#0,##@pgm_hdmi		'launch HDMI
+
+
+'**************
+'*  Goertzel  *
+'**************
+
+CON		gtzl_freq	= 1_200_000.0	'goertzel frequency is multiple of both 50 and 60 Hz
+		cycles		= 1200		'number of cycles to measure
+		shifts		= 12		'right-shifts for acc's
+
+
+DAT		org
+
+pgm_gtzl	wrpin	adcmode,#gtzl_base+7	'init ADC pin
+
+		cogid	x			'init DAC pins for this cog's DAC channels
+		setnib	dacmode,x,#2
+		wrpin	dacmode,#3<<6+gtzl_base
+		dirh	#3<<6+gtzl_base
+
+		setxfrq	xfreq			'set streamer NCO frequency
+
+		mov	ptra,##buffer
+		rdfast	#$100*2*2/64,ptra	'set rdfast to wrap of $100-sample circular buffer of (x,y) words
+
+' Make sine and cosine tables in LUT bytes 3 and 2
+
+		mov	z,#$1FF			'make 512-sample sin/cos table in LUT
+sincos		shl	z,#32-9			'get angle into top 9 bits of z
+		qrotate	#127,z			'rotate (127,0) by z
+		shr	z,#32-9			'restore z
+		getqx	x			'get x
+		getqy	y			'get y
+		rolbyte	y,x,#0			'make 0:0:y:x
+		rolword	y,y,#0			'make y:x:y:x
+		wrlut	y,z			'write sin:cos:sin:cos into LUT
+		djnf	z,#sincos		'loop until 512 samples
+
+' Take Goertzel measurements and plot in bitmap
+
+loop		xcont	dds_d,dds_s		'issue Goertzel command
+		getxacc	x			'get prior Goertzel acc's, cos first
+		mov	y,0			'..then sin
+
+		cmpsub	calwait,#1	wc	'initially calibrate
+	if_c	mov	xcal,x
+	if_c	mov	ycal,y
+
+		sub	x,xcal			'get calibrated/shifted x
+		sar	x,#shifts
+
+		sub	y,ycal			'get calibrated/shifted y
+		sar	y,#shifts
+
+		add	x,#640/2		'constrain x to 0..639
+		fges	x,#0
+		fles	x,##640-1
+
+		add	y,#480/2		'constrain y to 0..479
+		fges	y,#0
+		fles	y,#480-1
+
+		wrword	x,ptra++		'enter (x,y) into circular buffer
+		wrword	y,ptra++
+		cmp	ptra,##buffer+$400 wz
+	if_z	mov	ptra,##buffer
+
+		rflong	z			'skip over new (x,y), so it gets plotted last
+
+		mov	z,#0			'plot oldest to newest sample into bitmap, dark to light
+plot		rfword	x			'get (x,y) sample from circular buffer
+		rfword	y
+		mul	y,##640			'get pixel address into y
+		add	y,##bitmap + 640-1
+		sub	y,x
+		wrbyte	z,y			'plot pixel (z is the intensity 0..$FF)
+		incmod	z,#$FF		wc
+	if_nc	jmp	#plot
+
+		jmp	#loop			'loop
+
+' Data
+
+adcmode		long	%0000_0000_000_100111_0000000_00_00000_0		'ADC mode
+dacmode		long	%0000_0000_000_10110_00000000_01_00000_0		'DAC mode, cog DAC channels
+
+xfreq		long	round(gtzl_freq/freq * 65536.0 * 32768.0)		'streamer frequency value
+
+dds_d		long	%1111_1110_0000_1111<<16 + gtzl_base<<17 + cycles	'Goertzel mode, input from pin +4..7
+dds_s		long	%0000_1000_000_000000000				'input from pin +3
+
+calwait		long	100			'initial calibration cycles
+
+x		res	1
+y		res	1
+z		res	1
+xcal		res	1
+ycal		res	1
+
+
+'***************************************
+'*  VGA 640 x 480 x 8bpp luma8 - HDMI  *
+'***************************************
+
+DAT             org
+
+pgm_hdmi        setcmod #$100                   'enable HDMI mode
+                drvl    #7<<6 + hdmi_base       'enable HDMI pins
+                wrpin   ##%100100<<8,#7<<6 + hdmi_base  'set 1 mA drive on HDMI pins
+
+                setxfrq ##$0CCCCCCC+1           'set streamer freq to 1/10th clk (25 MHz)
+
+                rdfast  ##640*480/64,##bitmap   'set rdfast to wrap on 300KB bitmap
+
+' Field loop
+
+field           mov     hsync0,sync_000         'vsync off
+                mov     hsync1,sync_001
+
+                callpa  #25,#blank              'top blanks
+
+                mov     i,#480                  'set visible lines
+line            call    #hsync                  'do horizontal sync
+                xcont   m_rf,#hdmi_color        'do visible line
+                djnz    i,#line                 'another line?
+
+                callpa  #18,#blank              'bottom blanks
+
+                mov     hsync0,sync_222         'vsync on
+                mov     hsync1,sync_223
+
+                callpa  #2,#blank               'vertical sync blanks
+
+                jmp     #field                  'loop
+
+' Subroutines
+
+blank           call    #hsync                  'blank lines
+                xcont   m_vi,hsync0
+        _ret_   djnz    pa,#blank
+
+hsync           xcont   m_bs,hsync0             'horizontal sync
+                xzero   m_sn,hsync1
+        _ret_   xcont   m_bv,hsync0
+
+' Data
+
+sync_000        long    %1101010100_1101010100_1101010100_10    '
+sync_001        long    %1101010100_1101010100_0010101011_10    '        hsync
+sync_222        long    %0101010100_0101010100_0101010100_10    'vsync
+sync_223        long    %0101010100_0101010100_1010101011_10    'vsync + hsync
+
+m_bs            long    $70810000 + hdmi_base<<17 + 16          'before sync
+m_sn            long    $70810000 + hdmi_base<<17 + 96          'sync
+m_bv            long    $70810000 + hdmi_base<<17 + 48          'before visible
+m_vi            long    $70810000 + hdmi_base<<17 + 640         'visible
+m_rf            long    $B0820000 + hdmi_base<<17 + 640         'visible rfbyte luma8
+
+i               res     1
+hsync0          res     1
+hsync1          res     1
+
+end_of_pgm
