@@ -1,0 +1,22 @@
+.......
+MG1101_UpdateRate_demo
+Scanning I2C Bus....EEPROM Addr : %10100000, ACK
+GyroDevice Addr : %10101110, ACK
+i2cScan found 2 devices!
+calibration constants from EEPROM:
+87 255 253 255 200 131 128 10 118 15 138 133 3 4 63 8 
+wrote constants to Gyro Function:
+set gyro initialize bit:
+set gyro to full power mode:
+gyro is ready
+polling 100 samples took 469 milliseconds
+gyro=1467961458 polls=7 update time=33 (ms)
+gyro=1803523186 polls=7 update time=33 (ms)
+gyro=562001010 polls=7 update time=33 (ms)
+gyro=763309170 polls=7 update time=33 (ms)
+gyro=796861554 polls=7 update time=33 (ms)
+gyro=561991282 polls=7 update time=33 (ms)
+gyro=914314354 polls=8 update time=37 (ms)
+gyro=1014976114 polls=7 update time=33 (ms)
+gyro=780093042 polls=7 update time=33 (ms)
+gyro=696205682 polls=7 update time=33 (ms)
