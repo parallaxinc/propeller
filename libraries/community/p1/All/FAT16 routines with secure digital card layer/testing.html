@@ -1,0 +1,50 @@
+<html><head><title>Testing</title></head>
+<body>
+Thank you for helping to test this software!
+<p>
+The <a href="test.spin">test.spin</a> routine is what we want to run.
+In order to run this best, we recommend you read this entire
+document.
+<p>
+Copy <a href="sysdep_demo_ser.spin">sysdep_demo_ser.spin</a> to
+sysdep.spin, and edit it for your configuration.  Pay particular
+attention to the clock frequency, where the SD card is attached,
+and how you want to supply input and output.  If you do not have an
+input mechanism, make the rx method return " " the first time it is
+called and make it sit in an infinite loop all subsequent times
+(so the test is run exactly once).
+<p>
+If at all possible, reformat your secure digital card using
+32K clusters (if it is 256MB or larger); for other sizes refer to
+the formatting instructions.  This step is not necessary but it
+will help us get consistent results.  Note that the cluster sizehas the biggest effect on the pwrite speed (smaller clusters = slower writing).
+<p>
+Be aware the test may destroy any data you have on your card;
+in particular, it destructively smashes a range of blocks starting
+at 8MB (you can modify this in test.spin if you want, to be closer
+to the end of your card, or nearer the beginning if your card is smaller than 16MB). If you do not want to take the risk
+of losing your data, we recommend you do not run this test.
+<p>
+Download test.spin to your system, insert the card, and
+run the program.  By default the program waits for an input
+character to be typed (to give you a chance to set up PropTerm or
+whatever terminal program you are using.)  Any character should
+start the test.
+<p>
+The test is rather chatty; if it fails, it will fail pretty
+loudly.  Don't worry about writing things down as they scroll
+by; performance numbers will be collected and then printed again
+at the end of the test.
+<p>
+What we would like to get is the following:
+<ul>
+<li>The size and brand of your SD card.</li>
+<li>Whether this test fails in some way on your system.</li>
+<li>The clock frequency of your propeller system.</li>
+<li>The test results; cut and paste if possible, but a screen shot
+or digital photograph is fine too.</li>
+<li>Any problems you had configuring or running the test.</li>
+</ul>
+Please feel free to post the results directly to the thread we have
+created in the Parallax Propeller forums so we can all learn.  (Note that the standard Parallax Serial Terminal does not allow you to Copyto the Clipboard, but PropViewer does.)
+</body></html>

@@ -1,0 +1,22 @@
+<html><head><title>FSRW System Dependencies</title></head>
+<body>
+For the fsrw test program and other utilities, all system
+dependencies (such as the console input and output device, the
+system clock frequency, and how the secure digital card is
+connected) are abstracted out by the sysdep.spin file.
+<p>
+By default, no file is supplied, but examples are supplied for
+some common Propeller platforms.  For example, the file
+<a href="sysdep_demo_ser.spin">sysdep_demo_ser.spin</a>
+describes an 80MHz Propeller on a
+Parallax demo board, with console I/O to the serial port,
+and with the SD card attached starting at pin 0.  If this is
+your setup, you can just copy this file to sysdep.spin and
+then everything else will compile.  Otherwise, browse the
+available sysdep*.spin files, pick the one closed to your
+setup, copy it to sysdep.spin, and edit it for your environment.
+<p>
+Once you've done this, future releases will use that for
+the system dependencies and you should not need to edit any
+other files.
+</body></html>

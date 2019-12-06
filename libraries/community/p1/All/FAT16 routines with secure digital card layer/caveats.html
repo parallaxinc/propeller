@@ -1,0 +1,24 @@
+<html><head><title>FSRW Caveats</title></head>
+<body>
+FSRW has the following limitations.  Some of these will be
+addressed in future releases.
+<p>
+<ul>
+<li>Files larger than 2GB are not supported.</li>
+<li>On FAT32, only the first cluster of the root directory is
+    supported (but for 32K clusters, this is up to 1000 files.)</li>
+<li>Subdirectories are not supported.</li>
+<li>Long file names are not supported.</li>
+<li>Seeking is not supported.</li>
+<li>Only one file at a time may be open.</li>
+<li>We ignore the write-protect tab on cards (we have no signal line for
+this presently).</li>
+<li>For cluster sizes below 32K, write speed can be significantly
+slower because the Propeller does not have enough memory to buffer much
+of the FAT.</li>
+<li>If a card is somewhat full, writing the initial block of a new
+file could take a while as the FAT is scanned.
+We can improve this somewhat.</li>
+<li>No explicit date or time support yet.</li>
+</ul>
+</body></html>

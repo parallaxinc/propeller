@@ -1,0 +1,37 @@
+<html><head><title>Formatting for FSRW</title></head>
+<body>
+A key to getting good performance out of the FAT filesystem
+using a limited-memory processor such as the propeller is to
+format your card with the largest sectors you can.  Generally
+this means 32K clusters (on any card sized 256MB or larger).
+This also means that cards of 256MB or larger will, in general,
+perform better than smaller cards, just because they can use
+larger clusters.
+<p>
+This code does not support FAT12, which means for cards smaller
+than 256MB, you will not be able to use 32K clusters.  Refer
+to the table below and select the largest allowed cluster size.
+<pre>
+          min   max
+   4M     512   512
+   8M     512    1K
+   16M    512    2K
+   32M    512    4K
+   64M     1K    8K
+   128M    2K   16K
+   256M    4K   32K
+   512M    8K   32K
+   1G     16K   32K
+   2G     32K   32K
+</pre>
+To format a card using Windows, you can either right-click on the
+drive in Windows Explorer and select Format.  In the Format dialog,
+select FAT and set the cluster size appropriately.
+<p>
+Alternatively, you can use the command line with a statement such as
+<pre>
+   format /a:32k /fs:fat x:
+</pre>
+where x: is replaced by the appropriate drive letter.  (Be careful
+not to format your system disk!)
+</body></html>

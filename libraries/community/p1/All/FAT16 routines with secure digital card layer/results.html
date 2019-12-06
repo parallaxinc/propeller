@@ -1,0 +1,27 @@
+<html><body><pre>
+All cards freshly reformatted with 32K clusters except where noted
+below. All values in KB/s.<br>
+These results are old and do *not* reflect the new read-ahead/write-behind
+functionality that's in this release.<br>
+<table border="1">
+<tr><td>Card</td><td>RawRead</td><td>RawWrite</td><td>pread</td><td>pwrite</td><td>pgetc</td><td>pputc</td><td>Notes</td></tr>
+<tr><td>Canon 16MB</td><td>854</td><td>1170</td><td>558</td><td>135</td><td>33</td><td>28</td><td>(2KB)</td></tr>
+<tr><td>Sandisk 64MB</td><td>862</td><td>1363</td><td>585</td><td>463</td><td>33</td><td>28</td><td>(8KB)</td></tr>
+<tr><td>PQI 128MB</td><td>922</td><td>1076</td><td>601</td><td>505</td><td>31</td><td>26</td><td>(16KB) (failed on third mount)</td></tr>
+<tr><td>Panasonic 256MB</td><td>922</td><td>1462</td><td>620</td><td>733</td><td>33</td><td>29</td><td></td></tr>
+<tr><td>Kingston 512MB</td><td>922</td><td>1297</td><td>621</td><td>692</td><td>33</td><td>27</td><td></td></tr>
+<tr><td>Patriot 512MB</td><td>922</td><td>1295</td><td>621</td><td>716</td><td>33</td><td>29</td><td>(fourth mount)</td></tr>
+<tr><td>Kingmax 1GB</td><td>922</td><td>1440</td><td>621</td><td>691</td><td>33</td><td>29</td><td>(fourth mount)</td></tr>
+<tr><td>Patriot 2GB</td><td>922</td><td>1460</td><td>621</td><td>700</td><td>33</td><td>29</td><td></td></tr>
+<tr><td>Panasonic 2GB</td><td>922</td><td>1453</td><td>621</td><td>694</td><td>33</td><td>29</td><td>(fourth mount)</td></tr>
+<tr><td>Kingston 2GB</td><td>922</td><td>1170</td><td>620</td><td>671</td><td>33</td><td>29</td><td></td></tr>
+<tr><td>Patriot 8GB</td><td>922</td><td>1451</td><td>620</td><td>701</td><td>33</td><td>29</td><td>(fourth mount)</td></tr>
+<tr><td>Polaroid 8GB uSD</td><td>922</td><td>1359</td><td>620</td><td>662</td><td>33</td><td>29</td><td>(fourth mount)</td></tr>
+</table>
+
+At 100MHz:
+<table border="1">
+<tr><td>Card</td><td>RawRead</td><td>RawWrite</td><td>pread</td><td>pwrite</td><td>pgetc</td><td>pputc</td><td>Notes</td></tr>
+<tr><td>Panasonic 256MB</td><td>1152</td><td>1827</td><td>775</td><td>914</td><td>41</td><td>37</td><td></td></tr>
+</table>
+</pre></body></html>
