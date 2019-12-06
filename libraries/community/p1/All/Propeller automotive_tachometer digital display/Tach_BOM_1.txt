@@ -1,0 +1,21 @@
+
+
+
+
+			Bill of Materials
+
+
+Source		Schematic 	Description		Part
+		reference				Number
+		
+
+Parallax.com	U1		8 core micro controller	P8X32-D40
+		U2		24LC256(EEPROM)		602-00032
+		xtal		5 MHz crystal		251-0500
+		C5, C6		.01 uF capacitors	200-0500
+		R2		270 ohm 1/4 resistor	150-02710
+		R3		10 K ohm 1/4 w		150-01030
+mouser.com	U3		SPI LED Driver		841-MC14489BPE
+		U4		1-CH opto isolator	512-H11L1SR2VM
+		R1		2.7 K ohm 1/4 w 	791-RC1/4-272JB
+futurlec.com	4x7_seg_LED	0.36" CC LED disp.	7FG3641AG										
