@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<asmv1:assembly xsi:schemaLocation="urn:schemas-microsoft-com:asm.v1 assembly.adaptive.xsd" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3" xmlns:dsig="http://www.w3.org/2000/09/xmldsig#" xmlns="urn:schemas-microsoft-com:asm.v2" xmlns:asmv1="urn:schemas-microsoft-com:asm.v1" xmlns:asmv2="urn:schemas-microsoft-com:asm.v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:co.v1="urn:schemas-microsoft-com:clickonce.v1">
+  <asmv1:assemblyIdentity name="SerialPort Terminal.exe" version="2.0.0.1" publicKeyToken="2d1ea1b3410c313e" language="neutral" processorArchitecture="msil" type="win32" />
+  <description asmv2:iconFile="App.ico" xmlns="urn:schemas-microsoft-com:asm.v1" />
+  <application />
+  <entryPoint>
+    <assemblyIdentity name="SerialPort Terminal" version="1.0.0.0" language="neutral" processorArchitecture="msil" />
+    <commandLine file="SerialPort Terminal.exe" parameters="" />
+  </entryPoint>
+  <trustInfo>
+    <security>
+      <applicationRequestMinimum>
+        <PermissionSet Unrestricted="true" ID="Custom" SameSite="site" />
+        <defaultAssemblyRequest permissionSetReference="Custom" />
+      </applicationRequestMinimum>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!--
+          UAC Manifest Options
+          If you want to change the Windows User Account Control level replace the 
+          requestedExecutionLevel node with one of the following.
+
+        <requestedExecutionLevel  level="asInvoker" uiAccess="false" />
+        <requestedExecutionLevel  level="requireAdministrator" uiAccess="false" />
+        <requestedExecutionLevel  level="highestAvailable" uiAccess="false" />
+
+         If you want to utilize File and Registry Virtualization for backward 
+         compatibility then delete the requestedExecutionLevel node.
+    -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <dependency>
+    <dependentOS>
+      <osVersionInfo>
+        <os majorVersion="4" minorVersion="10" buildNumber="0" servicePackMajor="0" />
+      </osVersionInfo>
+    </dependentOS>
+  </dependency>
+  <dependency>
+    <dependentAssembly dependencyType="preRequisite" allowDelayedBinding="true">
+      <assemblyIdentity name="Microsoft.Windows.CommonLanguageRuntime" version="2.0.50727.0" />
+    </dependentAssembly>
+  </dependency>
+  <dependency>
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="SerialPort Terminal.exe" size="51712">
+      <assemblyIdentity name="SerialPort Terminal" version="1.0.0.0" language="neutral" processorArchitecture="msil" />
+      <hash>
+        <dsig:Transforms>
+          <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+        </dsig:Transforms>
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
+        <dsig:DigestValue>DDvFlEzr2XpmV9nlkR9NjmyJp30=</dsig:DigestValue>
+      </hash>
+    </dependentAssembly>
+  </dependency>
+  <file name="App.config" size="8695">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
+      <dsig:DigestValue>K6VzQspapqLt+9dA6x5Q+Dsvun0=</dsig:DigestValue>
+    </hash>
+  </file>
+  <file name="App.ico" size="1078">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
+      <dsig:DigestValue>Ntuq+uJnErFhZ6wZb+Esz274zyg=</dsig:DigestValue>
+    </hash>
+  </file>
+  <file name="SerialPort Terminal.exe.config" size="8695">
+    <hash>
+      <dsig:Transforms>
+        <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
+      </dsig:Transforms>
+      <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
+      <dsig:DigestValue>K6VzQspapqLt+9dA6x5Q+Dsvun0=</dsig:DigestValue>
+    </hash>
+  </file>
+<publisherIdentity name="CN=IOTA\Bob Anderson" issuerKeyHash="36884b35905969471831c5eab8812a892f434a95" /><Signature Id="StrongNameSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" /><DigestValue>HyaeYS+EYAzCkWK/CNH8zKQGlGA=</DigestValue></Reference></SignedInfo><SignatureValue>sfZh71Q9chA1BBUd1vb5ZMw1IhI69dMA0JhcqTfoW+oDs8BCgDsZELzta40F9Jj3I+KzYd1C7+SKKLxkQlzinmZLCvT/bkUW3evIsyk+tUpfaEoFX8WM3FZDnqhU+daPn3RPfLZxjpB8tEv4ja7xna94w51eK66LbKSidhl6Lg4=</SignatureValue><KeyInfo Id="StrongNameKeyInfo"><KeyValue><RSAKeyValue><Modulus>s0SJqDKGRKagcTFOy4oPu1dbjMLTOn2fsekTcJkOgow9CFrSrxakv2Q7u87iFTMOU+K+YjSu5XIYrpUEbcMqacu5WXfjclGDuqcMykplyYmpe+RMHxnq5L8OkRqvsYLG/pyJfM8ZsQUShIcpiXikOiZ03GkiHULY2gUrA6ZCCNU=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><msrel:RelData xmlns:msrel="http://schemas.microsoft.com/windows/rel/2005/reldata"><r:license xmlns:r="urn:mpeg:mpeg21:2003:01-REL-R-NS" xmlns:as="http://schemas.microsoft.com/windows/pki/2005/Authenticode"><r:grant><as:ManifestInformation Hash="609406a4ccfcd108bf6291c20c60842f619e261f" Description="" Url=""><as:assemblyIdentity name="SerialPort Terminal.exe" version="2.0.0.1" publicKeyToken="2d1ea1b3410c313e" language="neutral" processorArchitecture="msil" type="win32" /></as:ManifestInformation><as:SignedBy /><as:AuthenticodePublisher><as:X509SubjectName>CN=IOTA\Bob Anderson</as:X509SubjectName></as:AuthenticodePublisher></r:grant><r:issuer><Signature Id="AuthenticodeSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" /><DigestValue>sh6ButzN87w6I4MwGxlI+gJdLBM=</DigestValue></Reference></SignedInfo><SignatureValue>WWfIL6K+HQaPf2mv+NKfopciPZVlj7CkUiJ9xDRo+0YPgCmHKflPWgIaN6Ad2Ea6ziWdV84dAndpeDsVAUeGWyXToA066l/Akfhbov4OIB6vaX4+c39V1ENJTo6vvS45oi0hyXIWHq6JfRxMxJXVtMQeQuiOMvjV5+stUhXOQgo=</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>s0SJqDKGRKagcTFOy4oPu1dbjMLTOn2fsekTcJkOgow9CFrSrxakv2Q7u87iFTMOU+K+YjSu5XIYrpUEbcMqacu5WXfjclGDuqcMykplyYmpe+RMHxnq5L8OkRqvsYLG/pyJfM8ZsQUShIcpiXikOiZ03GkiHULY2gUrA6ZCCNU=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><X509Data><X509Certificate>MIIB1TCCAUKgAwIBAgIQjZgoOMUykZRJ9TUA/Iz4VjAJBgUrDgMCHQUAMC0xKzApBgNVBAMeIgBJAE8AVABBAFwAQgBvAGIAIABBAG4AZABlAHIAcwBvAG4wHhcNMDgwMTA3MDUzOTU0WhcNMDkwMTA2MTEzOTU0WjAtMSswKQYDVQQDHiIASQBPAFQAQQBcAEIAbwBiACAAQQBuAGQAZQByAHMAbwBuMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCzRImoMoZEpqBxMU7Lig+7V1uMwtM6fZ+x6RNwmQ6CjD0IWtKvFqS/ZDu7zuIVMw5T4r5iNK7lchiulQRtwyppy7lZd+NyUYO6pwzKSmXJial75EwfGerkvw6RGq+xgsb+nIl8zxmxBRKEhymJeKQ6JnTcaSIdQtjaBSsDpkII1QIDAQABMAkGBSsOAwIdBQADgYEAH1SzQ6sx7AatE12R74+QU1GRDdUHWVf4VGrFrtlb3bSd7FZdJ+evG39wqbGQtH0+TmcyC5NBwrSr7pJFutrx7tbuXfbScJHU5NgAFtzgLKqxArsUGRFT5yH/byuK42KHkbSmtOS9Z2iD6W5bK1LiSsV93t78MiZUjOez7AfTqig=</X509Certificate></X509Data></KeyInfo></Signature></r:issuer></r:license></msrel:RelData></KeyInfo></Signature></asmv1:assembly>

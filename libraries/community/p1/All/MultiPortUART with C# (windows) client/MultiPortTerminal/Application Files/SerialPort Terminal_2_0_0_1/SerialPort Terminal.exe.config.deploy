@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<configuration>
+    <configSections>
+        <sectionGroup name="userSettings" type="System.Configuration.UserSettingsGroup, System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" >
+            <section name="SerialPortTerminal.Properties.Settings" type="System.Configuration.ClientSettingsSection, System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" allowExeDefinition="MachineToLocalUser" />
+        </sectionGroup>
+    </configSections>
+    <userSettings>
+        <SerialPortTerminal.Properties.Settings>
+            <setting name="PortName" serializeAs="String">
+                <value>COM1</value>
+            </setting>
+            <setting name="BaudRate" serializeAs="String">
+                <value>9600</value>
+            </setting>
+            <setting name="DataBits" serializeAs="String">
+                <value>8</value>
+            </setting>
+            <setting name="Parity" serializeAs="String">
+                <value>None</value>
+            </setting>
+            <setting name="DataMode" serializeAs="String">
+                <value>Text</value>
+            </setting>
+            <setting name="StopBits" serializeAs="String">
+                <value>One</value>
+            </setting>
+            <setting name="Chan1" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan2" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan3" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan4" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan5" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan6" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan7" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan8" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="MainWidth" serializeAs="String">
+                <value>500</value>
+            </setting>
+            <setting name="MainHeight" serializeAs="String">
+                <value>500</value>
+            </setting>
+            <setting name="MainX" serializeAs="String">
+                <value>50</value>
+            </setting>
+            <setting name="MainY" serializeAs="String">
+                <value>50</value>
+            </setting>
+            <setting name="MainFormSize" serializeAs="String">
+                <value>500, 500</value>
+            </setting>
+            <setting name="MainFormLoc" serializeAs="String">
+                <value>30, 30</value>
+            </setting>
+            <setting name="Chan1Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan2Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan3Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan4Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan5Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan6Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan7Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan8Size" serializeAs="String">
+                <value>700, 200</value>
+            </setting>
+            <setting name="Chan1Loc" serializeAs="String">
+                <value>40, 40</value>
+            </setting>
+            <setting name="Chan2Loc" serializeAs="String">
+                <value>50, 50</value>
+            </setting>
+            <setting name="Chan3Loc" serializeAs="String">
+                <value>60, 60</value>
+            </setting>
+            <setting name="Chan4Loc" serializeAs="String">
+                <value>70, 70</value>
+            </setting>
+            <setting name="Chan5Loc" serializeAs="String">
+                <value>80, 80</value>
+            </setting>
+            <setting name="Chan6Loc" serializeAs="String">
+                <value>90, 90</value>
+            </setting>
+            <setting name="Chan7Loc" serializeAs="String">
+                <value>100, 100</value>
+            </setting>
+            <setting name="Chan8Loc" serializeAs="String">
+                <value>110, 110</value>
+            </setting>
+            <setting name="AutoShowChannels" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="Chan1WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan1HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan1HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan2WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan2HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan2HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan3WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan3HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan3HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan4WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan4HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan4HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan5HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan6HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan7HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan8HexCols" serializeAs="String">
+                <value>16</value>
+            </setting>
+            <setting name="Chan5WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan5HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan6WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan6HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan7WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan7HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan8WordWrap" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="Chan8HexMode" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="AddCR" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="AddLF" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="ChannelSelect" serializeAs="String">
+                <value>1</value>
+            </setting>
+            <setting name="DataToSend" serializeAs="String">
+                <value />
+            </setting>
+        </SerialPortTerminal.Properties.Settings>
+    </userSettings>
+</configuration>
