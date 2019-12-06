@@ -1,0 +1,81 @@
+                              COMPLETE CHANGE LOG
+
+v0.8 (August 6, 2009):
+  Fixed bug where if init was called (for the first time) and no values were created, the names pointer would be in the wrong position next time init was called.
+  Optimization, removed a lot of shifting and converted it to .word and .byte (only where faster).
+  The complete table is now loaded to RAM on init. This reduces value locating times by about 60%.
+  Default start addresses moved to better optimize space (for 64 values).
+v0.9 (August 20, 2009):
+  NOT COMPATIBLE WITH PREVIOUS VERSIONS' TABLES
+  Index storage using a checksum so storage and recall is much faster (especially when many values are stored) and more predictable timing.
+  Fixed bug with storing more than 16 values.
+
+v1.0 (August 21, 2009):
+  Added lazy deletion method to clear table entries.
+  Strings can now span multiple pages, but cannot exceed 255 characters.
+  Strings start at current data pointer location rather than at next available page. This reduces the amount of space strings use up.
+  Removed moving of strings before storing to EEPROM (speeds things up).
+  Added get_freedataspace which uses the new end_data constant.
+  Now create and create_str tests for enough data space before writing.
+v1.1 (August 27, 2009):
+  Fixed possible problem with read function and "temperary" method variable being overwritten.
+  Added get_list and next_name methods. This will supply a list of names of the stored values.
+  Names can now be edited. Lazy deletion of old name, thus editing names exhausts name space.
+  Added reset_all method to "restore defaults" and start everything over.
+v1.2.0 (September 1, 2009):
+  Added is_set to check if specified value exists.
+  init now returns true or false depending on if EEPROM has been already been initialized or not.
+  Added check_edit_create for byte/word/long values to check to see if value exists, and creates or edits the value based on current value.
+v1.2.1 (November 5, 2009):
+  Names are now truncated during "get" methods. This means a name that is too long while being created can be accessed without external truncation.
+  Changed get_list to get_name_list to be more explanative and associative with next_name.
+v1.2.2 (February 5, 2010):
+  Added check_edit_create_str. It checks if the string already exists, then edits or creates accordingly.
+v1.3.0 (September 23, 2010):
+  Slight optimizations throughout the object.
+  Fixed a bug introduced in 1.21 where names could not be edited.
+  Removed the need for the nm variable, reducing the RAM used.
+  Added more comments to the code, and corrected old comments.
+  Adapted commands to allow for use of unmodified version of I2C driver. This also allows for PASM I2C driver compatibility for added speed.
+v1.3.1 (October 4, 2010):
+  Slight optimizations (very slight).
+  Fixed bug where editing a string limited the length of get_str return to the length that was read at init, the full string was still stored in EEPROM, and accessible after reboot.
+v1.3.2 (October 6, 2010):
+  set_name_pointer added so a name can be read by number
+  Optimizations in INIT and reset_all.
+  Added an Excel file to zip to help determine address locations.
+v1.3.3 (January 5, 2011):
+  Added check_edit_create_, create_, edit_, and get_ array. These are  used to store and retrieve stacks and arrays. For create/edit method calls, the size of the array must supplied.
+  Explained a bit more on how the data is stored (above).
+  Updated the Excel file to better help determine address locations set in the constants.
+  Switched some methods over to PRI because they are no longer needed for external use. Previously they were PUB so they could used for array and stack storage.
+
+v2.0.0 (January 27, 2011):
+  Deleting now renames the value. This allows for the program to reuse the space for future values. Further reducing wasted EEPROM space. Deleted names start with a tilde (~) to set them apart. Deleting (same as before) does not actually delete the content/values.
+  Hash algorithm was rewritten to allow for table_size values other than exponential values of 2. Now the only requirement is table_size must be a multiple of page_size (your EEPROM page size). Hash is slightly faster and reduces the likelihood of collisions from consecutive value names.
+  Tables created by older versions of the object will be reset.
+  Made arrays their own type (separate from strings).
+  Added prep_get_parts_array and get_next/prev_parts_array. These allow arrays and stacks longer than the previous 255 byte limit to be read. Each call to get_next/prev_parts_array will return one element of the array.
+  Added _STACK and _FREE constants to make sure there is enough space for the software to function.
+  Some optimizations due to new name system. Now, name storage always takes name_size bytes, so editing names don't use more name storage space. Also removing the need to check that names would span pages.
+  Changed "block" terminology to "page". read_/write_multiblock is now read_/write_multipage.
+  Changed edit_name to rename (a more obvious name).
+  Removed the "check_" off the edit_create_str method. The process  doesn't actually check the value before it is written.
+  Added prev_name to allow retrieval of previous names after get_*name_list and next_name are called.
+  Added get_full_name_list which returns names of current entries and deleted entries (sequential numbers preceded by a tilde and letter).
+  Fixed a bug that would make values become unset if name hashes collided and the first values set were renamed.
+  Optimizations in some of the methods.
+v2.0.1 (February 8, 2011):
+  Added get_pattern_name_list, which returns names based on a wild card (*) pattern.
+  Fixed bug where if you had deleted items, called get_full_name_list, then get_name_list, items were in the name table twice
+  Changed set_name_pointer so it doesn't call get_name_list, it just uses the last get_*name_list returned value as the maximum value.
+  Fixed overrun behavior in next_/prev_name.
+  Added set_array_pointer to allow retrieving just specific parts of an array, without having to cycle through or read the entire array.
+  Added get_array_pointer to get current pointer location.
+  Fixed overrun behavior in get_*_parts_array that occurred if you tried to access more elements than existed in an array.
+v2.0.2 (February 18, 2011):
+  Added sort_names which will sort the names array in ascending alphabetical order. It uses either insertion or shell sort algorithms based on the length of the name list.
+  Added get_type_name_list which creates a name list based on value type.
+  Changed hard-coded type values to constants.
+
+ # # #
