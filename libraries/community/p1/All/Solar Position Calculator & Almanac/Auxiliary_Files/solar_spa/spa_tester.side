@@ -1,0 +1,10 @@
+spa_tester.c
+spa.c
+spa.h
+>compiler=C
+>memtype=xmmc
+>optimize=-Os
+>-fno-exceptions
+>defs::-fno-builtin
+>-lm
+>BOARD::C3F
