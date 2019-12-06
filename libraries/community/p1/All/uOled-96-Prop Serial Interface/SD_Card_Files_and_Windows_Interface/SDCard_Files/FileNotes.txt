@@ -1,0 +1,14 @@
+Notes on the files in this zip file:
+
+test1.dat is a fullscreen 8-bit raw data image
+test2.dat is a not-fullscreen 16-bit raw data image
+test3.dat is a fullscreen 16-bit raw data image
+
+test4.dat is an animation of a flying dove
+test5.dat is an animation of an F-14 fighter jet
+
+test1.bmp is a fullscreen 24-bit Windows Bitmap
+test2.bmp is a fullscreen 256-color Windows Bitmap
+
+FBasic.bin is the binary of Femtobasic for OLED-96-PROP
+
