@@ -1,0 +1,60 @@
+ Driver for the TLC5940 chip for use on the Parallax Propeller
+ Adapted from the Brilldea Propeller Library
+
+ Written by Heath Paddock and Colin Harrington
+
+
+Description:
+This program sends grey scale data to TI TLC5940
+LED control chips wired in series.
+
+The Start function starts 2 cogs. The first runs the SendData
+function which constantly checks to see if there is any
+data to send to the TLC5940(s), and if there is, sends it.
+The second cog is handles the GSCLK and BLANK pins on the
+TLC5940(s).
+The program uses a two buffer system. The OffScreen
+Buffer is populated by the SetChannel and SetAllChannels functions.
+Each channel takes up a 16-bit word in the buffer, although
+only the lower 12-bits of each word are utilized. After setting
+any number of channels, a call to the Update function will trigger
+the "SendData" cog to copy the OffScreen Buffer to the OnScreen Buffer
+and then send the data to the TLC5940(s).
+Dot correction can also be set at any after Start. A call to SetDC or
+SetAllDC will update the TLC5940(s) immediately. No call to Update
+is required. The dot correction data is double buffered like the
+grey scale data. Although, if one was not making consecutive changes
+to dot correction values, one could probably get by with a single buffer.
+If your project does not require dot correction, you can connect the
+VPRG pin on the TLC(s) to ground.
+
+reference:
+      http://focus.ti.com/lit/ds/symlink/tlc5940.pdf (datasheet)
+      A big head start from Timothy D. Swieter, E.I. www.brilldea.com
+
+To Do:
+-convert serial shifting routine to ASM
+-code to do multiplexing
+
+**********************************************************************
+
+    Basic Pin setup:
+    
+    PROPELLER                                     TLC5940
+    ------------                                  ---u----
+                |                           OUT1 |1     28| OUT channel 0
+                |                           OUT2 |2     27|-> VPRG (pin 21)
+                |                           OUT3 |3     26|-> SIN (pin 19)
+                |                           OUT4 |4     25|-> SCLK (pin 20)
+                |                             .  |5     24|-> XLAT (pin 17)
+                |                             .  |6     23|-> BLANK (pin 18)
+              23|                             .  |7     22|-> GND
+              22|                             .  |8     21|-> VCC (+5V)
+              21|-> VPRG (pin 27)             .  |9     20|-> 2K Resistor -> GND
+              20|-> SCLK (pin 25)             .  |10    19|-> +5V (DCPRG)
+              19|-> SIN (pin 26)              .  |11    18|-> GSCLK (pin 16)
+              18|-> BLANK (pin 23)            .  |12    17|-> SOUT
+              17|-> XLAT (pin 24)             .  |13    16|-> XERR
+              16|-> GSCLK (pin 18)          OUT14|14    15| OUT channel 15
+    ------------                                  --------
+
