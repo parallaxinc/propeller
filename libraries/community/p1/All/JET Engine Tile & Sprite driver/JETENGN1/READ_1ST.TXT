@@ -1,0 +1,12 @@
+JET ENGINE
+----------
+
+Included files:
+JET_v01.spin            = JET Engine version 1 - Spin glue stuff. Put this in your OBJ section or copypaste the bits you need into your top object
+JET_v01_composite.spin  = JET Engine version 1 - NTSC/PAL60 TV output PASM code. In the future, there may be other output objects for RGB.
+JET_v01_rendering.spin  = JET Engine version 1 - Rendering PASM code. What this does should be rather obvious.
+demo.spin               = JET Engine demo program. Includes a long scrolltext that is worth reading. Requires keyboard for full enjoyment.
+demo_music.spin         = This is just the "Vampire Killer" Retronitus example tune.
+Retronitus.spin         = ^^^^^^
+aaedit.spin             = WYSIWYG Editor for Anti-Aliasing lookup tables. Requires Keyboard.
+teststuff.spin          = Junk code that was used to test JET Engine features. May be or may not be an interesting read.

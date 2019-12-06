@@ -1,0 +1,14 @@
+JET ENGINE
+----------
+
+Included files:
+JET_v02.spin            = JET Engine version 2 - Spin glue stuff. Put this in your OBJ section or copypaste the bits you need into your top object
+JET_v02_composite.spin  = JET Engine version 2 - NTSC/PAL60 TV output plugin. In the future, there may be other output plugins for RGB.
+JET_v02_uart.spin       = JET Engine version 2 - UART output plugin - for use with JETViewer.
+JET_v02_uartslow.spin   = JET Engine version 2 - UART output plugin - slower version
+JET_v02_rendering.spin  = JET Engine version 2 - Rendering PASM code. What this does should be rather obvious.
+demo.spin               = JET Engine demo program. Includes a long scrolltext that is worth reading. Requires keyboard for full enjoyment.
+demo_music.spin         = This is just the "Vampire Killer" Retronitus example tune.
+Retronitus.spin         = ^^^^^^
+aaedit.spin             = WYSIWYG Editor for Anti-Aliasing lookup tables. Requires Keyboard.
+JETViewer1.jar          = JETViewer application (source code inside)
