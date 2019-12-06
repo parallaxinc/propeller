@@ -1,0 +1,24 @@
+DEVICE P8X32A, XTAL1, PLL16X
+FREQ 80_000_000
+'
+' Keyboard_lib demo program
+' Reads keyboard and sends characters to the PC serial terminal
+'
+
+LOAD "Keyboard_lib.pbas"
+
+BaudRate CON "T115200"
+
+SOut     PIN 30 HIGH ' Serial output to PC
+
+temp     VAR LONG
+
+PROGRAM Start
+
+Start:
+  COGSTART Keyboard_ReadKeyboard
+  DO
+    temp = Keyboard_WaitKey
+    SEROUT SOut, BaudRate, temp
+  LOOP
+END

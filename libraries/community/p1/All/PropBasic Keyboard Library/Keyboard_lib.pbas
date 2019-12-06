@@ -1,0 +1,137 @@
+' Keyboard_lib.pbas
+'
+' Useage for standard pins 26,27:
+'  COGSTART Keyboard_ReadKeyboard ' Start keyboard reading COG
+'  temp = Keyboard_GetKey         ' Returns last key pressed or zero
+'  temp = Keyboard_WaitKey        ' Waits for a key to be pressed, then returns it
+'
+' Usage for non-standard pins:
+'  WRBYTE Keyboard_KeyDat, 24, 25 ' Use mouse connector for keyboard (must do this BEFORE COGSTART)
+'  COGSTART Keyboard_ReadKeyboard ' Start keyboard reading COG
+'  temp = Keyboard_GetKey         ' Returns last key pressed or zero
+'  temp = Keyboard_WaitKey        ' Waits for a key to be pressed, then returns it
+'
+'----------------------------------------------------------------------------------
+'
+Keyboard_KeyDat       HUB BYTE = 26
+Keyboard_KeyClk       HUB BYTE = 27
+Keyboard_LastKey      HUB BYTE = 0
+
+Keyboard_ReadKeyboard TASK
+
+Keyboard_GetKey       FUNC 0 ' Returns zero if no key press
+Keyboard_WaitKey      FUNC 0 ' Waits for key press
+
+'{$CODE}
+
+'{$IFUSED Keyboard_GetKey}
+FUNC Keyboard_GetKey
+  RDBYTE Keyboard_LastKey, __param1
+  IF __param1 > 0 THEN
+    WRBYTE Keyboard_LastKey, 0
+  ENDIF
+  RETURN __param1
+ENDFUNC
+'{$ENDIF}
+
+'{$IFUSED Keyboard_WaitKey}
+FUNC Keyboard_WaitKey
+  DO
+    RDBYTE Keyboard_LastKey, __param1
+  LOOP UNTIL __param1 > 0
+  WRBYTE Keyboard_LastKey, 0
+  RETURN __param1
+ENDFUNC
+'{$ENDIF}
+
+' Unshifted characters
+Keyboard_KeyCodes1 DATA  0,   0,   0,   0,   0,   0,   0,  0, 0,  0,   0,   0,   0,   9,  "`", 0 ' 00 to 0F
+                   DATA  0,   0,   0,   0,   0,  "q", "1", 0, 0,  0,  "z", "s", "a", "w", "2", 0 ' 10 to 1F
+                   DATA  0,  "c", "x", "d", "e", "4", "3", 0, 0, " ", "v", "f", "t", "r", "5", 0 ' 20 to 2F
+                   DATA  0,  "n", "b", "h", "g", "y", "6", 0, 0,  0,  "m", "j", "u", "7", "8", 0 ' 30 to 3F
+                   DATA  0,  ",", "k", "i", "o", "0", "9", 0, 0, ".", "/", "l", ";", "p", "-", 0 ' 40 to 4F
+                   DATA  0,   0,  39,  0,  "[", "=",  0,  0, 0,  0,  13,  "]",  0,  92,  0,  0 ' 50 to 5F
+                   DATA  0,   0,   0,   0,   0,   0,   8,  0, 0, "1",  0,  "4", "7",  0,   0,  0 ' 60 to 6F
+                   DATA "0", ".", "2", "5", "6", "8", 27,  0, 0, "+", "3", "-", "*", "9",  0,  0 ' 70 to 7F
+
+' Shifted characters
+Keyboard_KeyCodes2 DATA  0,   0,   0,   0,   0,   0,   0,  0, 0,  0,   0,   0,   0,   9,  "~", 0 ' 00 to 0F
+                   DATA  0,   0,   0,   0,   0,  "Q", "!", 0, 0,  0,  "Z", "S", "A", "W", "@", 0 ' 10 to 1F
+                   DATA  0,  "C", "X", "D", "E", "$", "#", 0, 0, " ", "V", "F", "T", "R", "%", 0 ' 20 to 2F
+                   DATA  0,  "N", "B", "H", "G", "Y", "^", 0, 0,  0,  "M", "J", "U", "&", "*", 0 ' 30 to 3F
+                   DATA  0,  "<", "K", "I", "O", "0", "(", 0, 0, ">", "?", "L", ":", "P", "_", 0 ' 40 to 4F
+                   DATA  0,   0,  34,   0,  "{", "=",  0,  0, 0,  0,  13,  "}",  0,  "|",  0,  0 ' 50 to 5F
+                   DATA  0,   0,   0,   0,   0,   0,   8,  0, 0, "1",  0,  "4", "7",  0,   0,  0 ' 60 to 6F
+                   DATA "0", ".", "2", "5", "6", "8", 27,  0, 0, "+", "3", "-", "*", "9",  0,  0 ' 70 to 7F
+
+'{$TASKS}
+
+TASK Keyboard_ReadKeyboard
+
+bits     VAR LONG
+value    VAR LONG
+shift    VAR LONG
+datState VAR LONG
+keyDat   VAR LONG
+keyClk   VAR LONG
+
+GetCode  FUNC 0
+
+  shift = 0 ' Shift not down
+  RDBYTE Keyboard_KeyDat, keyDat, keyClk
+  keyDat = 1 << keyDat
+  keyClk = 1 << keyClk
+  DO
+    value = GetCode
+    IF value = $F0 THEN 
+      ' $F0 = Release code, check for shift key released
+      value = GetCode
+      IF value = $12 OR
+       value = $59 THEN
+        shift = 0
+      ENDIF
+    ELSE
+      ' Check for shift key pressed
+      IF value = $12 OR
+       value = $59 THEN
+        shift = 1
+      ELSEIF value < 128 THEN
+        ' Get character from table (depending on shift status)
+        IF shift = 0 THEN
+          RDBYTE Keyboard_KeyCodes1(value), value
+        ELSE
+          RDBYTE Keyboard_KeyCodes2(value), value
+        ENDIF
+        IF value > 0 THEN
+          WRBYTE Keyboard_lastKey, value
+        ENDIF
+      ENDIF
+    ENDIF
+  LOOP
+
+FUNC GetCode
+  ' Wait for a zero bit
+  DO
+    WAITPEQ keyClk, keyClk
+    WAITPNE keyClk, keyClk
+    datState = INA AND keyDat
+  LOOP UNTIL datState = 0
+  ' Receive 10 bits, 8 data, 1 parity, 1 stop
+  value = 0
+  FOR bits = 0 TO 9
+    WAITPEQ keyClk, keyClk
+    WAITPNE keyClk, keyClk
+    value = value >> 1
+    datState = INA AND keyDat
+    IF datState <> 0 THEN
+      value = value OR 512
+    ENDIF
+  NEXT
+  ' Mask off parity and stop bit
+  value = value AND 255
+  RETURN value
+ENDFUNC
+
+ENDTASK
+
+
