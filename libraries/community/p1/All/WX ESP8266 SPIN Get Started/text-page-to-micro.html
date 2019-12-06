@@ -1,0 +1,39 @@
+<html>
+  <!-- Start of section to delete -->
+    <b>Setup:</b><br>
+    &nbsp &nbsp &#9989 &nbsp Upload this page to your Wi-Fi module.<br>
+    &nbsp &nbsp &#9989 &nbsp Open this page from http://your-wi-fi-module's-ip/files/text-page-to-micro.html.<br>
+    &nbsp &nbsp &#9989 &nbsp Run "Text Page to Micro Host.bs2" with your BASIC Stamp 2 module. <br>
+    &nbsp &nbsp &#x1F56E &nbsp More info at http://learn.parallax.com/pbasic-wx-wi-fi.html.  
+    <br><br>
+  <!-- End of section to delete -->
+  
+  <p>Type up to 5 characters, then click Send: </p> 
+  <input type = "text" id = "textField" maxlength = "5">
+  <button onclick = "changeText()">Send</button>
+  <p id = "myText">Waiting...</p>
+  
+  <script>
+    function changeText()
+    {
+       var name = "txt";
+       var val = document.getElementById("textField").value;
+       var msg = name + "=" + val;
+       httpPost("/fptm", msg);
+
+       document.getElementById("myText").innerHTML = 
+       "To micro: " + msg;
+    }
+
+    function httpPost(path, param)
+    {
+      var req = new XMLHttpRequest();
+      req.open("POST", path, true);
+      req.setRequestHeader("Content-type",
+      "application/x-www-form-urlencoded");
+      req.send(param);
+    }
+  </script>
+</html>
+
+

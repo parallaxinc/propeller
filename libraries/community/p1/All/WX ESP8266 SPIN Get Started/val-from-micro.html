@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <!-- Start of section to delete -->
+    <b>Setup:</b><br>
+    &nbsp &nbsp &#9989 &nbsp Upload this page to your Wi-Fi module.<br>
+    &nbsp &nbsp &#9989 &nbsp Open this page from http://your-wi-fi-module's-ip/files/val-from-micro.html.<br>
+    &nbsp &nbsp &#9989 &nbsp Open "Val from Micro Host.side" with SimpleIDE,<br> 
+    and load the .c program into your Propeller board. <br>
+    &nbsp &nbsp &#x1F56E &nbsp More info at http://learn.parallax.com/propeller-c-wx-wi-fi
+    <br><br>
+  <!-- End of section to delete -->
+  <body>
+  
+    <H2>Value from Microcontroller</H2> 
+
+    <p>Click Update to see number from Micro:</p> 
+    <button onclick="getFromMcu()">Update</button>
+    <p id="value">Waiting...</p>
+
+    <script>
+
+      function useMcuReply(response)
+      {
+        var val = document.getElementById("value");
+        val.innerHTML = "Value: " + response;
+      }
+
+      function getFromMcu()
+      {
+        httpGet("/tpfm", useMcuReply);
+      }
+
+      function httpGet(path, callback)
+      {
+        var req = new XMLHttpRequest();
+        req.open("GET", path, true); 
+        req.onreadystatechange = function() 
+        { 
+          if (req.readyState == 4)
+            if(req.status == 200)
+              callback(req.responseText);
+            else
+              callback("Waiting...");
+        }
+        req.send(null);
+      }
+
+    </script>
+  </body>
+</html>
