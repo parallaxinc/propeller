@@ -1,0 +1,19 @@
+DebounceCog.c
+button_debounce.c
+button_debounce.h
+-I ./../../Learn/Simple Libraries/Utility/libsimpletools
+-L ./../../Learn/Simple Libraries/Utility/libsimpletools
+-I ./../../Learn/Simple Libraries/TextDevices/libsimpletext
+-L ./../../Learn/Simple Libraries/TextDevices/libsimpletext
+-I ./../../Learn/Simple Libraries/Protocol/libsimplei2c
+-L ./../../Learn/Simple Libraries/Protocol/libsimplei2c
+>compiler=C
+>memtype=cmm main ram compact
+>optimize=-Os
+>-m32bit-doubles
+>-Wall
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>linker::-lsimpletools -lsimpletext -lsimplei2c
+>BOARD::GENERIC

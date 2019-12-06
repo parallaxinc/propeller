@@ -1,0 +1,17 @@
+Debounce_Example.c
+-I ./library/libmstimer
+-I ./library/libsimplei2c
+-I ./library/libsimpletext
+-I ./library/libsimpletools
+-L ./library/libmstimer
+-L ./library/libsimpletext
+-L ./library/libsimpletools
+>-fno-exceptions
+>-m32bit-doubles
+>BOARD::PROTOBOARD
+>compiler=C
+>linker::-lmstimer -lsimpletools -lsimpletext>linker::-lmstimer -lsimpletools -lsimpletext
+>memtype=lmm main ram
+>optimize=-Os
+button_debounce.c
+button_debounce.h
