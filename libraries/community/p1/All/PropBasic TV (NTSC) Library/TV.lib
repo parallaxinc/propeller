@@ -1,0 +1,430 @@
+' This library generates a black and white TV signal (NTSC)
+' The screen is 256x192 pixels.
+'
+' Define PINs
+TV_SyncPin  PIN 12 OUTPUT ' Sync signal on pin 12 (Demo board)
+TV_VideoPin PIN 14 OUTPUT ' Video (black / white) signal on pin 14 (Demo board)
+
+
+' Define HUB variables
+TV_vidMem  HUB BYTE(6144) = 0
+
+
+' Define TASKs
+TV_MonoVid  TASK AUTO
+
+
+' Define variables
+TV_curX    VAR LONG = 0
+TV_curY    VAR LONG = 0
+
+
+' Define Subroutines
+TV_Print     SUB 1
+TV_PrintAt   SUB 3
+TV_Char      SUB 1
+TV_SetPos    SUB 2
+TV_PlotTo    SUB 2
+TV_Plot      SUB 2
+TV_UnPlot    SUB 2
+TV_XPlot     SUB 2
+TV_Point     FUNC 2
+
+'{$CODE}
+
+
+'{$IFUSED TV_Print}
+SUB TV_Print
+  __param3 = __param1
+  TV_PrintAt TV_curX, TV_curY, __param3
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_PrintAt}
+SUB TV_PrintAt ' X, Y, "String"
+  TV_txtPtr VAR LONG
+
+  TV_curX = __param1
+  TV_curY = __param2
+  TV_txtPtr = __param3
+  DO
+    RDBYTE TV_txtPtr, __param1
+    IF __param1 = 0 THEN EXIT
+    TV_Char __param1
+    INC TV_txtPtr
+  LOOP
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_Char}
+' Define DATA (DATA, WDATA, LDATA)
+TV_Font DATA $00, $00, $00, $00, $00, $00, $00, $00 ' (space)
+     DATA $30, $78, $78, $30, $30, $00, $30, $00 ' !
+     DATA $6C, $6C, $28, $00, $00, $00, $00, $00 ' " "
+     DATA $6C, $6C, $FE, $6C, $FE, $6C, $6C, $00 ' #
+     DATA $18, $7E, $C0, $7C, $06, $FC, $18, $00 ' $
+     DATA $00, $C6, $CC, $18, $30, $66, $C6, $00 ' %
+     DATA $38, $6C, $38, $76, $DC, $CC, $76, $00 ' &
+     DATA $30, $30, $60, $00, $00, $00, $00, $00 ' '
+     DATA $18, $30, $60, $60, $60, $30, $18, $00 ' (
+     DATA $60, $30, $18, $18, $18, $30, $60, $00 ' )
+     DATA $00, $66, $3C, $FF, $3C, $66, $00, $00 ' *
+     DATA $00, $30, $30, $FC, $30, $30, $00, $00 ' +
+     DATA $00, $00, $00, $00, $00, $30, $30, $60 ' ,
+     DATA $00, $00, $00, $FC, $00, $00, $00, $00 ' -
+     DATA $00, $00, $00, $00, $00, $30, $30, $00 ' .
+     DATA $06, $0C, $18, $30, $60, $C0, $80, $00 ' /
+     DATA $7C, $C6, $C6, $D6, $C6, $C6, $7C, $00 ' 0
+     DATA $30, $70, $30, $30, $30, $30, $FC, $00 ' 1
+     DATA $78, $CC, $0C, $38, $60, $CC, $FC, $00 ' 2
+     DATA $78, $CC, $0C, $38, $0C, $CC, $78, $00 ' 3
+     DATA $1C, $3C, $6C, $CC, $FE, $0C, $1E, $00 ' 4
+     DATA $FC, $C0, $F8, $0C, $0C, $CC, $78, $00 ' 5
+     DATA $38, $60, $C0, $F8, $CC, $CC, $78, $00 ' 6
+     DATA $FC, $CC, $0C, $18, $30, $30, $30, $00 ' 7
+     DATA $78, $CC, $CC, $78, $CC, $CC, $78, $00 ' 8
+     DATA $78, $CC, $CC, $7C, $0C, $18, $70, $00 ' 9
+     DATA $00, $30, $30, $00, $00, $30, $30, $00 ' :
+     DATA $00, $30, $30, $00, $00, $30, $30, $60 ' ;
+     DATA $18, $30, $60, $C0, $60, $30, $18, $00 ' <
+     DATA $00, $00, $FC, $00, $00, $FC, $00, $00 ' =
+     DATA $60, $30, $18, $0C, $18, $30, $60, $00 ' >
+     DATA $78, $CC, $0C, $18, $30, $00, $30, $00 ' ?
+     DATA $7C, $C6, $DE, $DE, $DC, $C0, $78, $00 ' @
+     DATA $30, $78, $CC, $CC, $FC, $CC, $CC, $00 ' A
+     DATA $FC, $66, $66, $7C, $66, $66, $FC, $00 ' B
+     DATA $3C, $66, $C0, $C0, $C0, $66, $3C, $00 ' C
+     DATA $F8, $6C, $66, $66, $66, $6C, $F8, $00 ' D
+     DATA $FE, $62, $68, $78, $68, $62, $FE, $00 ' E
+     DATA $FE, $62, $68, $78, $68, $60, $F0, $00 ' F
+     DATA $3C, $66, $C0, $C0, $CE, $66, $3E, $00 ' G
+     DATA $CC, $CC, $CC, $FC, $CC, $CC, $CC, $00 ' H
+     DATA $78, $30, $30, $30, $30, $30, $78, $00 ' I
+     DATA $1E, $0C, $0C, $0C, $CC, $CC, $78, $00 ' J
+     DATA $E6, $66, $6C, $78, $6C, $66, $E6, $00 ' K
+     DATA $F0, $60, $60, $60, $62, $66, $FE, $00 ' L
+     DATA $C6, $EE, $FE, $FE, $D6, $C6, $C6, $00 ' M
+     DATA $C6, $E6, $F6, $DE, $CE, $C6, $C6, $00 ' N
+     DATA $38, $6C, $C6, $C6, $C6, $6C, $38, $00 ' O
+     DATA $FC, $66, $66, $7C, $60, $60, $F0, $00 ' P
+     DATA $78, $CC, $CC, $CC, $DC, $78, $1C, $00 ' Q
+     DATA $FC, $66, $66, $7C, $6C, $66, $E6, $00 ' R
+     DATA $78, $CC, $C0, $78, $0C, $CC, $78, $00 ' S
+     DATA $FC, $B4, $30, $30, $30, $30, $78, $00 ' T
+     DATA $CC, $CC, $CC, $CC, $CC, $CC, $FC, $00 ' U
+     DATA $CC, $CC, $CC, $CC, $CC, $78, $30, $00 ' V
+     DATA $C6, $C6, $C6, $D6, $FE, $EE, $C6, $00 ' W
+     DATA $C6, $6C, $38, $38, $6C, $C6, $C6, $00 ' X
+     DATA $CC, $CC, $CC, $78, $30, $30, $78, $00 ' Y
+     DATA $FE, $C6, $8C, $18, $32, $66, $FE, $00 ' Z
+     DATA $78, $60, $60, $60, $60, $60, $78, $00 ' [
+     DATA $C0, $60, $30, $18, $0C, $06, $02, $00 ' \
+     DATA $78, $18, $18, $18, $18, $18, $78, $00 ' ]
+     DATA $10, $38, $6C, $C6, $00, $00, $00, $00 ' ^
+     DATA $00, $00, $00, $00, $00, $00, $00, $FF ' _
+     DATA $30, $18, $0C, $00, $00, $00, $00, $00 ' `
+     DATA $00, $00, $78, $0C, $7C, $CC, $76, $00 ' a
+     DATA $E0, $60, $60, $7C, $66, $66, $DC, $00 ' b
+     DATA $00, $00, $78, $CC, $C0, $CC, $78, $00 ' c
+     DATA $1C, $0C, $0C, $7C, $CC, $CC, $76, $00 ' d
+     DATA $00, $00, $78, $CC, $FC, $C0, $78, $00 ' e
+     DATA $38, $6C, $60, $F0, $60, $60, $F0, $00 ' f
+     DATA $00, $00, $76, $CC, $CC, $7C, $0C, $F8 ' g
+     DATA $E0, $60, $6C, $76, $66, $66, $E6, $00 ' h
+     DATA $30, $00, $70, $30, $30, $30, $78, $00 ' i
+     DATA $0C, $00, $0C, $0C, $0C, $CC, $CC, $78 ' j
+     DATA $E0, $60, $66, $6C, $78, $6C, $E6, $00 ' k
+     DATA $70, $30, $30, $30, $30, $30, $78, $00 ' l
+     DATA $00, $00, $CC, $FE, $D6, $D6, $C6, $00 ' m
+     DATA $00, $00, $F8, $CC, $CC, $CC, $CC, $00 ' n
+     DATA $00, $00, $78, $CC, $CC, $CC, $78, $00 ' o
+     DATA $00, $00, $DC, $66, $66, $7C, $60, $F0 ' p
+     DATA $00, $00, $76, $CC, $CC, $7C, $0C, $1E ' q
+     DATA $00, $00, $DC, $76, $66, $60, $F0, $00 ' r
+     DATA $00, $00, $7C, $C0, $78, $0C, $F8, $00 ' s
+     DATA $10, $30, $7C, $30, $30, $34, $18, $00 ' t
+     DATA $00, $00, $CC, $CC, $CC, $CC, $76, $00 ' u
+     DATA $00, $00, $CC, $CC, $CC, $78, $30, $00 ' v
+     DATA $00, $00, $C6, $D6, $D6, $FE, $6C, $00 ' w
+     DATA $00, $00, $C6, $6C, $38, $6C, $C6, $00 ' x
+     DATA $00, $00, $CC, $CC, $CC, $7C, $0C, $F8 ' y
+     DATA $00, $00, $FC, $98, $30, $64, $FC, $00 ' z
+     DATA $1C, $30, $30, $E0, $30, $30, $1C, $00 ' {
+     DATA $30, $30, $30, $30, $30, $30, $30, $00 ' |
+     DATA $E0, $30, $30, $1C, $30, $30, $E0, $00 ' }
+     DATA $76, $DC, $00, $00, $00, $00, $00, $00 ' ~
+     DATA $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ' Block
+
+
+SUB TV_Char ' character value
+  TV_tmpX    VAR LONG
+  TV_tmpY    VAR LONG
+  TV_pixels  VAR LONG
+  TV_fontPtr VAR LONG
+
+  __param1 = __param1 - " "
+  __param1 = __param1 * 8
+  TV_fontPtr = GetAddr TV_Font(__param1)
+  FOR TV_tmpY = 0 TO 7
+    RDBYTE TV_fontPtr, TV_pixels
+    INC TV_fontPtr
+    FOR TV_tmpX = 0 TO 7
+      IF TV_pixels > 127 THEN
+        TV_Plot TV_curX, TV_curY
+      ELSE
+        TV_UnPlot TV_curX, TV_curY
+      ENDIF
+      TV_pixels = TV_pixels AND 127
+      TV_pixels = TV_pixels << 1
+      INC TV_curX
+    NEXT
+    DEC TV_curX, 8
+    INC TV_curY
+  NEXT
+  INC TV_curX, 8
+  IF TV_curX < 256 THEN
+    DEC TV_curY, 8
+  ELSE
+    TV_curX = 0
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_SetPos}
+SUB TV_SetPos
+  TV_curX = __param1
+  TV_curY = __param2
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_PlotTo}
+SUB TV_PlotTo ' newX, newY, Color (1 = white, 0 = black)
+  TV_newX    VAR LONG
+  TV_newY    VAR LONG
+  TV_color   VAR LONG
+
+  TV_deltaX  VAR LONG
+  TV_deltaY  VAR LONG
+  TV_dirX    VAR LONG
+  TV_dirY    VAR LONG
+  TV_accum   VAR LONG
+
+  TV_newX = __param1
+  TV_newY = __param2
+  TV_color = 1 ' Assume white
+  IF __paramCnt = 3 THEN
+    TV_color = __param3
+  ENDIF
+  TV_deltaX = TV_newX - TV_curX
+  TV_deltaY = TV_newY - TV_curY
+  TV_dirX = SGN TV_deltaX
+  TV_dirY = SGN TV_deltaY
+  TV_deltaX = ABS TV_deltaX
+  TV_deltaY = ABS TV_deltaY
+
+  IF TV_deltaX > TV_deltaY THEN
+    TV_accum = TV_deltaX  / 2
+    DO WHILE TV_curX <> TV_newX
+      IF TV_color = 1 THEN
+        TV_Plot TV_curX, TV_curY
+      ELSE
+        TV_UnPlot TV_curX, TV_curY
+      ENDIF
+      TV_curX = TV_curX + TV_dirX
+      TV_accum = TV_accum - TV_deltaY
+      IF TV_accum < 0 THEN
+        TV_curY = TV_curY + TV_dirY
+        TV_accum = TV_accum + TV_deltaX
+      ENDIF
+    LOOP
+  ELSE
+    TV_accum = TV_deltaY  / 2
+    DO WHILE TV_curY <> TV_newY
+      IF TV_color = 1 THEN
+        TV_Plot TV_curX, TV_curY
+      ELSE
+        TV_UnPlot TV_curX, TV_curY
+      ENDIF
+      TV_curY = TV_curY + TV_dirY
+      TV_accum = TV_accum - TV_deltaX
+      IF TV_accum < 0 THEN
+        TV_curX = TV_curX + TV_dirX
+        TV_accum = TV_accum + TV_deltaY
+      ENDIF
+    LOOP
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_Plot}
+SUB TV_Plot ' X, Y
+  __param3 = GetAddr TV_VidMem
+  __param2 = __param2 << 5        ' y = y * 32 bytes per row
+  __param3 = __param3 + __param2  ' Address = Address + (y * 32)
+
+  __param2 = __param1 >> 3        ' x / 8
+  __param3 = __param3 + __param2  ' Address = Address + (x / 8)
+
+  RDBYTE __param3, __param2       ' Read pixels at location
+
+  __param1 = __param1 & 7         ' X AND 7 (pixel position within byte)
+  __param1 = 1 << __param1        ' Shift to make pixel mask
+
+  __param2 = __param2 OR __param1 ' Xor byte with pixel mask
+  WRBYTE __param3, __param2       ' Save pixels back
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_UnPlot}
+SUB TV_UnPlot ' X, Y
+  __param3 = GetAddr TV_VidMem
+  __param2 = __param2 << 5        ' y = y * 32 bytes per row
+  __param3 = __param3 + __param2  ' Address = Address + (y * 32)
+
+  __param2 = __param1 >> 3        ' x / 8
+  __param3 = __param3 + __param2  ' Address = Address + (x / 8)
+
+  RDBYTE __param3, __param2       ' Read pixels at location
+
+  __param1 = __param1 & 7         ' X AND 7 (pixel position within byte)
+  __param1 = 1 << __param1        ' Shift to make pixel mask
+
+  __param2 = __param2 ANDN __param1 ' Xor byte with pixel mask
+  WRBYTE __param3, __param2       ' Save pixels back
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_XPlot}
+SUB TV_XPlot ' X, Y
+  __param3 = GetAddr TV_VidMem
+  __param2 = __param2 << 5        ' y = y * 32 bytes per row
+  __param3 = __param3 + __param2  ' Address = Address + (y * 32)
+
+  __param2 = __param1 >> 3        ' x / 8
+  __param3 = __param3 + __param2  ' Address = Address + (x / 8)
+
+  RDBYTE __param3, __param2       ' Read pixels at location
+
+  __param1 = __param1 & 7         ' X AND 7 (pixel position within byte)
+  __param1 = 1 << __param1        ' Shift to make pixel mask
+
+  __param2 = __param2 XOR __param1 ' Xor byte with pixel mask
+  WRBYTE __param3, __param2       ' Save pixels back
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED TV_Point}
+FUNC TV_Point ' X, Y
+  __param3 = GetAddr TV_VidMem
+  __param2 = __param2 << 5        ' y = y * 32 bytes per row
+  __param3 = __param3 + __param2  ' Address = Address + (y * 32)
+
+  __param2 = __param1 >> 3        ' x / 8
+  __param3 = __param3 + __param2  ' Address = Address + (x / 8)
+
+  RDBYTE __param3, __param2       ' Read pixels at location
+
+  __param1 = __param1 & 7         ' X AND 7 (pixel position within byte)
+  __param1 = 1 << __param1        ' Shift to make pixel mask
+
+  __param1 = __param1 AND __param2
+  IF __param1 <> 0 THEN
+    __param1 = 1
+  ENDIF
+  RETURN __param1
+ENDFUNC
+'{$ENDIF}
+
+'{$TASKS}
+
+TASK TV_MonoVid
+  SyncPin  PIN 12 OUTPUT ' Sync signal on pin 12 (Demo board)
+  VideoPin PIN 14 OUTPUT ' Video (black / white) signal on pin 14 (Demo board)
+
+  temp      VAR LONG
+  addr      VAR LONG ' Holds hub address of video memory being displayed
+  line      VAR LONG = 0 ' Holds vertical line being generated
+  segment   VAR LONG ' Counts longs for each horizonal line
+  pixels    VAR LONG ' Holds pixels being displayed
+  lineTimer VAR LONG ' Used to generate each line every 64uSec
+
+  vidAddr   VAR LONG ' Used to hold address of video memory
+  charAddr  VAR LONG ' Used to hold address of character bitmap
+
+  ' Setup cnta to use video hardware
+  CTRA = %0_00001_111_00000000_000000_000_000000   ' Video PLL x16
+  FRQA = $1999_9999   ' = 8 Mhz FROM 80Mhz clock x 16PLL = 128MHz
+
+  ' Setup VSCL
+  VSCL = $16_2C0      ' Pixel clock = 128MHz / 22 = 5.818181MHz
+
+  ' Setup I/O pins
+  LOW TV_SyncPin
+  LOW TV_VideoPin
+
+  ' Setup for initial state
+  addr = GetAddr TV_VidMem
+  lineTimer = CNT + 5120
+  DO
+    WaitCnt LineTimer,5120 ' Each line is 5120 clocks @ 80MHz = 64uSec per line
+    TV_SyncPin = 0
+    PAUSEUS 4.7 ' Generate sync for 4.7uSec
+    ' Line 0-2 = Sync; 3-36= Top Blank; 37-228 = Pixels; 229-261 = Bottom Blank
+    IF line > 3 THEN
+      TV_SyncPin = 1
+      PAUSEUS 3 ' Left Margin
+      IF line > 36 THEN
+        IF line < 229 THEN
+          ' Setup VCFG to send one line of pixels
+          VCFG = %0_01_0_0_0_000_00000000000_001_0_0100_0000
+          FOR segment = 0 TO  7 '8 * 32 = 256 pixels per line
+            RdLong addr, pixels
+            WaitVid $FF00, pixels
+            addr = addr + 4
+          NEXT
+          ' Stop generating pixels
+          WaitVid 0,0
+          VCFG = 0
+        ELSE
+        ENDIF
+      ELSE
+      ENDIF
+    ELSE
+    ENDIF
+    INC line
+    IF line = 262 THEN
+      ' Reset for new frame
+      line = 0
+      addr = GetAddr TV_VidMem
+    ENDIF
+  LOOP
+ENDTASK
+
+
+{
+!------------------------------------------------------------------------------------------------------------------------------
+!                                                   TERMS OF USE: MIT License                                                 !
+!-----------------------------------------------------------------------------------------------------------------------------!
+!Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation   !
+!files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,   !
+!modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the        !
+!Software is furnished to do so, subject to the following conditions:                                                         !
+!                                                                                                                             !
+!The above copyright notice and this permission notice shall be included in all copies or substantial portions of the         !
+!Software.                                                                                                                    !
+!                                                                                                                             !
+!THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE         !
+!WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR        !
+!COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  !
+!ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                        !
+-------------------------------------------------------------------------------------------------------------------------------
+}
+
