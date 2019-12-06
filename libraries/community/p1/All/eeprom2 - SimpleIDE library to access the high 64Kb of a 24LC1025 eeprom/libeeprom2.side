@@ -1,0 +1,22 @@
+libeeprom2.c
+eeprom2_init.c
+eeprom2_initSclDrive.c
+eeprom2_getByte.c
+eeprom2_getFloat.c
+eeprom2_getInt.c
+eeprom2_getStr.c
+eeprom2_putByte.c
+eeprom2_putFloat.c
+eeprom2_putInt.c
+eeprom2_putStr.c
+eeprom2.h
+>compiler=C
+>memtype=lmm main ram
+>optimize=-Os
+>-m32bit-doubles
+>-Wall
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>-create_library
+>BOARD::ACTIVITYBOARD
