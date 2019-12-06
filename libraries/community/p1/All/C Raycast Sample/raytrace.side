@@ -1,0 +1,17 @@
+raytrace.c
+-I ./library/libfdserial
+-I ./library/libsimpletext
+-L ./library/libfdserial
+-L ./library/libsimpletext
+>-Dprintf=__simple_printf
+>-enable_pruning
+>-fno-exceptions
+>-lm
+>-m32bit-doubles
+>BOARD::C3
+>compiler=C
+>linker::-lsimpletext -lfdserial
+>memtype=cmm main ram compact
+>optimize=-O2
+vga.cogc
+vga.h

@@ -1,0 +1,132 @@
+//
+// COG C driver for VGA
+// This is a very basic translation of Kwabena W. Agyeman's
+// VGA64 6 Bits Per Pixel demo
+// Interested readers should get the original object; it is very
+// well written and commented (unlike this code, unfortunately, which
+// is just a proof-of-concept).
+// The original is Copyright (c) 2010 Kwabena W. Agyeman
+// C version is Copyright (c) 2011 Eric R. Smith
+// Terms of use (MIT license) at end of file.
+//
+
+#include <stdint.h>
+#include "vga.h"
+#include "cog.h"
+
+#define DISPLAY_WIDTH 160
+#define DISPLAY_WIDTH_LONGS (DISPLAY_WIDTH/4)
+#define NUMLINES 120
+#define LINEREPEAT 4
+
+static const uint32_t invisibleScale = (16 << 12) + 160;
+static const uint32_t visibleScale = (4<<12) + 16;
+static const uint32_t blankPixels = 640;
+static const uint32_t syncPixels = 0x3FFC;
+static const uint32_t HSyncColors = 0x01030103;
+static const uint32_t VSyncColors = 0x00020002;
+static const uint32_t HVSyncColors = 0x03030303;
+
+static _COGMEM uint32_t *displayPtr;
+static _COGMEM uint32_t refreshCounter = 0;
+static _COGMEM uint32_t displayCounter = 0;
+
+/* %%3210 is 3210 in base 4, or 0 + 1*4 + 2*16 + 3*4*16 */
+#define ConstPixels 0xE4
+
+/* display one video line from the buffer pointed to by lineptr */
+inline static void
+videoLine(uint32_t *lineptr)
+{
+    int i;
+    uint32_t pixels;
+
+    _VSCL = visibleScale;
+    for (i = 0; i < DISPLAY_WIDTH_LONGS; i++)
+    {
+        pixels = *lineptr++;
+        pixels |= HVSyncColors;
+        __builtin_propeller_waitvid(pixels, ConstPixels);
+    }
+    _VSCL = invisibleScale;
+    __builtin_propeller_waitvid(HSyncColors, syncPixels);
+}
+
+/* the main Cog program; "par" is the value placed in the PAR register
+ * by our caller.
+ * Since this is a Cog program it is "unhosted" in the ANSI sense, and
+ * so the parameters do not match the usual ANSI argc, argv
+ */
+_NATIVE void
+main(volatile struct vga_param *par)
+{
+    int counter;
+    int i, j;
+
+    par->frameCounter = 100;
+    _VCFG = par->videoState;
+    _FRQA = par->frequencyState;
+    _CTRA = (0xD << 23);
+
+    for(;;) {
+        displayPtr = par->displayBuffer;
+        // active video
+        for (i = 0; i < NUMLINES; i++) {
+            /* repeat each line 4 times */
+            for (j = 0; j < LINEREPEAT; j++) {
+                videoLine(displayPtr);
+            }
+            displayPtr += DISPLAY_WIDTH_LONGS;
+        }
+
+        // inactive video
+        par->frameCounter = ++refreshCounter;
+
+        // front porch
+        for (i = 0; i < 11; i++) {
+            _VSCL = blankPixels;
+            __builtin_propeller_waitvid(HSyncColors, 0);
+            _VSCL = invisibleScale;
+            __builtin_propeller_waitvid(HSyncColors, syncPixels);
+        }
+
+        // vertical sync
+        for (i = 0; i < 4; i++) {
+            _VSCL = blankPixels;
+            __builtin_propeller_waitvid(VSyncColors, 0);
+            _VSCL = invisibleScale;
+            __builtin_propeller_waitvid(VSyncColors, syncPixels);
+        }
+
+        // back porch
+        for (i = 0; i < 32; i++) {
+            _VSCL = blankPixels;
+            __builtin_propeller_waitvid(HSyncColors, 0);
+            _VSCL = invisibleScale;
+            __builtin_propeller_waitvid(HSyncColors, syncPixels);
+        }
+
+        // update display settings
+        if (par->enabled) {
+            _DIRA = par->directionState;
+        }
+
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                  TERMS OF USE: MIT License
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+// Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
