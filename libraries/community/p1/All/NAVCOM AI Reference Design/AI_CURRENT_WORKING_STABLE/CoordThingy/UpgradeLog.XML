@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="CoordThingy">
+</Property><Property Name="Solution File" Value="C:\Users\Administrator\Desktop\CoordThingy\CoordThingy.sln">
+</Property><Property Name="Date" Value="martedì 23 novembre 2010">
+</Property><Property Name="Time" Value="00:23:46">
+</Property></Properties><Event ErrorLevel="0" Project="CoordThingy" Source="CoordThingy.vbproj" Description="Project file successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\CoordThingy.vbproj">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="CoordThingy.vbproj.user" Description="Project user file successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\CoordThingy.vbproj.user">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="Form1.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\Form1.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="Form1.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\Form1.Designer.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\AssemblyInfo.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\AssemblyInfo.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Application.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Application.Designer.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Resources.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Resources.Designer.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Settings.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Settings.Designer.vb">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Application.myapp" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Application.myapp">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Settings.settings" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Settings.settings">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="Resources\etrac_logo.gif" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\Resources\etrac_logo.gif">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="Form1.resx" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\Form1.resx">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="My Project\Resources.resx" Description="File successfully backed up as C:\Users\Administrator\Desktop\CoordThingy\Backup\My Project\Resources.resx">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="CoordThingy.vbproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="CoordThingy" Source="CoordThingy.vbproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="CoordThingy" Source="CoordThingy.vbproj" Description="Scan complete: Upgrade not required for project files.">
+</Event></UpgradeLog>

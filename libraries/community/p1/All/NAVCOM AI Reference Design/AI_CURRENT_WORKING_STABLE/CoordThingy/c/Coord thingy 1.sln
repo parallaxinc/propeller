@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual C++ Express 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Coord thingy 1", "Coord thingy 1.vcproj", "{30816E0C-1E53-4B2C-9A90-5058C66DDDA1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{30816E0C-1E53-4B2C-9A90-5058C66DDDA1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{30816E0C-1E53-4B2C-9A90-5058C66DDDA1}.Debug|Win32.Build.0 = Debug|Win32
+		{30816E0C-1E53-4B2C-9A90-5058C66DDDA1}.Release|Win32.ActiveCfg = Release|Win32
+		{30816E0C-1E53-4B2C-9A90-5058C66DDDA1}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="SerialCommChat">
+</Property><Property Name="Solution File" Value="C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\SerialCommChat.sln">
+</Property><Property Name="User Options File" Value="C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\SerialCommChat.suo">
+</Property><Property Name="Date" Value="Tuesday, November 23, 2010">
+</Property><Property Name="Time" Value="8:25 AM">
+</Property></Properties><Event ErrorLevel="0" Project="" Source="SerialCommChat.sln" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\SerialCommChat.sln">
+</Event><Event ErrorLevel="0" Project="" Source="SerialCommChat.suo" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\SerialCommChat.suo">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="SerialCommChat.vbproj" Description="Project file successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\SerialCommChat.vbproj">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="SerialCommChat.vbproj.user" Description="Project user file successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\SerialCommChat.vbproj.user">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="ApplicationEvents.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\ApplicationEvents.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Form1.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Form1.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Form1.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Form1.Designer.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\AssemblyInfo.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\AssemblyInfo.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Application.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Application.Designer.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Resources.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Resources.Designer.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Settings.Designer.vb" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Settings.Designer.vb">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Application.myapp" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Application.myapp">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Settings.settings" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Settings.settings">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Resources\etrac_logo.gif" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Resources\etrac_logo.gif">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Resources\LEDon_red.bmp" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Resources\LEDon_red.bmp">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Resources\LEDoff_red.bmp" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Resources\LEDoff_red.bmp">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="SerialCommChat_TemporaryKey.pfx" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\SerialCommChat_TemporaryKey.pfx">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="TronWalks-My Documents3.ico" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\TronWalks-My Documents3.ico">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="Form1.resx" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\Form1.resx">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\Resources.resx" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\Resources.resx">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="My Project\app.manifest" Description="File successfully backed up as C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\Backup\My Project\app.manifest">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="SerialCommChat.vbproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="SerialCommChat" Source="SerialCommChat.vbproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="SerialCommChat.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="SerialCommChat.sln" Description="Converted">
+</Event><Event ErrorLevel="0" Project="SerialCommChat" Source="SerialCommChat.vbproj" Description="Scan complete: Upgrade not required for project files.">
+</Event></UpgradeLog>

@@ -1,0 +1,57 @@
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.exe
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.xml
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\NavCom AI Console.application
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\NavCom AI Console.exe
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\NavCom AI Console.xml
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\System.dll
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\System.Drawing.dll
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\bin\Debug\System.Windows.Forms.dll
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\ResolveAssemblyReference.cache
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavcomAIConsole.Form1.resources
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavcomAIConsole.Resources.resources
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\SerialCommChat.vbproj.GenerateResource.Cache
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.TrustInfo.xml
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator.OLDLAPTOP\Desktop\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.application
+G:\recovered from old hd may 2008\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.exe
+G:\recovered from old hd may 2008\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.xml
+G:\recovered from old hd may 2008\RSV_development_platform\Console\SerialCommChat\obj\Debug\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\System.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\System.Drawing.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Debug\System.Windows.Forms.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\ResolveAssemblyReference.cache
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavcomAIConsole.Form1.resources
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavcomAIConsole.Resources.resources
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\SerialCommChat.vbproj.GenerateResource.Cache
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.TrustInfo.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Debug\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\System.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\System.Drawing.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\bin\Release\System.Windows.Forms.dll
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\ResolveAssemblyReference.cache
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavcomAIConsole.Form1.resources
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavcomAIConsole.Resources.resources
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\SerialCommChat.vbproj.GenerateResource.Cache
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.TrustInfo.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\NAVCOM\Console\SerialCommChat\obj\Release\NavCom AI Console.pdb

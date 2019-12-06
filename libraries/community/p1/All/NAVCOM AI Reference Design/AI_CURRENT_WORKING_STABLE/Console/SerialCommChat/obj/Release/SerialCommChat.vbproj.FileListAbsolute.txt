@@ -1,0 +1,21 @@
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\NavCom AI Console.pdb
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\System.dll
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\System.Drawing.dll
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\bin\Release\System.Windows.Forms.dll
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\ResolveAssemblyReference.cache
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavcomAIConsole.Form1.resources
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavcomAIConsole.Resources.resources
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\SerialCommChat.vbproj.GenerateResource.Cache
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.TrustInfo.xml
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.exe.manifest
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.application
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.exe
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.xml
+C:\Documents and Settings\Administrator\Desktop\desktrop\Console\SerialCommChat\obj\Release\NavCom AI Console.pdb
+C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\obj\Release\NavCom AI Console.exe
+C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\obj\Release\NavCom AI Console.xml
+C:\Users\Administrator\Desktop\AI_CURRENT_WORKING_STABLE\Console\SerialCommChat\obj\Release\NavCom AI Console.pdb
