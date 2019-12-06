@@ -1,0 +1,609 @@
+#platform "GOLDELOX"
+
+#IF EXISTS GOLDELOX
+#NOTICE "GOLDELOX"
+#ELSE
+#NOTICE "Incorrect Platform"
+#ENDIF
+
+/*
+---------------------------------------------
+|  uLCDserialGOLDE.4dg      version 1.0.0   |
+---------------------------------------------
+|                                           |
+|   Author: Mark M. Owen                    |
+|                                           |
+|   Copyright (C)2015 Mark M. Owen          |
+---------------------------------------------
+
+Description:
+
+Revision History:
+
+*/
+#DATA
+    word nVersion       2015,0210,1007
+#END
+
+#CONST // systemic
+    NEGX            := 0x8000;
+    POSX            := 0x7FFF;
+#END
+
+#CONST // communications control characters
+  NULL          := 0x00;
+  ACK           := 0x06;
+#END
+
+#CONST // display related
+  TEXT_TESTCHAR := 'Z';
+#END
+
+#CONST // colors
+  BLACK         := 0x0000;
+  WHITE         := 0xFFFF;
+  RED           := 0x1F<<11;
+  GREEN         :=          0x3F<<5;
+  BLUE          :=                   0x1F;
+  CYAN          := 0b0000011111111111;
+  MAGENTA       := 0b1111100000011111;
+  YELLOW        := 0b1111111111100000;
+
+  LTGREY        := 0b0111100111101111;
+  GREY          := 0b0011100011100111;
+  DKGREY        := 0b0001100001100011;
+#END
+
+#CONST // commands
+  CMD_MOVETOXY          := 0x01,
+  CMD_CLEAR                    ,
+  CMD_LINETO                   ,
+  CMD_PIXEL                    ,
+  CMD_COLOR                    ,
+  CMD_FILLMODE                     ,
+  CMD_COLORBG                  ,
+  CMD_SCREENMODE                 ,
+  CMD_COLORBORDER              ,
+  CMD_LINEPATTERN              ,
+  CMD_CLIP                     ,
+  CMD_CLIPWINDOW               ,
+  CMD_TXTCOLOR                 ,
+  CMD_TXTCOLORBG               ,
+  CMD_TXTATTRIB                ,
+  CMD_TXTOPAQUE                ,
+
+  CMD_RECT              := 0x20,
+  CMD_CIRCLE                     ,
+
+  CMD_MOVETOCR          := 0x50,
+  CMD_NEWLINE                  ,
+  CMD_TEXTSIZE                 ,
+  CMD_SET_STRING_AT_IX         ,
+  CMD_STRING_IX                ,
+  CMD_STRING_IX_AT             ,
+  CMD_STRING                   ,
+  CMD_STRING_AT                ,
+  CMD_PRINT_DEC1               ,
+  CMD_PRINT_DEC1_AT            ,
+  CMD_PRINT_DEC2               ,
+  CMD_PRINT_DEC2_AT            ,
+  CMD_PRINT_INT                ,
+  CMD_PRINT_INT_AT             ,
+
+  CMD_8LEDS             := 0x80,
+  CMD_1LED                     ,
+
+  CMD_XYMAX             := 0xE0,
+  CMD_CHRWH                    ,
+
+  CMD_SHUTDOWN          := 0xFF
+#END
+
+    var  ticks            := 0;      // elapsed seconds since start
+    var  online           := 0;
+
+    var  buffer[63];                 // serial communications buffer
+
+    var  scrnXmax, scrnYmax, txtsize, chrW, chrH;
+
+     // arguments are cached in these variables by ReceiveCommand
+    // then acted upon by execute command
+    var  a,b,c,d,sz[16];
+
+    // local string table for CMD_STRING_IX
+    //
+    //                         1         2         3
+    //               01234567890123456789012345678901
+    //
+    var sz0 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz1 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz2 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz3 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz4 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz5 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz6 [10] :=[0,0,0,0,0,0,0,0,0,0];
+    var sz7 [10] :=[0,0,0,0,0,0,0,0,0,0];
+
+    var string[8]:=[0,0,0,0,0,0,0,0];
+
+func main()
+    var cmd;
+    initializeDisplay(LANDSCAPE_R);
+    print([DEC4]nVersion[0]," ",[DEC4Z]nVersion[1]," ",[DEC4Z]nVersion[2],"\n");
+
+     /* what a bunch of crap!!!!
+        preload the array of string table addresses
+        since we cannot do it via compile time initializers
+        which DO compile OK but DO NOT produce the correct
+        address references.
+     */
+    string[0]:=sz0;
+    string[1]:=sz1;
+    string[2]:=sz2;
+    string[3]:=sz3;
+    string[4]:=sz4;
+    string[5]:=sz5;
+    string[6]:=sz6;
+    string[7]:=sz7;
+     // set a timer for elapsed run time clock
+    ticks := -1;
+    Tick();
+    // initialize buffered communications
+    ZeroBuffer();
+    com_Init(buffer,2*sizeof(buffer),0x00);
+    pin_Set(OUTPUT,IO1); // CTS
+    pin_LO(IO1);
+    // start a timer to monitor buffer level
+    Tick_100mS();
+    repeat
+        ExecuteCmd(cmd:=ReceiveCmd());
+    until (cmd == CMD_SHUTDOWN);
+
+    ProgramExit();
+    repeat
+    forever
+endfunc
+
+func ZeroBuffer()
+    var n;
+    for(n:=0;n<63;n++)
+        buffer[n]:=0;
+    next
+endfunc
+
+func Tick()
+    ticks++; // increment elpased seconds
+    // restart this timer
+    *TIMER0 := 1000;
+endfunc
+
+func Tick_100mS()
+    // hysteresis: IO1 on at < 16 and off at > 32 bytes in buffer
+    if( com_Count() > 32 )
+        pin_LO(IO1); // tell sender to pause for us to catch up
+    else
+    if( com_Count() < 16 )
+        pin_HI(IO1); // tell sender we are keeping up with the flow
+    endif
+    endif
+    *TIMER1 := 100; // restart timer
+endfunc
+
+func doOtherThings()
+    if(online==0)
+        DisplayTicks(0,chrH*2);
+    endif
+    // check for timer expirations on GOLDELOX
+    if( !*TIMER0   )
+        Tick();
+    endif
+    if( !*TIMER1 )
+        Tick_100mS();
+    endif
+endfunc
+
+func ReceiveCmd()
+    var cmd;
+    cmd := rcvByte();
+    online := 1;
+
+    switch(cmd)
+
+        // interrogatives,  no arguments
+        case CMD_XYMAX:
+            serout(scrnXmax);
+            serout(scrnYmax);
+            break;
+        case CMD_CHRWH:
+            serout(chrW);
+            serout(chrH);
+            break;
+
+        // no arguments
+        case CMD_CLEAR:
+        case CMD_NEWLINE:
+        case CMD_SHUTDOWN:
+            break;
+
+        // single word argument (c)
+        case CMD_COLOR:
+        case CMD_COLORBG:
+        case CMD_COLORBORDER:
+        case CMD_LINEPATTERN:
+        case CMD_TXTCOLOR:
+        case CMD_TXTCOLORBG:
+            c := rcvWord();
+            break;
+
+        // single byte argument (c)
+        case CMD_FILLMODE:
+        case CMD_SCREENMODE:
+        case CMD_CLIP:
+        case CMD_TEXTSIZE:
+        case CMD_TXTATTRIB:
+        case CMD_TXTOPAQUE:
+        case CMD_CIRCLE:
+            c := rcvByte();
+            break;
+
+        // two byte arguments (a,b)
+        case CMD_MOVETOXY:
+        case CMD_MOVETOCR:
+        case CMD_LINETO:
+        case CMD_RECT:
+            a := rcvByte();
+            b := rcvByte();
+            break;
+
+        // four byte arguments (a,b,c,d)
+        case CMD_CLIPWINDOW:
+            a := rcvByte();
+            b := rcvByte();
+            c := rcvByte();
+            d := rcvByte();
+            break;
+
+        // three arguments byte byte word (a,b,c)
+        // drops through for third one word argument (c)
+        case CMD_PIXEL:
+        case CMD_PRINT_DEC1_AT:
+        case CMD_PRINT_DEC2_AT:
+        case CMD_PRINT_INT_AT:
+            a := rcvByte();
+            b := rcvByte();
+        // one word argument (c)
+        case CMD_PRINT_DEC1:
+        case CMD_PRINT_DEC2:
+        case CMD_PRINT_INT:
+            c := rcvWord();
+            break;
+
+        // strings
+        case CMD_SET_STRING_AT_IX:
+            c := rcvByte();
+            ReceiveStringAtIndex();
+            break;
+        case CMD_STRING_IX_AT:
+            a := rcvByte();
+            b := rcvByte();
+        case CMD_STRING_IX:
+            c := rcvByte();
+            break;
+        case CMD_STRING_AT:
+            a := rcvByte();
+            b := rcvByte();
+        case CMD_STRING:
+            ReceiveString();
+            break;
+
+        // compound elements
+        case CMD_8LEDS:
+            a := rcvByte();
+            b := rcvByte();
+            c := rcvByte();
+            break;
+        case CMD_1LED:
+            a := rcvByte();
+            b := rcvByte();
+            c := rcvWord();
+            break;
+
+        default:
+            break;
+    endswitch
+    sndByte(ACK);
+    return(cmd);
+endfunc
+
+func ExecuteCmd(var cmd)
+    switch(cmd)
+        case CMD_XYMAX:
+            break;
+        case CMD_CHRWH:
+            break;
+
+        case CMD_CLEAR:
+            gfx_Cls();
+            break;
+        case CMD_NEWLINE:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            print("\n");
+            break;
+        case CMD_SHUTDOWN:
+            ProgramExit();
+            break;
+
+        case CMD_COLOR:
+            gfx_ObjectColour(c);
+            break;
+        case CMD_COLORBG:
+            gfx_BGcolour(c);
+            break;
+        case CMD_COLORBORDER:
+            gfx_OutlineColour(c);
+            break;
+        case CMD_TXTCOLOR:
+            txt_FGcolour(c);
+            break;
+        case CMD_TXTCOLORBG:
+            txt_BGcolour(c);
+            break;
+        case CMD_LINEPATTERN:
+            gfx_LinePattern(c);
+            break;
+
+        case CMD_FILLMODE:
+            gfx_PenSize(c); // misnomer
+            break;
+        case CMD_SCREENMODE:
+            gfx_ScreenMode(c);
+            break;
+        case CMD_CLIP:
+            gfx_Clipping(c);
+            break;
+        case CMD_TEXTSIZE:
+            txtsize := c;
+            txt_Width(c);
+            txt_Height(c);
+            break;
+        case CMD_TXTATTRIB:
+            txt_Attributes(c);
+            break;
+        case CMD_TXTOPAQUE:
+            txt_Opacity(c);
+            break;
+        case CMD_CIRCLE:
+            gfx_Bullet(c);
+            break;
+
+        case CMD_MOVETOXY:
+            gfx_MoveTo(a,b);
+            break;
+        case CMD_MOVETOCR:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            txt_MoveCursor(b, a);
+            break;
+        case CMD_LINETO:
+            gfx_LineTo(a,b);
+            break;
+        case CMD_RECT:
+            gfx_BoxTo(a,b);
+            break;
+
+        case CMD_PIXEL:
+            gfx_PutPixel(a,b,c);
+            break;
+        case CMD_PRINT_DEC1_AT:
+            txt_MoveCursor(b, a);
+        case CMD_PRINT_DEC1:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            Print1DecimalPlace(c);
+            break;
+        case CMD_PRINT_DEC2_AT:
+            txt_MoveCursor(b, a);
+        case CMD_PRINT_DEC2:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            Print2DecimalPlaces(c);
+            break;
+        case CMD_PRINT_INT_AT:
+            txt_MoveCursor(b, a);
+        case CMD_PRINT_INT:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            print([DEC]c," ");
+            break;
+
+        case CMD_SET_STRING_AT_IX:
+            break;
+        case CMD_STRING_IX_AT:
+            txt_MoveCursor(b, a);
+        case CMD_STRING_IX:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            print([STR]string[c]);
+            break;
+        case CMD_STRING_AT:
+            txt_MoveCursor(b, a);
+        case CMD_STRING:
+            txt_Width(txtsize);
+            txt_Height(txtsize);
+            print([STR]sz);
+            break;
+
+        case CMD_CLIPWINDOW:
+            gfx_ClipWindow(a,b,c,d);
+            break;
+
+        case CMD_8LEDS:
+            BulbRedGrn(a    , b, 5, c&0x80);
+            BulbRedGrn(a+=10, b, 5, c&0x40);
+            BulbRedGrn(a+=10, b, 5, c&0x20);
+            BulbRedGrn(a+=10, b, 5, c&0x10);
+            BulbRedGrn(a+=10, b, 5, c&0x08);
+            BulbRedGrn(a+=10, b, 5, c&0x04);
+            BulbRedGrn(a+=10, b, 5, c&0x02);
+            BulbRedGrn(a+=10, b, 5, c&0x01);
+            break;
+        case CMD_1LED:
+            BulbRGB(a, b, 5, c);
+            break;
+
+        default:
+            print("\n\nbad cmd:",[HEX]cmd);
+    endswitch
+endfunc
+
+func Print1DecimalPlace(var q)
+    var asz[16];
+    to(asz);        print([DEC]q / 10);
+    to(APPEND);     putch('.');
+    to(APPEND);     print([DEC1Z]ABS(q) % 10);
+    to(TEXT);       print([STR]asz," ");
+endfunc
+
+func Print2DecimalPlaces(var q)
+    var asz[16];
+    to(asz);        print([DEC]q / 100);
+    to(APPEND);     putch('.');
+    to(APPEND);     print([DEC2Z]ABS(q) % 100);
+    to(TEXT);       print([STR]asz," ");
+endfunc
+
+func DisplayTicks(var ox,var oy) // elpased time hh:mm:ss
+    var asz[10],t,hh,mm,ss;
+    t := ticks; // freeze the time
+    hh := t / 3600;
+    mm := (t % 3600) / 60;
+    ss := (t % 60);
+    to(asz);
+    print([UDEC2Z]hh,[CHR]':',[UDEC2Z]mm,[CHR]':',[UDEC2Z]ss," ");
+    gfx_MoveTo(ox,oy);
+    ox += strlen(asz)*chrW;
+    putstr(asz);
+    return ox;
+endfunc
+
+func initializeDisplay(var mode)
+    gfx_ScreenMode(mode);
+    scrnXmax := peekB(SYS_X_MAX);
+    scrnYmax := peekB(SYS_Y_MAX);
+    gfx_ClipWindow(0, 0, scrnXmax, scrnYmax);
+    gfx_Clipping(1);
+    gfx_RectangleFilled(0,0,scrnXmax,scrnYmax,BLACK);
+    txt_FontID(0);
+    txt_Attributes(0);
+    txt_Opacity(1);
+    txt_BGcolour(BLACK);
+    txt_FGcolour(WHITE);
+    txtsize := 1; // default
+    chrW := charwidth(TEXT_TESTCHAR);
+    chrH := charheight(TEXT_TESTCHAR);
+    gfx_MoveTo(0,0);
+    txt_Width(txtsize);
+    txt_Height(txtsize);
+    txt_MoveCursor(0, 0);
+endfunc
+
+func rcvByte()
+    var ch := -1;
+    while (ch<0)
+        ch := serin();
+        if( ch<0 )
+            doOtherThings();
+        endif
+    wend
+    return ch;
+endfunc
+
+func rcvWord()
+    return rcvByte()<<8 | rcvByte();
+endfunc
+
+func sndByte(var ch)
+    serout(ch&0x00FF);
+endfunc
+
+
+func ReceiveString()
+    var ch,i,o:=0;
+    repeat
+        sz[o] := 0x0000; // NULLs
+        for(i:=0;i<=1;i++)
+            ch := rcvByte();
+            if(i)
+                sz[o] := (sz[o] & 0x00FF) | (ch<<8); // keep low bits add high bits
+            else
+                sz[o] := (sz[o] & 0xFF00) | ch;  // keep high bits add low bits
+            endif
+            if(ch==NULL)
+                return; // done
+            endif
+        next
+        if( o >= 9 ) // too long - jettison remainder
+            repeat
+                ch := rcvByte();
+                if(com_Count()==0)
+                    sz[o] &= 0xFF00; // zero last byte of buffer
+                    return; // done
+                endif
+            forever
+        endif
+        o++; // next word
+    forever
+endfunc
+
+func ReceiveStringAtIndex()
+    var ch,i,*p;
+    p := string[c];
+    repeat
+        *p := 0x0000; // NULLs
+        for(i:=0;i<=1;i++)
+            ch := rcvByte();
+            if(i)
+                *p := (*p & 0x00FF) | (ch<<8); // keep low bits add high bits
+            else
+                *p := (*p & 0xFF00) | ch;  // keep high bits add low bits
+            endif
+            if(ch==NULL)
+                return; // done
+            endif
+        next
+        if( string[c]-p >= 9 ) // too long - jettison remainder
+            repeat
+                ch := rcvByte();
+                if(com_Count()==0)
+                    *p := 0; // zero last word of buffer
+                    return; // done
+                endif
+            forever
+        endif
+        p++; // next word
+    forever
+endfunc
+
+func BulbFrame(var ox,var oy,var r)
+  gfx_Circle(ox,oy,r-1,LTGREY);
+  return r-2;
+//  gfx_Circle(ox,oy,r-2,GREY);
+//  return r-3;
+endfunc
+
+func BulbRGB(var ox,var oy,var r,var rgb)
+  gfx_CircleFilled(ox,oy, BulbFrame(ox,oy,r), rgb);
+  gfx_RectangleFilled(ox,oy-1,ox+1,oy,WHITE);
+endfunc
+
+func BulbRedGrn(var ox,var oy,var r,var onRed)
+  r := BulbFrame(ox,oy,r);
+  if(onRed!=0)
+    gfx_CircleFilled(ox,oy,r,RED);
+    gfx_RectangleFilled(ox,oy-1,ox+1,oy,WHITE);
+  else
+    gfx_CircleFilled(ox,oy,r,GREEN);
+    gfx_RectangleFilled(ox,oy-1,ox+1,oy,WHITE);
+  endif
+endfunc
