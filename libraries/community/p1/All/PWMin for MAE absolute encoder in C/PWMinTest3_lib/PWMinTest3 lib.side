@@ -1,0 +1,18 @@
+PWMinTest3 lib.c
+-I ./library/libsimplei2c
+-I ./library/libsimpletext
+-I ./library/libsimpletools
+-L ./library/libsimplei2c
+-L ./library/libsimpletext
+-L ./library/libsimpletools
+>-fno-exceptions
+>-lm
+>-m32bit-doubles
+>BOARD::ACTIVITYBOARD
+>compiler=C
+>defs::-std=c99
+>linker::-lsimplei2c -lsimpletext -lsimpletools
+>memtype=cmm main ram compact
+>optimize=-Os
+MAElib.c
+MAElib.h
