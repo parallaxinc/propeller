@@ -1,0 +1,26 @@
+;LOAD "WALTR.LGO
+
+MAKE "LEN 50
+
+TO SQUARE :DIST
+  REPEAT 4 [RIGHT 90 FORWARD :DIST]
+END
+
+TO HOUSE
+  PD
+  SQUARE :LEN
+  RIGHT 30
+  FORWARD :LEN
+  RIGHT 120
+  FORWARD :LEN
+  PU
+END
+
+;SPEED 3
+
+;HOUSE
+
+;if you wish to close the serial port and revert the turtle procedures back to the primatives then you can call the WALTREXIT procedure. 
+;WALTREXIT
+
+

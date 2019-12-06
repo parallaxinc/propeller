@@ -1,0 +1,10 @@
+I have provided WALTR.LOGO, WALTR.REDEFS.LOGO and HOUSE.LOGO files on data.dsk because they need to be in the correct file format.
+If you do not use data.dsk but instead copy the files over yourself you may get formatting issues. If you have formatting problems see AppleII_Data_Disk_Setup.txt :-
+
+Instructions on running the example:-
+
+Run Logo.
+Insert disk with WALTR.LOGO, WALTR.REDEFS.LOGO and HOUSE.LOGO files then type the following
+LOAD "WALTR  
+LOAD "HOUSE
+HOUSE

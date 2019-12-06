@@ -1,0 +1,12 @@
+Instructions on running the example:-
+
+Start Applesoft basic.
+Insert the data disk.
+Run WALTR.
+Joystick up moves WALTR forward.
+Joystick down moves WALTR back.
+Joystick left turns WALTR to the left.
+Joystick right turns WALTR to the right.
+Button 0 decreases the speed.
+Button 1 increases the speed.
+

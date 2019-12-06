@@ -1,0 +1,8 @@
+Notes on the included files.
+
+FullDuplexSerial_rr004.spin		Used by WALTR. 256 byte buffer version of FullDuplexSerial.spin.
+s2.spin					Used by WALTR. Scribbler 2 object library.
+Servo32v7.spin				Used by WALTR. Servo control for pen lifter.
+WALTR_JustLogo_r01.spin			Same as WALTR_r01.spin except pen lifter and Bluetooth code is commented out.
+WALTR_r01.spin				Main WALTR code.
+WALTR_Protocol_Specification_r01	Communications potocol specification.

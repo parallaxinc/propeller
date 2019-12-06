@@ -1,0 +1,23 @@
+Setting up Apple Logo data.dsk.
+----------------------------------
+
+In directory "AppleLogo_LCSI_1983" rename file WALTR.LOGO to WALTR.LOGO.TXT
+Open CiderPress
+Open data.dsk (DOS 3.3 disk)
+Below the HELLO line right click and select "Add Files"
+In Text conversion tick "Convert text files by file type"
+Select "WALTR.LOGO.txt"
+Press the "Accept" button.
+Right click on the added file and select "Rename"
+Rename "WALTR.LOGO.TXT" to "WALTR.LOGO"
+
+Do the same with the WALTR.REDEFS.LOGO file.
+Do the same with the HOUSE.LOGO file.
+
+File Format details :-
+
+File System:	DOS 3.3
+Space		0xA0
+New Line	0x8D
+File Type 	TXT 0x04
+Aux type	0x0000

@@ -1,0 +1,30 @@
+Setting up Terrapin Logo data.dsk.
+----------------------------------
+
+In directory "Terrapin_V1.0_1981" rename file WALTR.LOGO to WALTR.LOGO.TXT
+Open CiderPress
+Open prodos.dsk (ProDOS disk)
+Below the :LOGO line right click and select "Add Files"
+In Text conversion tick "Convert text files by file type"
+Select "WALTR.LOGO.txt"
+Press the "Accept" button.
+Right click on the added file and select "Rename"
+Rename "WALTR.LOGO.TXT" to "WALTR.LOGO"
+Right click on the added file and select "Edit attributes"
+Change to the correct File and Aux types
+Open another instance of CiderPress
+Open data.dsk (DOS 3.3 disk)
+Right click and the added file and select "Copy"
+Right click in CiderPress (data.dsk one) and select "Paste"
+
+Do the same with the HOUSE.LOGO file.
+
+File Format details :-
+
+File System:	DOS 3.3
+Space		0x20
+New Line	0x0D
+File Type 	BIN 0x06
+Aux type	0x2000
+
+

@@ -1,0 +1,89 @@
+WALTER Serial Command Protocol
+==============================
+
+LOGO CONTROL (To the robot)
+---------------------------
+
+Transmission				  Description						  Logo Command
+------------				  -----------						  ------------ 
+
+"2" RET					- Change mode to direct control
+
+"F" HB_Dist LB_Dist RET			- Move forward distance (0.5 mm per unit)		- FD Dist or FORWARD Dist
+"B" HB_Dist LB_Dist RET			- Move back distance (0.5 mm per unit)			- BK Dist or BACK Dist
+
+"V" Spd RET				- Speed setting
+
+"L" HB_Ang LB_Ang RET			- Turn left angle (Degree)				- LT Ang or LEFT Ang
+"R" HB_Ang LB_Ang RET			- Turn right angle (Degree)				- RT Ang or RIGHT Ang
+
+"P" "U" RET				- Pen up						- PU or PENUP
+"P" "D" RET				- Pen down						- PD or PENDOWN
+
+*"H" "0" RET				- Horn off						- HORNHI (TASMAN/TERRAPIN)
+*"H" "L" RET				- Horn low pitch					- HORNLO (TASMAN/TERRAPIN)
+*"H" "H" RET				- Horn high pitch					- HORNOFF (TASMAN/TERRAPIN)
+
+*"E" "1" RET				- Lamp on						- EYESON (TASMAN/TERRAPIN)
+*"E" "0" RET				- Lamp off						- EYESOFF (TASMAN/TERRAPIN)
+
+*"C" "R" RET				- Reset current location to home ie X = 0, Y = 0
+*"C" "0" RET				- Move to absolute position home ie X = 0, Y = 0	- HOME
+*"C" "H" HB_Ang LB_Ang RET		- Turn to absolute angle				- SETH Ang or SETHEADING Ang
+*"C" "L" HB_X LB_X HB_Y LB_Y RET	- Move to absolute position X, Y			- SETPOS X Y
+*"C" "X" HB_X LB_X RET			- Move to absolute position X				- SETX X
+*"C" "Y" HB_Y LB_Y RET			- Move to absolute position Y				- SETY Y
+
+*"Q" "T" HB_X LB_X HB_Y LB_Y RET	- Query towards (X, Y)					- TOWARDS X Y
+*"Q" "H" RET				- Query heading 					- HEADING
+*"Q" "L" RET				- Query location 					- POS
+*"Q" "X" RET				- Query X coordinate					- XCOR
+*"Q" "Y" RET				- Query Y coordinate					- YCOR
+*"Q" "P" RET				- Query pen down					- PENDOWNP or PENDOWN?			
+
+
+LOGO CONTROL (From the robot)
+-----------------------------
+
+*"L" "F RET				- Limit sensor front
+*"L" "B RET				- Limit sensor back
+*"L" "L RET				- Limit sensor left
+*"L" "R RET				- Limit sensor right
+
+*"Q" "T" HB_Ang LB_Ang RET		- Towards (Degree)					- TOWARDS X Y
+*"Q" "H" HB_Ang LB_Ang RET		- Heading (Degree)					- HEADING 
+*"Q" "L" HB_X LB_X HB_Y LB_Y RET	- Location (X, Y)					- POS
+*"Q" "X" HB_X LB_X RET			- X coordinate						- XCOR
+*"Q" "Y" HB_Y LB_Y RET			- Y coordinate						- YCOR
+*"Q" "P" BIT RET			- Pen down						- PENDOWNP or PENDOWN?
+
+
+DIRECT CONTROL (To the robot)
+-----------------------------
+
+<space>					- Immediate stop
+"1"					- Change mode to Logo control
+"A" 					- Start forward movement
+"Z" 					- Start backward movement
+"D" 					- Increment speed by 1 unit (Forward/Back)
+"C" 					- Decrement speed by 1 unit (Forward/Back)
+"F" 					- Increment speed by 1 unit (Rotational)
+"V" 					- Decrement speed by 1 unit (Rotational)
+"S" 					- Pen up
+"X" 					- Pen down
+"G" Spd					- Speed setting (Forward/Back)
+"B" Spd					- Speed setting (Rotational)
+"," 					- Turn left
+"." 					- Turn right
+
+
+Notes
+-----
+
+* 					- Proposed future implementation
+RET 					- Carriage return or new line ie ASCII 13 or ASCII 13 + ASCII 10
+BIT					- 0 = False or 1 = True
+HB					- High byte
+LB					- Low byte
+
+Commands are case insensitive.

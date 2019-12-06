@@ -1,0 +1,10 @@
+Instructions on running the example:-
+
+Change the port in WALTR.REDEFS.LGO if required (default is COM1).
+Change the scale in WALTR.REDEFS.LGO if required (default is 5 ie 1 screen unit = 5 WALTR units. 1 WALTR unit is approx 0.5 mm) 
+Run Logo.
+From the main menu select :-
+File -> Load -> Select WALTR.LGO -> Open. (WALTRINIT function is automatically called when loaded.)
+File -> Load -> Select HOUSE.LGO -> Open.
+Type "HOUSE" and press the "Execute" button.
+
