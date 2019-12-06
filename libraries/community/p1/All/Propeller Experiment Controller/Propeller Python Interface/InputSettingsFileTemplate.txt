@@ -1,0 +1,30 @@
+Memory Recovery Input Settings File
+Please enter the information below. Do not change the format of the document.
+The program is sensitive to the number of lines in the settings file. Do not remove or add additional lines unless specifically instructed.
+
+Number of events:	Enter a number such as 1 or 2, do not type 'one' or 'two.'
+4
+Event Names:		List the name of the event like you want it displayed in the data file. Start a new line for each event.
+Event 1
+Event 2
+Event 3
+Event 4
+Event Orders:		Provide the order the events were *declared* in the experiment program. Start a new line for each order.
+1
+1
+1
+1
+Raw Data:		Specify if the event is raw data. Type 'yes' or 'no.'
+no
+yes
+no
+yes
+Debounce:		Specify if you wish to debounce the event. Debouncing is not typically necessary. Raw data will not be debounced. Type 'yes' or 'no.'
+yes
+yes
+no
+no
+Debounce Interval:	Specify the debounce interval for each event in milliseconds if debounce is desired. Leave blank if no debouncing is desired.
+25
+25
+End of file
