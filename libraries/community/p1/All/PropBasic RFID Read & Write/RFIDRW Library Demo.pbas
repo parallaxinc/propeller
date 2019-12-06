@@ -1,0 +1,192 @@
+' PropBasic demo program for the Parallax RFID Read/Write Module (#28440)
+'
+'  This program will read the data from a RFID card (#28441), and allow the
+'    user to store a new string on the RFID card.
+'
+'  This program uses PST (Parallax Serial Terminal) set to 115200 baud.
+'
+'  RFID module connections to Propeller Demo Board:
+'    VCC  ------------------ 5V
+'    SIN  ------------------ P0
+'    SOUT -- 10K Resistor -- P1
+'    GND  ------------------ GND
+'
+' Use with PropBasic version 00.01.01 or later.
+'
+' Author:   Terry Hitt (A.K.A. Bean on Parallax Forums)
+' Date:     July 23, 2010
+' Compiler: PropBasic 00.01.02
+'
+DEVICE P8X32A, XTAL1, PLL16X
+FREQ   80_000_000
+
+LOAD "RFIDRW.LIB"
+
+TX           PIN 30 HIGH    ' Output from propeller to PST
+RX           PIN 31 INPUT   ' Input to propeller from PST
+
+PSTBAUD      CON "T115200"  ' PST baudrate
+
+CR           CON 13         ' Carrage Return character
+CLS          CON 16         ' PST ClearScreen command
+
+ERR_OK       CON 1          ' No error return value from RFID module
+
+PSTSendChar  SUB 1          ' Send one character to PST
+PSTSendStr   SUB 1          ' Send a string of characters to PST
+PSTSendStrCR SUB 1          ' Send a string + carrage return to PST
+
+temp         VAR LONG       ' Temporary variable
+value        VAR LONG       ' Holds a value
+char         VAR LONG       ' Holds a character
+index        VAR LONG       ' Holds an index
+ascii        HUB STRING(20)
+
+
+PROGRAM Start
+
+
+Start:
+  RFID_Setup 0, 1 ' SIn=P0, SOut=P1
+  PAUSE 10
+  DO
+    ' Look for a Read/Write card
+    RFID_Detect
+    IF rfidError <> ERR_OK THEN
+      PSTSendStrCR "No Read/Write Card Detected..."
+    ELSE
+      ' Found a read/write card
+      PSTSendChar CR
+      PSTSendStr "Detected Read/Write Card SN "
+      ascii = STR rfidSN, 9  ' Convert serial number to ascii
+      PSTSendStrCR ascii
+
+      ' Read the data from the card
+      PSTSendStrCR "Reading data from card..."
+      RFID_Read
+      IF rfidError <> ERR_OK THEN
+        PSTSendStrCR "Error while reading data..."
+
+      ELSE
+        ' Display data
+        FOR temp = 0 TO 119
+          ' See if we printed 8 values
+          value = temp AND 7
+          IF value = 0 THEN
+            ' After every 8 values, start a new line
+            ascii = STR temp, 3
+            PSTSendChar CR
+            PSTSendStr ascii
+            PSTSendStr " = "
+          ENDIF
+
+          ' Get value at address "temp"
+          RDBYTE rfidData(temp), value
+          ascii = STR value, 3
+          PSTSendStr ascii
+          PSTSendStr ", "
+
+          ' After printing the 8 decimal values, print the ascii characters
+          value = temp AND 7
+          IF value = 7 THEN
+            PSTSendStr "   "
+            DEC temp, 7   ' Backup index
+            FOR value = 0 TO 7
+              RDBYTE rfidData(temp), char
+              INC temp
+
+              ' Only ascii characters > 16 are printable
+              IF char > 16 THEN
+                PSTSendChar char
+              ELSE
+                PSTSendChar "?"
+              ENDIF
+            NEXT
+            DEC temp
+          ENDIF
+
+        NEXT
+        PSTSendChar CR
+        PSTSendChar CR
+
+        ' Ask for a string to store on the card
+        PSTSendStr "Enter string to store on card:"
+        SERIN RX, PSTBAUD, rfidData
+
+        ' If first character in string is zero, then nothing was entered
+        RDBYTE rfidData, temp
+        IF temp <> 0 THEN
+          PSTSendStrCR "Updating card..."
+          RFID_Write
+          IF rfidError = ERR_OK THEN
+            PSTSendStrCR "Update successful."
+            PSTSendChar CR
+          ELSE
+            PSTSendStrCR "Update failed."
+            PSTSendChar CR
+          ENDIF
+        ELSE
+          PSTSendStrCR "Nothing entered. Card not updated..."
+          PSTSendChar CR
+        ENDIF
+      ENDIF
+    ENDIF
+
+   ' Look for a Read-Only tag
+    RFID_DetectRO
+    IF rfidError <> ERR_OK THEN
+      PSTSendStrCR "No Read-Only Card Detected..."
+    ELSE
+      PSTSendChar CR
+      PSTSendStrCR "Read-Only Card Detected..."
+      FOR temp = 0 TO 9
+        RDBYTE rfidData(temp), char
+        PSTSendChar char
+      NEXT
+      PSTSendChar CR
+      PSTSendChar CR
+    ENDIF
+  LOOP
+END
+
+
+SUB PSTSendChar ' Send a character to PST
+  SEROUT TX, PSTBAUD, __param1
+ENDSUB
+
+
+SUB PSTSendStr ' Send a string of characters to PST
+  __param2=__param1
+  DO
+    RDBYTE __param2, __param1
+    IF __param1 = 0 THEN EXIT
+    PSTSendChar __param1
+    INC __param2
+  LOOP
+ENDSUB
+
+
+SUB PSTSendStrCR ' Send a string of characters + carrage return to PST
+  PSTSendStr __param1
+  PSTSendChar 13
+ENDSUB
+
+{
+!------------------------------------------------------------------------------------------------------------------------------
+!                                                   TERMS OF USE: MIT License                                                 !
+!-----------------------------------------------------------------------------------------------------------------------------!
+!Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation   !
+!files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,   !
+!modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the        !
+!Software is furnished to do so, subject to the following conditions:                                                         !
+!                                                                                                                             !
+!The above copyright notice and this permission notice shall be included in all copies or substantial portions of the         !
+!Software.                                                                                                                    !
+!                                                                                                                             !
+!THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE         !
+!WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR        !
+!COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  !
+!ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                        !
+-------------------------------------------------------------------------------------------------------------------------------
+}
+

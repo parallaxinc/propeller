@@ -1,0 +1,205 @@
+' Libary for RFID Read/Write Module (Parallax 28440)
+' Will read and write RFID cards (Parallax 28441)
+' Will read "read/only" RFID tags from Parallax
+'
+rfidSIn       VAR LONG       ' RFID Module SIn pin number
+rfidSOut      VAR LONG       ' RFID Module SOut pin number
+rfidError     VAR LONG       ' RFID Module error code
+rfidSN        VAR LONG       ' Read/Write card Serial Number
+rfidData      HUB BYTE(120)  ' Data read from RFID card (116 to 119 is Read/Write SN; 0 to 9 is Read-Only SN)
+
+RFID_Setup    SUB 2          ' Setup RFID hardware. Parameters are SIn_Pin, SOut_Pin
+RFID_Detect   SUB 0          ' Reads serial number from card. Serial number is a long named "rfidSN".
+RFID_DetectRO SUB 0          ' Reads serial number from a read-only tag. Serial number is 10 hex characters in "rfidData".
+RFID_Read     SUB 0          ' Reads ALL data from card to rfidData()
+RFID_Write    SUB 0          ' Writes ALL data from rfidData() to card
+
+RFID_SendStr  SUB 1          ' Send a string of characters to RFID module
+RFID_Send     SUB 1          ' Send one character to RFID module
+RFID_Recv     FUNC 0         ' Receive characters from RFID module (specify # of chars to receive)
+
+RFIDBAUD      CON "T9600"  ' RFID Module baudrate
+
+
+'{$CODE}
+
+
+'{$IFUSED RFID_Setup}
+SUB RFID_Setup
+  rfidSIn = __param1
+  rfidSOut = __param2
+  HIGH rfidSIn
+  INPUT rfidSOut
+  PAUSE 10
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_Detect}
+SUB RFID_Detect
+
+RFID_Read_SN DATA "!RW", $01, 32, 0
+
+  rfidSN = 0
+  RFID_SendStr RFID_Read_SN
+  rfidError = RFID_Recv
+  rfidSN = RFID_Recv
+  __param2 = RFID_Recv
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param2
+  __param2 = RFID_Recv
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param2
+  __param2 = RFID_Recv
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param2
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_DetectRO}
+SUB RFID_DetectRO
+
+RFID_Read_RO_SN DATA "!RW", $0F, 0
+
+  rfidSN = 0
+  RFID_SendStr RFID_Read_RO_SN
+  rfidError = RFID_Recv
+  FOR __param2 = 0 TO 9
+    __param1 = RFID_Recv
+    WRBYTE rfidData(__param2), __param1
+  NEXT
+  IF rfidError = 10 THEN
+    rfidError = RFID_Recv
+    IF rfidError = 13 THEN
+      rfidError = 1
+    ELSE
+      rfidError = 8
+    ENDIF
+  ELSE
+    RFID_Recv
+    rfidError = 8
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_Read}
+SUB RFID_Read
+
+RFID_Read_Block DATA "!RW", $01, 0
+
+  __paramcnt = GETADDR rfidData
+  FOR __param3 = 3 TO 32
+    PAUSE 1
+    RFID_SendStr RFID_Read_Block
+    RFID_Send __param3
+    rfidError = RFID_Recv
+    IF rfidError <> 1 THEN ReadError
+    __param4 = RFID_Recv
+    WRBYTE __paramcnt, __param4
+    INC __paramcnt
+    __param4 = RFID_Recv
+    WRBYTE __paramcnt, __param4
+    INC __paramcnt
+    __param4 = RFID_Recv
+    WRBYTE __paramcnt, __param4
+    INC __paramcnt
+    __param4 = RFID_Recv
+    WRBYTE __paramcnt, __param4
+    INC __paramcnt
+  NEXT
+  DEC __paramcnt, 4
+  RDBYTE __paramcnt, rfidSN, __param1, __param3, __param4
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param1
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param3
+  rfidSN = rfidSN << 8
+  INC rfidSN, __param4
+
+ReadError:
+
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_Write}
+SUB RFID_Write
+
+RFID_Write_Block DATA "!RW", $02, 0
+
+  __paramcnt = GETADDR rfidData
+  FOR __param3 = 3 TO 31
+    PAUSE 1
+    RFID_SendStr RFID_Write_Block
+    RFID_Send __param3
+    RDBYTE __paramcnt, __param4
+    INC __paramcnt
+    RFID_Send __param4
+    RDBYTE __paramcnt, __param4
+    INC __paramcnt
+    RFID_Send __param4
+    RDBYTE __paramcnt, __param4
+    INC __paramcnt
+    RFID_Send __param4
+    RDBYTE __paramcnt, __param4
+    INC __paramcnt
+    RFID_Send __param4
+
+    rfidError = RFID_Recv
+    IF rfidError <> 1 THEN WriteError
+  NEXT
+WriteError:
+
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_SendStr}
+SUB RFID_SendStr ' Send a string a characters to the RFID module
+  __param2=__param1
+  DO
+    RDBYTE __param2, __param1
+    IF __param1 = 0 THEN EXIT
+    RFID_Send __param1
+    INC __param2
+  LOOP
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_Send}
+SUB RFID_Send ' Send a character to the RFID module
+  SEROUT RFIDSin, RFIDBaud, __param1
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED RFID_Recv}
+FUNC RFID_Recv ' Receive one character from RFID module
+  SERIN RFIDSout, RFIDBaud, __param1
+  RETURN __param1
+ENDFUNC
+'{$ENDIF}
+
+
+{
+!------------------------------------------------------------------------------------------------------------------------------
+!                                                   TERMS OF USE: MIT License                                                 !
+!-----------------------------------------------------------------------------------------------------------------------------!
+!Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation   !
+!files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,   !
+!modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the        !
+!Software is furnished to do so, subject to the following conditions:                                                         !
+!                                                                                                                             !
+!The above copyright notice and this permission notice shall be included in all copies or substantial portions of the         !
+!Software.                                                                                                                    !
+!                                                                                                                             !
+!THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE         !
+!WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR        !
+!COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  !
+!ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                        !
+-------------------------------------------------------------------------------------------------------------------------------
+}
+
