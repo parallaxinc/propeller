@@ -1,0 +1,87 @@
+' This code generates 320x240 pixel 4 color VGA display
+'
+DEVICE P8X32A, XTAL1, PLL16X
+FREQ 80_000_000
+
+LOAD "VGA.lib"
+
+' Define CONs
+Black  CON 0 ' Change PALETTE for different colors
+Blue   CON 1
+Red    CON 2
+White  CON 3
+
+
+' Define variables (LONGs only)
+memPtr   VAR LONG
+temp     VAR LONG
+seed     VAR LONG
+x        VAR LONG
+y        VAR LONG
+color    VAR LONG
+
+
+' Start of main code
+PROGRAM Start
+
+Start:
+  ' Draw color stripes
+  memPtr = GetAddr VGA_vgaMem
+  FOR temp = 0 TO 4799
+    WRLONG memPtr,%%0123012301230123
+    INC memPtr,4
+  NEXT
+  PAUSE 5000
+
+  ' Draw a red line
+  FOR temp = 0 TO 239
+    VGA_Plot temp, temp, Red
+  NEXT
+  PAUSE 2000
+
+  ' Draw a blue line
+  FOR temp = 0 TO 239
+    VGA_Plot temp, temp, Blue
+  NEXT
+  PAUSE 2000
+
+  ' Draw a white line
+  FOR temp = 0 TO 239
+    VGA_Plot temp, temp, White
+  NEXT
+  PAUSE 2000
+
+  ' Set random pixels
+  DO
+    RANDOM seed, x
+    x = x AND 511
+    y = seed >> 9
+    y = y AND 511
+    color = seed >> 18
+    color = color AND 3
+    IF x < 320 AND
+     y < 240 THEN
+      VGA_Plot x, y, color
+    ENDIF
+  LOOP
+END
+
+{
+!------------------------------------------------------------------------------------------------------------------------------
+!                                                   TERMS OF USE: MIT License                                                 !
+!-----------------------------------------------------------------------------------------------------------------------------!
+!Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation   !
+!files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,   !
+!modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the        !
+!Software is furnished to do so, subject to the following conditions:                                                         !
+!                                                                                                                             !
+!The above copyright notice and this permission notice shall be included in all copies or substantial portions of the         !
+!Software.                                                                                                                    !
+!                                                                                                                             !
+!THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE         !
+!WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR        !
+!COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  !
+!ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                        !
+-------------------------------------------------------------------------------------------------------------------------------
+}
+

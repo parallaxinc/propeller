@@ -1,0 +1,453 @@
+' This code generates 320x240 pixel (40x30 text) 4 color VGA display
+' The four colors are contain within a palette. Each palette entry controls 16 horizontal pixels by 8 vertical pixels
+' Palette entry zero thru 19 control the first 8 rows of pixels, then 20 thru 39 for the next 8 rows, and so on...
+' When using text, each palette entry control two consecutive characters.
+'
+
+' Define HUB variables
+VGA_vgaMem  HUB BYTE(19200) = 0 ' (320x240 pixels)
+VGA_palette HUB LONG(600) = $FF_C3_0F_03 ' 40x30 $FF=white(3), $C3=red(2), $0F=blue(1), $03=black(0); Bit0 and Bit1 MUST always be 1
+
+' Define TASKs
+VGA_Video  TASK AUTO
+
+
+' Define variables (LONGs only)
+VGA_curX      VAR LONG = 0
+VGA_curY      VAR LONG = 0
+VGA_foreColor VAR LONG = 3
+VGA_backColor VAR LONG = 0
+VGA_curPal    VAR LONG = 0
+
+
+' Define Subroutines
+VGA_Print      SUB 1     ' "String"
+VGA_PrintAt    SUB 3     ' X, Y, "String"
+VGA_Char       SUB 1     ' character value
+VGA_SetColor   SUB 1,2   ' Sets default Foreground and Background colors (0-3); 4=Transparent (not changed)
+VGA_SetPalette SUB 0, 1  ' Sets the drawing palette, if no parameter palette is not changed when drawing
+VGA_SetPos     SUB 2     ' Sets current X, Y drawing positions
+VGA_Plot       SUB 2,3   ' X, Y{, Color} (does NOT change default color)
+VGA_PlotTo     SUB 2,3   ' newX, newY{, Color} (does NOT change default color)
+
+
+'{$CODE}
+
+
+'{$IFUSED VGA_Print}
+SUB VGA_Print
+  __param3 = __param1
+  VGA_PrintAt VGA_curX, VGA_curY, __param3
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_PrintAt}
+SUB VGA_PrintAt ' X, Y, "String"
+  VGA_txtPtr VAR LONG
+
+  VGA_curX = __param1
+  VGA_curY = __param2
+  VGA_txtPtr = __param3
+  DO
+    RDBYTE VGA_txtPtr, __param1
+    IF __param1 = 0 THEN EXIT
+    VGA_Char __param1
+    INC VGA_txtPtr
+  LOOP
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_Char}
+VGA_Font DATA $00, $00, $00, $00, $00, $00, $00, $00 ' (space)
+     DATA $30, $78, $78, $30, $30, $00, $30, $00 ' !
+     DATA $6C, $6C, $28, $00, $00, $00, $00, $00 ' " "
+     DATA $6C, $6C, $FE, $6C, $FE, $6C, $6C, $00 ' #
+     DATA $18, $7E, $C0, $7C, $06, $FC, $18, $00 ' $
+     DATA $00, $C6, $CC, $18, $30, $66, $C6, $00 ' %
+     DATA $38, $6C, $38, $76, $DC, $CC, $76, $00 ' &
+     DATA $30, $30, $60, $00, $00, $00, $00, $00 ' '
+     DATA $18, $30, $60, $60, $60, $30, $18, $00 ' (
+     DATA $60, $30, $18, $18, $18, $30, $60, $00 ' )
+     DATA $00, $66, $3C, $FF, $3C, $66, $00, $00 ' *
+     DATA $00, $30, $30, $FC, $30, $30, $00, $00 ' +
+     DATA $00, $00, $00, $00, $00, $30, $30, $60 ' ,
+     DATA $00, $00, $00, $FC, $00, $00, $00, $00 ' -
+     DATA $00, $00, $00, $00, $00, $30, $30, $00 ' .
+     DATA $06, $0C, $18, $30, $60, $C0, $80, $00 ' /
+     DATA $7C, $C6, $C6, $D6, $C6, $C6, $7C, $00 ' 0
+     DATA $30, $70, $30, $30, $30, $30, $FC, $00 ' 1
+     DATA $78, $CC, $0C, $38, $60, $CC, $FC, $00 ' 2
+     DATA $78, $CC, $0C, $38, $0C, $CC, $78, $00 ' 3
+     DATA $1C, $3C, $6C, $CC, $FE, $0C, $1E, $00 ' 4
+     DATA $FC, $C0, $F8, $0C, $0C, $CC, $78, $00 ' 5
+     DATA $38, $60, $C0, $F8, $CC, $CC, $78, $00 ' 6
+     DATA $FC, $CC, $0C, $18, $30, $30, $30, $00 ' 7
+     DATA $78, $CC, $CC, $78, $CC, $CC, $78, $00 ' 8
+     DATA $78, $CC, $CC, $7C, $0C, $18, $70, $00 ' 9
+     DATA $00, $30, $30, $00, $00, $30, $30, $00 ' :
+     DATA $00, $30, $30, $00, $00, $30, $30, $60 ' ;
+     DATA $18, $30, $60, $C0, $60, $30, $18, $00 ' <
+     DATA $00, $00, $FC, $00, $00, $FC, $00, $00 ' =
+     DATA $60, $30, $18, $0C, $18, $30, $60, $00 ' >
+     DATA $78, $CC, $0C, $18, $30, $00, $30, $00 ' ?
+     DATA $7C, $C6, $DE, $DE, $DC, $C0, $78, $00 ' @
+     DATA $30, $78, $CC, $CC, $FC, $CC, $CC, $00 ' A
+     DATA $FC, $66, $66, $7C, $66, $66, $FC, $00 ' B
+     DATA $3C, $66, $C0, $C0, $C0, $66, $3C, $00 ' C
+     DATA $F8, $6C, $66, $66, $66, $6C, $F8, $00 ' D
+     DATA $FE, $62, $68, $78, $68, $62, $FE, $00 ' E
+     DATA $FE, $62, $68, $78, $68, $60, $F0, $00 ' F
+     DATA $3C, $66, $C0, $C0, $CE, $66, $3E, $00 ' G
+     DATA $CC, $CC, $CC, $FC, $CC, $CC, $CC, $00 ' H
+     DATA $78, $30, $30, $30, $30, $30, $78, $00 ' I
+     DATA $1E, $0C, $0C, $0C, $CC, $CC, $78, $00 ' J
+     DATA $E6, $66, $6C, $78, $6C, $66, $E6, $00 ' K
+     DATA $F0, $60, $60, $60, $62, $66, $FE, $00 ' L
+     DATA $C6, $EE, $FE, $FE, $D6, $C6, $C6, $00 ' M
+     DATA $C6, $E6, $F6, $DE, $CE, $C6, $C6, $00 ' N
+     DATA $38, $6C, $C6, $C6, $C6, $6C, $38, $00 ' O
+     DATA $FC, $66, $66, $7C, $60, $60, $F0, $00 ' P
+     DATA $78, $CC, $CC, $CC, $DC, $78, $1C, $00 ' Q
+     DATA $FC, $66, $66, $7C, $6C, $66, $E6, $00 ' R
+     DATA $78, $CC, $C0, $78, $0C, $CC, $78, $00 ' S
+     DATA $FC, $B4, $30, $30, $30, $30, $78, $00 ' T
+     DATA $CC, $CC, $CC, $CC, $CC, $CC, $FC, $00 ' U
+     DATA $CC, $CC, $CC, $CC, $CC, $78, $30, $00 ' V
+     DATA $C6, $C6, $C6, $D6, $FE, $EE, $C6, $00 ' W
+     DATA $C6, $6C, $38, $38, $6C, $C6, $C6, $00 ' X
+     DATA $CC, $CC, $CC, $78, $30, $30, $78, $00 ' Y
+     DATA $FE, $C6, $8C, $18, $32, $66, $FE, $00 ' Z
+     DATA $78, $60, $60, $60, $60, $60, $78, $00 ' [
+     DATA $C0, $60, $30, $18, $0C, $06, $02, $00 ' \
+     DATA $78, $18, $18, $18, $18, $18, $78, $00 ' ]
+     DATA $10, $38, $6C, $C6, $00, $00, $00, $00 ' ^
+     DATA $00, $00, $00, $00, $00, $00, $00, $FF ' _
+     DATA $30, $18, $0C, $00, $00, $00, $00, $00 ' `
+     DATA $00, $00, $78, $0C, $7C, $CC, $76, $00 ' a
+     DATA $E0, $60, $60, $7C, $66, $66, $DC, $00 ' b
+     DATA $00, $00, $78, $CC, $C0, $CC, $78, $00 ' c
+     DATA $1C, $0C, $0C, $7C, $CC, $CC, $76, $00 ' d
+     DATA $00, $00, $78, $CC, $FC, $C0, $78, $00 ' e
+     DATA $38, $6C, $60, $F0, $60, $60, $F0, $00 ' f
+     DATA $00, $00, $76, $CC, $CC, $7C, $0C, $F8 ' g
+     DATA $E0, $60, $6C, $76, $66, $66, $E6, $00 ' h
+     DATA $30, $00, $70, $30, $30, $30, $78, $00 ' i
+     DATA $0C, $00, $0C, $0C, $0C, $CC, $CC, $78 ' j
+     DATA $E0, $60, $66, $6C, $78, $6C, $E6, $00 ' k
+     DATA $70, $30, $30, $30, $30, $30, $78, $00 ' l
+     DATA $00, $00, $CC, $FE, $D6, $D6, $C6, $00 ' m
+     DATA $00, $00, $F8, $CC, $CC, $CC, $CC, $00 ' n
+     DATA $00, $00, $78, $CC, $CC, $CC, $78, $00 ' o
+     DATA $00, $00, $DC, $66, $66, $7C, $60, $F0 ' p
+     DATA $00, $00, $76, $CC, $CC, $7C, $0C, $1E ' q
+     DATA $00, $00, $DC, $76, $66, $60, $F0, $00 ' r
+     DATA $00, $00, $7C, $C0, $78, $0C, $F8, $00 ' s
+     DATA $10, $30, $7C, $30, $30, $34, $18, $00 ' t
+     DATA $00, $00, $CC, $CC, $CC, $CC, $76, $00 ' u
+     DATA $00, $00, $CC, $CC, $CC, $78, $30, $00 ' v
+     DATA $00, $00, $C6, $D6, $D6, $FE, $6C, $00 ' w
+     DATA $00, $00, $C6, $6C, $38, $6C, $C6, $00 ' x
+     DATA $00, $00, $CC, $CC, $CC, $7C, $0C, $F8 ' y
+     DATA $00, $00, $FC, $98, $30, $64, $FC, $00 ' z
+     DATA $1C, $30, $30, $E0, $30, $30, $1C, $00 ' {
+     DATA $30, $30, $30, $30, $30, $30, $30, $00 ' |
+     DATA $E0, $30, $30, $1C, $30, $30, $E0, $00 ' }
+     DATA $76, $DC, $00, $00, $00, $00, $00, $00 ' ~
+     DATA $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ' Block
+
+
+SUB VGA_Char ' character value
+  VGA_tmpX    VAR LONG
+  VGA_tmpY    VAR LONG
+  VGA_pixels  VAR LONG
+  VGA_fontPtr VAR LONG
+
+  __param1 = __param1 - " "
+  __param1 = __param1 * 8
+  VGA_fontPtr = GetAddr VGA_Font(__param1)
+  FOR VGA_tmpY = 0 TO 7
+    RDBYTE VGA_fontPtr, VGA_pixels
+    INC VGA_fontPtr
+    FOR VGA_tmpX = 0 TO 7
+      IF VGA_pixels > 127 THEN
+        VGA_Plot VGA_curX, VGA_curY, VGA_foreColor
+      ELSE
+        VGA_Plot VGA_curX, VGA_curY, VGA_backColor
+      ENDIF
+      VGA_pixels = VGA_pixels AND 127
+      VGA_pixels = VGA_pixels << 1
+      INC VGA_curX
+    NEXT
+    DEC VGA_curX, 8
+    INC VGA_curY
+  NEXT
+  INC VGA_curX, 8
+  IF VGA_curX < 320 THEN
+    DEC VGA_curY, 8
+  ELSE
+    VGA_curX = 0
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_SetColor}
+SUB VGA_SetColor
+  VGA_foreColor = __param1
+  IF __paramCnt = 2 THEN
+    VGA_backColor = __param2
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_SetPalette}
+SUB VGA_SetPalette
+  IF __paramCnt = 0 THEN
+    VGA_curPal = 0
+  ELSE
+    VGA_curPal = __param1 OR $03_03_03_03
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_SetPos}
+SUB VGA_SetPos
+  VGA_curX = __param1
+  VGA_curY = __param2
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_PlotTo}
+SUB VGA_PlotTo ' newX, newY, Color (does NOT change default color)
+  VGA_newX    VAR LONG
+  VGA_newY    VAR LONG
+  VGA_color  VAR LONG
+
+  VGA_deltaX  VAR LONG
+  VGA_deltaY  VAR LONG
+  VGA_dirX    VAR LONG
+  VGA_dirY    VAR LONG
+  VGA_accum   VAR LONG
+
+  VGA_newX = __param1
+  VGA_newY = __param2
+  IF __paramCnt <> 3 THEN
+    VGA_color = VGA_foreColor
+  ELSE
+    VGA_color = __param3
+  ENDIF
+  VGA_deltaX = VGA_newX - VGA_curX
+  VGA_deltaY = VGA_newY - VGA_curY
+  VGA_dirX = SGN VGA_deltaX
+  VGA_dirY = SGN VGA_deltaY
+  VGA_deltaX = ABS VGA_deltaX
+  VGA_deltaY = ABS VGA_deltaY
+
+  IF VGA_deltaX > VGA_deltaY THEN
+    VGA_accum = VGA_deltaX  / 2
+    DO WHILE VGA_curX <> VGA_newX
+      VGA_Plot VGA_curX, VGA_curY, VGA_color
+      VGA_curX = VGA_curX + VGA_dirX
+      VGA_accum = VGA_accum - VGA_deltaY
+      IF VGA_accum < 0 THEN
+        VGA_curY = VGA_curY + VGA_dirY
+        VGA_accum = VGA_accum + VGA_deltaX
+      ENDIF
+    LOOP
+  ELSE
+    VGA_accum = VGA_deltaY  / 2
+    DO WHILE VGA_curY <> VGA_newY
+      VGA_Plot VGA_curX, VGA_curY, VGA_color
+      VGA_curY = VGA_curY + VGA_dirY
+      VGA_accum = VGA_accum - VGA_deltaX
+      IF VGA_accum < 0 THEN
+        VGA_curX = VGA_curX + VGA_dirX
+        VGA_accum = VGA_accum + VGA_deltaY
+      ENDIF
+    LOOP
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+
+'{$IFUSED VGA_Plot}
+SUB VGA_Plot  ' X, Y, Color
+  VGA_plotX    VAR __param1
+  VGA_plotY    VAR __param2
+  VGA_plotC    VAR __param3
+  VGA_tempY    VAR LONG
+  VGA_plotTemp VAR LONG
+  VGA_mask     VAR LONG
+
+  VGA_curX = VGA_plotX
+  VGA_curY = VGA_plotY
+  IF __paramCnt = 2 THEN
+    VGA_plotC = VGA_foreColor
+  ENDIF
+  IF VGA_plotC < 4 THEN
+    VGA_tempY = VGA_curY * 64
+    VGA_plotY = VGA_curY * 16
+    VGA_plotY = VGA_plotY + VGA_tempY
+    VGA_plotTemp = VGA_plotX / 4           ' Get x / 4 (4 pixels per byte)
+    VGA_plotY = VGA_plotY + VGA_plotTemp       '
+    RDBYTE VGA_vgaMem(VGA_plotY), VGA_plotTemp ' Get byte to modify
+    VGA_plotX = VGA_plotX AND 3            ' Pixel position within this byte
+    VGA_plotX = VGA_plotX * 2              ' Two bits per pixel
+    VGA_plotC = VGA_plotC << VGA_plotX         ' Get pixels into position
+    VGA_mask = 3 << VGA_plotX              ' Create mask
+    VGA_plotTemp = VGA_plotTemp ANDN VGA_mask  ' Apply mask
+    VGA_plotTemp = VGA_plotTemp OR VGA_plotC   ' Plot pixels
+    WRBYTE VGA_vgaMem(VGA_plotY), VGA_plotTemp ' Put modified byte back
+    IF VGA_curPal <> 0 THEN
+      ' plotY = (curY / 8) * 20
+      VGA_plotY = VGA_curY / 8
+      VGA_plotY = VGA_plotY * 4
+      VGA_tempY = VGA_plotY * 4
+      VGA_plotY = VGA_plotY + VGA_tempY
+      VGA_plotX = VGA_curX / 16
+      VGA_plotTemp = VGA_plotY + VGA_plotX
+      WRLONG VGA_palette(VGA_plotTemp), VGA_curPal
+    ENDIF
+  ENDIF
+ENDSUB
+'{$ENDIF}
+
+'{$TASKS}
+
+TASK VGA_Video ' 320x240 pixel 4 color VGA generator
+  VideoPLL16X   CON 15
+  VideoPLL8X   CON 14
+
+  VGA_Pins      PIN 23..16 OUTPUT
+
+  lines   VAR LONG
+  palLine VAR LONG
+  temp    VAR LONG
+  memPtr  VAR LONG
+  points  VAR LONG
+  palPtr  VAR LONG
+  curPal  VAR LONG
+
+
+  PORCH   VAR LONG = $03
+  V_PORCH VAR LONG = $02
+  HSYNC   VAR LONG = $01
+  V_HSYNC VAR LONG = $00
+
+  COUNTERA VideoPLL16X, 0, 0, $1790_0000              ' Setup for counter output
+  VSCL = $09_090                                      ' Setup video scale; Pixel clock = PLL / 9
+'
+'            +-------------------------------------- VMode 00=Disable, 01=VGA, 10=Baseband, 11=broadcast
+'            | +------------------------------------ CMode 0=2color, 1=4color
+'            | |                      +------------- Pin group 23..16
+'            | |                      |       +----- Drive all 8 video pins  
+  VCFG = %0_01_1_0_0_000_00000000000_010_0_11111111   ' Setup video configuration
+
+  DO
+    memPtr = GetAddr VGA_vgaMem
+    palPtr = GetAddr VGA_palette
+    lines = 30 ' 30*8 = 240
+    DO
+      palLine = 8
+      DO
+        WAITVID HSYNC, 0
+        WAITVID HSYNC, 0
+        WAITVID HSYNC, 0
+        WAITVID PORCH, 0
+        WAITVID PORCH, 0
+        temp = 20
+        DO
+          RDLONG palPtr, curPal
+          INC palPtr,4
+          RDLONG memPtr, points
+          INC memPtr, 4
+          WAITVID curPal, points 
+        LOOP temp
+        WAITVID PORCH, 0
+
+        ' Repeat same line again
+        DEC memPtr, 80
+        DEC palPtr, 80
+        WAITVID HSYNC, 0
+        WAITVID HSYNC, 0
+        WAITVID HSYNC, 0
+        WAITVID PORCH, 0
+        WAITVID PORCH, 0
+        temp = 20
+        DO
+          RDLONG palPtr, curPal
+          INC palPtr, 4
+          RDLONG memPtr, points
+          INC memPtr, 4
+          WAITVID curPal, points 
+        LOOP temp
+        WAITVID PORCH, 0
+
+        DEC palPtr, 80
+      LOOP palLine
+      INC palPtr, 80
+    LOOP lines
+
+    ' Vertical front porch 11 blank lines
+    lines = 10
+    DO
+      WAITVID HSYNC, 0
+      WAITVID HSYNC, 0
+      WAITVID HSYNC, 0
+      temp = 23
+      DO
+        WAITVID PORCH, 0
+      LOOP temp
+    LOOP lines
+  
+    ' Do vsync lines 2
+    lines = 2
+    DO
+      WAITVID V_HSYNC, 0
+      WAITVID V_HSYNC, 0
+      WAITVID V_HSYNC, 0
+      temp = 23
+      DO
+        WAITVID V_PORCH, 0
+      LOOP temp
+    LOOP lines
+
+    ' Vertical back porch 31 blank lines
+    lines = 33
+    DO
+      WAITVID HSYNC, 0
+      WAITVID HSYNC, 0
+      WAITVID HSYNC, 0
+      temp = 23
+      DO
+        WAITVID PORCH, 0
+      LOOP temp
+    LOOP lines
+  LOOP ' Frame
+ENDTASK
+
+
+{
+!------------------------------------------------------------------------------------------------------------------------------
+!                                                   TERMS OF USE: MIT License                                                 !
+!-----------------------------------------------------------------------------------------------------------------------------!
+!Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation   !
+!files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,   !
+!modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the        !
+!Software is furnished to do so, subject to the following conditions:                                                         !
+!                                                                                                                             !
+!The above copyright notice and this permission notice shall be included in all copies or substantial portions of the         !
+!Software.                                                                                                                    !
+!                                                                                                                             !
+!THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE         !
+!WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR        !
+!COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  !
+!ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                        !
+-------------------------------------------------------------------------------------------------------------------------------
+}
+
