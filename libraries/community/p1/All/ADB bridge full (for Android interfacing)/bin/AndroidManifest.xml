@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+      package="re.BridgeTerm"
+      android:versionCode="1"
+      android:versionName="1.0">
+      
+
+
+		  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+		  <uses-permission android:name="android.permission.BLUETOOTH"/>
+		  <uses-permission android:name="android.permission.BLUETOOTH_GO_DIE_IN_A_FIRE"/>
+		  <uses-permission android:name="android.permission.ACCESS_GPS" />
+		  <uses-permission android:name="android.permission.ACCESS_LOCATION" /> 
+          <uses-permission  android:name="android.permission.ACCESS_FINE_LOCATION" />
+		  <uses-permission android:name="android.permission.INTERNET"/>
+		  <uses-permission android:name="android.permission.WAKE_LOCK" /> 
+		       
+        <application android:icon="@drawable/icon" android:label="@string/app_name">
+        <activity android:name="re.BridgeTerm.BridgeTerm"
+            android:label="@string/app_name"
+                  android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <receiver android:name="MyStartupIntentReceiver"
+        		  android:enabled="true" > 
+             <intent-filter> 
+         		<action android:name="android.intent.action.BOOT_COMPLETED" /> 
+         		<category android:name="android.intent.category.HOME" /> 
+            </intent-filter> 
+        </receiver>
+
+    </application>
+
+
+
+
+    <uses-sdk android:minSdkVersion="3" />
+
+
+
+
+</manifest> 

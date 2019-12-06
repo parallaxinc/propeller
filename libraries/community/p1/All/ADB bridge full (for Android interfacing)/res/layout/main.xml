@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+	android:background="#FF000050"
+    >
+	
+    <TableLayout
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_weight="1"
+        android:orientation="vertical" >
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+
+            <EditText
+                android:id="@+id/editText1"
+                android:layout_width="194dp"
+                android:layout_height="fill_parent"
+                android:layout_weight="0.26"
+                android:ems="10"
+                android:inputType="textFilter"
+                android:textSize="5pt" >
+
+                <requestFocus />
+            </EditText>
+
+            <Button
+                android:id="@+id/button0"
+                android:layout_width="26dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.09"
+                android:text="COM0"
+                android:textSize="4pt" />
+
+            <Button
+                android:id="@+id/button1"
+                android:layout_width="26dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.10"
+                android:text="COM1"
+                android:textSize="4pt" />
+
+            <Button
+                android:id="@+id/button2"
+                android:layout_width="26dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.11"
+                android:text="COM2"
+                android:textSize="4pt" />
+
+                        <Button
+                            android:id="@+id/button3"
+                            android:layout_width="28dp"
+                            android:layout_height="wrap_content"
+                            android:text="COM3"
+                            android:textSize="4pt" />
+
+            </LinearLayout>
+
+        <TextView
+            android:id="@+id/txtSerial"
+            android:layout_width="fill_parent"
+            android:layout_height="64dp"
+            android:layout_weight="1.30"
+            android:background="#FF000030"
+            android:text="Serial input"
+            android:textSize="4pt" />
+
+        <View
+            android:layout_height="2dip"
+            android:background="#FF909090" />
+
+        <TextView
+            android:id="@+id/txtDebug"
+            android:layout_width="fill_parent"
+            android:layout_height="40dp"
+            android:layout_weight="0.83"
+            android:background="#FF909090"
+            android:text="No errors so far"
+            android:textColor="#FF000000"
+            android:textSize="6pt" />
+
+        <TextView
+            android:id="@+id/txtLat"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:background="#FF000050"
+            android:text="GPS navigation data"
+            android:textSize="5pt" />
+    </TableLayout>
+
+    <TextView
+        android:id="@+id/txtNMEA"
+        android:layout_width="fill_parent"
+        android:layout_height="14dp"
+        android:layout_weight="1"
+        android:background="#FF000040"
+        android:text="Raw NMEA strings"
+        android:textSize="5pt" />
+
+    <TextView
+        android:id="@+id/txtLon"
+        android:layout_width="fill_parent"
+        android:layout_height="36dp"
+        android:layout_weight="1"
+        android:background="#FF000040"
+        android:text="Logging stats and filename info"
+        android:textSize="5pt" />
+        
+</LinearLayout>
+
