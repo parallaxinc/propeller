@@ -1,0 +1,28 @@
+Release Notes:
+
+1. The library for the SmartGPU2 LCD commands is contained in the file "VizicSmartGPU2LCD.spin". The file "VizicSmartGPU2LCDTest.spin" contains tests for each command.
+
+2. The SmartGPU2 LCD resolution must be properly set in the constants section of "VizicSmartGPU2LCD.spin" before using the library. Set the "LcdType" constant to one of the following: Lcd160x120, Lcd320x240, Lcd480x320, Lcd480x272, or Lcd800x480.
+
+3. The directory "MicroSD Root Contents" contains image, audio, and text test files that can be copied to the root directory of a micro SD card inserted into SmartGPU2 card slot. It is possible to test without these files if the proper test flags in the file "VizicSmartGPU2LCDTest.spin" are set as shown in item 4. The test files are named "owl.bmp", "supra text yellow on black 240x320.bmp", "penguins.jpg", "SamplePcm8bit8KhzMono", and "test.txt". The video file "bee collecting honey.vid" is not included because it is larger than 2 Mbytes and the object exchange limits the total upload to less than or equal to that. Before you run the test application"VizicSmartGPU2LCDTest.spin", you'll need to set the TestVideo flag to false or else create your own test video file. 
+
+4. The test flags shown below are in the constant section of the file "VizicSmartGPU2LCDTest.spin" and should be set as desired to run the tests.
+
+   CON   
+       TestSD      ' Set false if hardware doesn't have micro SD card.
+       TestAudio   ' Set false if hardware doesn't have speaker and/or a test audio WAV file stored on the micro SD card.
+       AudioBoost  ' Set false for no audio boost (recommended for headphones) or true for audio boost (recommended for speakers with amplifiers)
+       TestImage   ' Set false if there are no test image files stored on the micro SD card.
+       TestText    ' Set false if there isn't a test text file stored on the micro SD card.
+       TestVideo   ' Set false if there isn't a test video file stored on the micro SD card.
+       TestRTC     ' Set false if there is no crystal and backup battery installed for the real-time clock. 
+
+   The associated filenames for media tests (i.e. image, audio, text, video) are in the data section as shown below.
+
+   DAT
+       ImageBMPFileName1Str      byte "owl", 0
+       ImageBMPFileName2Str      byte "supra text yellow on black 240x320", 0
+       ImageJPGFileName1Str      byte "penguins", 0
+       AudioWAVFileName1Str      byte "SamplePcm8bit8KhzMono", 0  
+       VideoFileNameStr          byte "bee collecting honey", 0
+       TextFileNameStr           byte "test", 0
