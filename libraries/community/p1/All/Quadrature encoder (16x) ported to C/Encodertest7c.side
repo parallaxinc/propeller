@@ -1,0 +1,13 @@
+Encodertest7c.c
+>-fno-exceptions
+>-lm
+>-m32bit-doubles
+>BOARD::DEMOBOARD
+>compiler=C
+>defs::-std=c99
+>linker::
+>memtype=cmm main ram compact
+>optimize=-Os
+Encoder.c
+Encoder.h
+Encoder.spin
