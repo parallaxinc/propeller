@@ -1,0 +1,5 @@
+IR_kit contain objects to get and buffer
+key codes from virtually any IR remote,
+identify and obtain timing information,
+transmit IR codes, and understand IR
+transmission codes.  (IR_kit.zip)
