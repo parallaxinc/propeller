@@ -1,0 +1,11 @@
+libds1302.c
+ds1302.c
+ds1302.h
+>compiler=C
+>memtype=lmm main ram
+>optimize=-O2
+>-m32bit-doubles
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>BOARD::ACTIVITYBOARD
