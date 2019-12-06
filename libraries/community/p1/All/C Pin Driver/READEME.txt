@@ -1,0 +1,89 @@
+By:	Ryan Stark, Stark Informatics LLC
+Date:	7/8/2013
+Version:2.2
+
+VERSION HISTORY
+
+Version 1.0
+Initial Release
+
+Version 1.1
+Improved documentation
+
+Version 2.0
+Adds functionality for ranged tasks(1..4)
+
+Version 2.1
+Adds Pre-Processor statements allowing including of either Pins.h or Pins.c and prevents multiple declarations
+
+Version 2.2
+Fixes bug in void pinOutLow(PIN_MASK * msk)
+
+
+FUNCTION LIST
+void createMask(PIN_MASK * msk, unsigned int start, unsigned char length);
+void pinSetD(PIN_MASK * msk, unsigned int value);
+void pinSetOut(PIN_MASK * msk);
+void pinSetIn(PIN_MASK * msk);
+void pinSetS(PIN_MASK * msk, unsigned int value);
+void pinSetHigh(PIN_MASK * msk);
+void pinSetLow(PIN_MASK * msk);
+void pinOutS(PIN_MASK * msk, unsigned int value);
+void pinOutHigh(PIN_MASK * msk);
+void pinOutLow(PIN_MASK * msk);
+unsigned int pinRead(PIN_MASK * msk);
+unsigned int pinInRead(PIN_MASK * msk);
+unsigned int pinStatus(PIN_MASK * msk);
+unsigned int pinDirection(PIN_MASK * msk);
+
+PIN_MASK STRUCTURE
+PIN_MASK is a struct meant to permanently hold a mask until it is cleared. This cuts processing power and program space required by the Propeller because it no longer has to create a mask every time a function is called. It also allows you to define multiple pin ranges and address them with great ease.
+It includes three variables. An unsigned int, mask. And two unsigned char, shift and length. These are all for the functions of the driver to use in making their calculations. It is not recommended that you change them unless you know what you are doing.
+
+GETTING STARTED
+To get started using io pins with this driver, you must first create a PIN_MASK and define it. Creating a PIN_MASK is quite straight forward. Simply define it as any other variable or struct. "PIN_MASK myPinSet;" This creates an empty space. If you know what you are doing, you can fill the space in manually, however I would suggest using the createMask function to do the back work for you.
+CREATEMASK
+To fill in the recently created PIN_MASK, call createMask, which creates a mask and stores it to the mask variable of the PIN_MASK struct. The arguments for createMask are: PIN_MASK * msk, unsigned int start, unsigned int length.
+Parameter explanation:
+	msk	pointer to a PIN_MASK struct
+	start	starting pin
+	length	length of mask
+For instance to access pins 16-20, the code would be something like "createMask(&myPinSet, 16, 5);".
+After PIN_MASK is set up, the rest of the functions are fairly simple.
+Note: A range can be any length. To access one individual pin, simply create a mask with a length of 1. To create an empty mask, length of 0. To create an all-inclusive mask, -1.
+
+FUNCTION EXPLANATION
+All functions take at least one common parameter: PIN_MASK * msk. This is a pointer to a PIN_MASK object previously defined. Aside from createMask, no other functions change the structure. A few of the functions also accept an unsigned int called value. This is for setting a range to a custom setting.
+Name		Return	Description
+createMask	void	Creates a mask for future use
+pinSetD		void	Sets the direction of given pin(s) to desired value
+pinSetOut	void	Sets the direction of given pin(s) to OUTPUT
+pinSetIn	void	Sets the direction of given pin(s) to INPUT
+pinSetS		void	Sets the status of given pin(s) to desired value
+pinSetHigh	void	Sets the status of given pin(s) to HIGH
+pinSetLow	void	Sets the status of given pin(s) to LOW
+pinOutS		void	Sets the direction of given pin(s) to OUTPUT and the status to desired value
+pinOutHigh	void	Sets the direction of given pin(s) to OUTPUT and the status to HIGH
+pinOutLow	void	Sets the direction of given pin(s) to OUTPUT and the status to LOW
+pinRead		int	Returns the int value of the selected pin(s)
+pinInRead	int	Sets the direction of given pin(s) to INPUT and returns int value of selected pin(s)
+pinStatus	int	Returns the int value of the HIGH/LOW array formed by the selected pin(s)
+pinDirection	int	Returns the int value of the IN/OUT array formed by the selected pin(s)
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                  TERMS OF USE: MIT License
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+// Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
