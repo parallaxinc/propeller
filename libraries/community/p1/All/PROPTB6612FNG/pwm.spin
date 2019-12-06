@@ -1,0 +1,120 @@
+{{
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SIMPLE PWM MODULE
+//
+//
+// Author: Stefan Wendler
+// Updated: 2013-11-28
+// Designed For: P8X32A
+// Version: 1.0
+//
+// Copyright (c) 2013 Stefan Wendler
+// See end of file for terms of use.
+//
+// Update History:
+//
+// v1.0 - Initial release       - 2013-11-28
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Circuit Diagram:
+//
+// PWM PIN --- Pin to use for PWM
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Brief Description:
+//
+// Allow PWM on given pin. Specify period (in Hz) and duty cycle (in %). Runs in separate cog.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Detailed Description:
+//
+// To use PWM, it first needs to bestarted. For example to have PWM on P16 with a freq of 2Hz and an initial duty cycle of
+// 50%:
+//
+// pwm.start(16, 2, 50)
+//
+// After the PWM is started, duty cycle could be adjusted at any time:
+//
+// pwm.setDc(10)
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+}}
+
+CON
+
+  '' nothing
+
+VAR
+
+  long duty
+
+PUB start(pin, freq, dc)
+
+'' ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+'' // Start PWM for given pin (in new Cog) with given freq. and given initial duty cycle.
+'' //
+'' // @param                    pin                     pin on which to output PWM
+'' // @param                    freq                    freq. in Hz for the PWM
+'' // @param                    dc                      initial duty in % cycle for the PWM
+'' ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  period  := CLKFREQ / freq
+  duty    := period / (100 / dc)
+  diraval := |< pin
+  ctraval := %00100 << 26 + pin
+
+  cognew(@entry, @duty)
+
+PUB setDc(dc)
+
+'' ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+'' // Set PWM duty cycle.
+'' // @param                    dc                      duty cycle in % for the PWM
+'' ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  duty := period / (100 / dc)
+
+DAT
+        org
+entry
+        mov dira, diraval
+        mov ctra, ctraval
+        mov frqa, #1
+
+        mov time, cnt
+        add time, period
+
+:loop
+        rdlong value, par
+        waitcnt time, period
+        neg phsa, value
+        jmp #:loop
+
+diraval long 0
+ctraval long 0
+period  long 0
+
+time    res 1
+value   res 1
+
+{{
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                  TERMS OF USE: MIT License
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+// files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+// Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+}}
