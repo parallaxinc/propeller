@@ -1,0 +1,131 @@
+Quick start:
+
+   1) Open ViewPort V4.2.5 or later and run the demo program "01_Four Bit Counter.spin"
+
+   2) Click on Connect to ViewPort button (if not already connected)
+
+   3) Use the "File|Open main script file" menu and open (in distribution dir)...
+
+        "01_Four Bit Counter main script.vpwScript"
+
+   4) Click the Run button under the Main script text window.
+
+   5) Use the "File|Open set variable script" menu and open...
+
+        "01_Four Bit Counter set vars.vpwScript"
+
+   6) Click the Run once button under the "Set variables" text box to modify freq.
+
+======================================================================================
+
+Author: Bob Anderson  (bob.anderson@centurytel.net)   December 20, 2009
+
+Credits: Hanno Sander, author of ViewPort (www.hannoware.com)
+         Terence Parr, author of ANTLR (used to build <expr> evaluator using formal grammar)
+
+======================================================================================
+
+This program is an extension to the basic "watch shared variable" capabilities of ViewPort.  It executes script statements that can deal with arrays and Spin floats and show variables in the following formats:
+
+   int  uint  float  binary  hex  bit
+
+There is a full expression evaluator that accepts the following operators:
+
+   *  /  div  mod  &  |  ^  >>  <<  
+
+======================================================================================
+
+Script statements available for "watching" shared variables. These are normally placed in the "Main script" text panel.
+
+   showInt   ( "<label>" , <expr> )  ; Show expr as signed   32 bit integer
+   showUint  ( "<label>" , <expr> )  ; Show expr as unsigned 32 bit integer
+   showHex   ( "<label>" , <expr> )  ; Show expr as $00fd_0acb
+   showBinary( "<label>" , <expr> )  ; Show expr as %1010_1000_0000_0000_1100_0011_0000_0001
+   showFloat ( "<label>" , <expr> )  ; Show expr as 3.81
+
+   showBit   ( "<label>" , <expr> , <bit> )  ; Show value of bit <bit> in <expr>
+
+   showStr   ( "<label>" )           ; Show <label> 
+
+   :<name> = <expr>                  ; Set a local variable (this is "quiet" - no output)
+
+
+There can be more than one script statement on a line, so the following is possible...
+
+   ; In the following line, a local variable ( :I ) is used to cycle from 0..9
+   showHex("out array = ",out[:I])  :I=(:I + 1) mod 10
+
+If the above script is repeatedly run by clicking the "Run once" button, it would examine out[0]..out[9] in sequence and produce lines in the "Watch Window" of the form:
+
+   out array = [  8] $00dd_87a0
+
+======================================================================================
+
+General notes...
+
+   The "Available ViewPort variable names..." text box shows arrays in the following manner...
+
+      io[366:2]  This is interpreted as io is a type 2 array with 366 elements -- io[0..365]
+
+
+   If a ViewPort shared variable is actually a Spin float, you must refer to that
+   variable using the  <name>.float  form to see it in float form.
+
+   While shared arrays can be examined, only the first element can be remotely set/modified.
+
+   <name> must start with a alpha character and contain only alpha characters and numbers.
+
+   <label> is any string that does not contain "
+
+   All names are case-sensitive.
+
+   A semi-colon (;) starts a comment field.
+
+   Local variables always start with a colon ( : ) and are automatically
+   initialized to zero.
+
+   <expr> can be arbitrarily complex.  Parentheses should be used to control
+   operator precedences.
+
+======================================================================================
+
+Examples of <expr> ...
+
+   ch0   ; This will be the most common expression - references a ViewPort variable
+
+   io[50] ; Item 50 from the io array
+
+   pi.float ; A ViewPort variable that is a IEEE float
+
+   bias ^ %1001  ; Bitwise xor bias with $9
+
+   bias & %1001  ; Bitwise and bias with $9
+
+   bias | %1001  ; Bitwise or bias with $9
+
+   ((v1.float + v2.float + v3.float)/3) * :scaleFactor ; Average 3 vars and scale
+
+   spi << 4  ; Shift spi left 4 bits
+
+   (counter + index) mod 12  ; Add counter to index and take the result modulo 12 
+
+   pi.float div 2  ; Integer divide by 2
+
+======================================================================================
+
+Below are the script statements that be used to set/modifyViewPort shared variables.  These are normally placed in the "Set variables" text panel.
+
+   <name>.float = <expr>             ; Set a ViewPort shared variable to an IEEE float
+   <name>.int   = <expr>             ; Set a ViewPort shared variable to a 32 bit long
+   <name>       = <expr>             ; Set a ViewPort shared variable to a 32 bit long
+   :<name>      = <expr>             ; Set a "local" variable (both ints and floats accepted)
+
+All of the above statements are "quiet" in that they do not directly produce output in the "Watch Window".  Of course, if there is a script running that displays the affected variable, the result will be seen.
+
+Clicking a line in the script window will automatically fill in the line number text box that is to the right of the "Execute line:" button.
+
+Note that it is not possible to have a statement of the form...
+
+   io[23] = %11110111_11001100
+
+This is a current limitation of the DDE interface that ViewPort exposes.

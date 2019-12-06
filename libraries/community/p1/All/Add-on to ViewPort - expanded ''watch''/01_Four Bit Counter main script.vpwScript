@@ -1,0 +1,7 @@
+showStr( "" ) showStr( "Demo of Watcher on 01_Four Bit Counter" )
+showStr( "" )
+showHex( "io = ", io ) ; You would get same results viewing io[0] up to io[355] 
+showStr( "" )
+showInt( "counter   = ", (io >> 16) & %1111 ) ; Extract io bits 16..19 as counter
+showStr( "" )
+showInt( "frequency = ", freq )

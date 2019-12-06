@@ -1,0 +1,97 @@
+grammar ViewPort;
+
+script    : stat+ ;
+          
+stat      : 'showInt'    LPAREN STRING COMMA expr RPAREN 
+          | 'showUint'   LPAREN STRING COMMA expr RPAREN
+          | 'showFloat'  LPAREN STRING COMMA expr RPAREN
+          | 'showHex'    LPAREN STRING COMMA expr RPAREN
+          | 'showBinary' LPAREN STRING COMMA expr RPAREN
+          | 'showStr'    LPAREN STRING RPAREN
+          | 'showBit'    LPAREN STRING COMMA expr COMMA expr RPAREN
+          | ';' (~NEWLINE)*
+          | LOCALVAR '=' expr
+          | IVAR     '=' expr 
+          | FVAR     '=' expr
+          | expr
+          | NEWLINE
+          ;
+
+expr      : multExpr ( '+' multExpr | '-' multExpr )* ;
+         
+multExpr  : atom
+             ( 
+                 '*'   atom
+               | '/'   atom
+               | 'div' atom
+               | 'mod' atom
+               | '&'   atom
+               | '|'   atom
+               | '^'   atom
+               | '>>'  atom
+               | '<<'  atom
+             )*   
+          ;
+          
+atom      : FLOAT
+          | '-' FLOAT
+          | '(' expr ')'
+          | '-' '(' expr ')'
+          | INT
+          | '-' INT
+          | IVAR '[' expr ']'
+          | '-' IVAR '[' expr ']'
+          | IVAR
+          | '-' IVAR
+          | FVAR '[' expr ']'
+          | '-' FVAR '[' expr ']'
+          | FVAR
+          | '-' FVAR
+          | LOCALVAR
+          | '-' LOCALVAR
+          | HEX
+          | '~' HEX
+          | BINARY
+          | '~' BINARY
+          ;
+
+/* ================================== Lexer rules ================================================= */
+
+LPAREN	   : '(' ;
+
+RPAREN     : ')' ;
+
+COMMA      : ',' ;
+
+fragment
+Name       : ('a'..'z' | 'A'..'Z') ('a'..'z' | 'A'..'Z' | '0'..'9' | '_' )*  ;
+
+FVAR      : Name '.float' ;
+
+IVAR      : Name 
+                (
+                    '.float'
+                  | '.int' 
+                  | 
+                )
+          ;
+                    
+LOCALVAR  : ':' Name ;
+
+FLOAT     :  INT? '.' INT ;
+
+INT       : ('0'..'9') ('0'..'9' | COMMA)* ;
+
+HEX	  : '$' (HexDigit)+ ;
+
+BINARY    : '%' ('0'..'1' | '_')+ ;	
+
+fragment 
+HexDigit  : 'a'..'f' | 'A'..'F' | '0'..'9' | '_' ;
+
+NEWLINE   : '\r'? '\n' ;
+
+STRING    : '"' (~'"')* '"' ;
+
+WS        : (' ' | '\t')+ ;
+
