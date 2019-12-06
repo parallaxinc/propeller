@@ -1,0 +1,12 @@
+libtimer.c
+timer.c
+timer.h
+>compiler=C
+>memtype=cmm main ram compact
+>optimize=-O2
+>-m32bit-doubles
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>-create_library
+>BOARD::ACTIVITYBOARD
