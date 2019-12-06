@@ -1,0 +1,14 @@
+Unzip all the files in the distribution into the directory where the Propeller Tool that you are currently using resides (we will refer to this directory as the PropTool directory).
+
+On my machine, the PropTool directory is c:\Programs\Parallax Inc\Propeller Tool v1.2.6  
+
+Your version depends on how well you are keeping up with new versions.
+
+In the PropTool directory, right click on PreSpinAAC.exe and create a shortcut. Drag this shortcut to the desktop.
+
+While in the PropTool directory, locate the manual (PreSpinAACManual.chm) and either drag it to the desktop next to the PreSpin shortcut, or create a shortcut to the manual and drag this shortcut to the desktop (again next to the PreSpin shortcut).
+
+Double click on the manual icon and go to the Quick Start topic.  (It might be nice to read at least the Introduction topic along the way :)
+
+Note: PreSpinAAC has an easy way to open the manual, so the manual icon will no longer be needed after one has become familiar with PreSpinAAC operation.
+

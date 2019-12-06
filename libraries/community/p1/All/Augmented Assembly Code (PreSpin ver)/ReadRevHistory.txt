@@ -1,0 +1,47 @@
+Revision history...
+
+1.01  Added beginblock and endblock statements to provide better alternative for
+      cleaning up the output (i.e., dealing with the interleave of AAC statements
+	  and output code) than turning off all aac lines.  The new statements delay the
+	  display of output code so that all of the generated code that corresponds
+	  to a block of aac lines is output contiguously when the endblock statement
+	  is reached.  Much prettier output.
+	  
+	  Also fixed a problem that made it impossible to say:  call #routine
+	  AAC was objecting to the #
+	  
+1.00  Made a simple optimization: eliminated the "fall through guard jump" in "case" and 
+      "if" statements when the preceding opcode was a jmp.  This eliminates redundant jumps
+	  in the code generated.
+	  
+0.99  Fixed: could not have more than one case statement (count of "otherwise" was 
+             not being updated so AAC was generating erroneous messages about the use
+			 of otherwise
+
+0.98  Fixed: a void subroutine with no parameters was causing an exception
+      Fixed: a subroutine call with empty parameters was giving an error message
+      Fixed: in AACclient, if you tried to create a file by enabling edits, it wasn't
+             possible to write either the source or the output file.
+
+0.97  Now processes "tagged" lines only if they are in a DAT block.
+
+0.96  Fixed bug in case statement that was allowing "fall-through" into "otherwise"
+
+0.95  Added a labeled fit statement (emitted when finishCodeSection is used) that makes
+      it easy to see how much cog memory has been used.  The manual has been updated to
+      show this feature.
+
+0.94  Fixed a bug that kept "write" disabled unless you followed a specific use pattern.
+      Added a sample file to the distribution.
+      Add a revision history to the distribution
+      Updated the Quick Start topic in the manual to refer to the new sample file.
+
+0.93  Eliminated the Windows One-Click Publishing distribution.  Now we distribute
+      with a zip file containing AAClient.exe and the .chm manual.  This better
+      accomodates the Linux/Mac community.
+
+0.92  Changed comments on emitted code to use single quote  (EOL quote) rather than curly
+      brackets.  PASD was getting a little confused by the use of { or } that was
+      not in column 1.
+
+0.91  Beta release
