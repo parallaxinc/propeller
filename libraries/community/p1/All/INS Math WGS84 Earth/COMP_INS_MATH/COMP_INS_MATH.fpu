@@ -1,0 +1,2406 @@
+//////////////////////////////////////////////////////////////////////////
+////////////                                                 /////////////
+////////////   Complete INS Math Package for Strapdown IMU   /////////////
+////////////                                                 /////////////
+////////////                    Version 2.0                  /////////////
+////////////                                                 /////////////
+//////////////////////////////////////////////////////////////////////////
+/////////////////////////                       //////////////////////////
+/////////////////////////   by Istvan Kovesdi   //////////////////////////
+/////////////////////////                       //////////////////////////
+/////////////////////////  ikovesdi@t-email.hu  //////////////////////////
+/////////////////////////                       //////////////////////////
+//////////////////////////////////////////////////////////////////////////
+//////////////////                                      //////////////////
+//////////////////   Copyright (c) 2009  CompElit Inc.  //////////////////
+//////////////////   See end of file for terms of use.  //////////////////
+//////////////////                                      //////////////////
+//////////////////////////////////////////////////////////////////////////
+////////////                                                  ////////////
+////////////    uM-FPU V3.1 with  29.48  MHz internal clock   ////////////
+////////////                                                  ////////////
+////////////    2.2 msec state update with Flat Earth Math    ////////////
+////////////                                                  ////////////
+////////////    3.5 msec state update with full WGS84 Math    ////////////
+////////////                                                  ////////////
+//////////////////////////////////////////////////////////////////////////
+//                                                                      //
+// Revisions:                                                           //
+//                                                                      //
+//  Ver. 2.0  Most of the code optimized. Set of coordinate             //
+//            transformation utilities added.                           //
+//                                                                      //
+//  Ver. 1.2: Syntax updated for uM-FPU IDE beta 6 Ver. 2               //
+//            Some assembly code optimized                              //
+//                                                                      //
+//  Ver. 1.1: Bug fixed in the NED velocity calculations                //
+//            Some assembly code optimized                              //
+//                                                                      //
+//  Ver. 1.0: Original release                                          //
+//                                                                      //
+//////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////////////////////
+/////////////////////////////Time variables///////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+Dt               EQU F1        //Time step
+TIME             EQU F2        //Mission Time
+
+
+//////////////////////////////////////////////////////////////////////////
+///////////////////////////Position state variables///////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+//WGS84 Geographic coordinates of mission's start site
+LAT              EQU F3        //Latitude origin [radian]
+LON              EQU F4        //Longitude origin [radian]
+ALT              EQU F5        //1st Height above reference ellipsoid [m]
+
+//WGS84 Geographic coordinate increments during mission
+DLAT             EQU F6        //Latitude increment [radian]
+DLON             EQU F7        //Longitude increment [radian]
+DALT             EQU F8        //Height increment [m]
+
+//WGS84 Geographic coordinates
+TLAT             EQU F9        //Latitude  [radian]
+TLON             EQU F10       //Longitude [radian]
+TALT             EQU F11       //Height    [m]
+
+//Earth Centered Earth Fixed frame Cartesian coordinates
+ECEF_X           EQU F12       //ECEF frame X [m]
+ECEF_Y           EQU F13       //ECEF frame Y [m]
+ECEF_Z           EQU F14       //ECEF frame Z [m]
+
+//North-East-Down Navigation frame Cartesian coordinates
+NED_N            EQU F15       //NED frame X [m]  :North
+NED_E            EQU F16       //NED frame Y [m]  :East
+NED_D            EQU F17       //NED frame Z [m]  :Down
+
+//Body frame Cartesian coordinates
+BODY_X           EQU F18       //BODY frame X [m] :Forward
+BODY_Y           EQU F19       //BODY frame Y [m] :Left
+BODY_Z           EQU F20       //BODY frame Z [m] :Down
+
+
+//////////////////////////////////////////////////////////////////////////
+/////////////////////////Attitude state variables/////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+//Euler angles for craft's attitude
+ROLL             EQU F21       //[radian]        
+PITCH            EQU F22       //[radian]
+YAW              EQU F23       //[radian] (Heading, Azimuth)
+
+//Body to Nav(NED) Direction Cosine Matrix
+Cbn_0_0          EQU F24
+Cbn_0_1          EQU F25
+Cbn_0_2          EQU F26
+Cbn_1_0          EQU F27
+Cbn_1_1          EQU F28
+Cbn_1_2          EQU F29
+Cbn_2_0          EQU F30 
+Cbn_2_1          EQU F31
+Cbn_2_2          EQU F32
+
+//Body to Nav(NED) Quaternion
+Q_0              EQU F33      
+Q_1              EQU F34
+Q_2              EQU F35
+Q_3              EQU F36
+
+
+//////////////////////////////////////////////////////////////////////////
+////////////////////////////Speed state variables/////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+//NED Navigation frame velocities
+Vn               EQU F37       //Initial NED frame Vn [m/sec]
+Ve               EQU F38       //Initial NED frame Ve [m/sec]
+Vd               EQU F39       //Initial NED frame Vd [m/sec]
+
+DVn              EQU F40       //Increment NED frame Vn [m/sec]
+DVe              EQU F41       //Increment NED frame Ve [m/sec]
+DVd              EQU F42       //Increment NED frame Vd [m/sec]
+
+TVn              EQU F43       //Total NED frame Vn [m/sec]
+TVe              EQU F44       //Total NED frame Ve [m/sec]
+TVd              EQU F45       //Total NED frame Vd [m/sec]
+
+
+//WGS84 Geographic frame coordinate rates
+Vlat             EQU F46       //Latitude Rate  Vlat [radian/sec]
+Vlon             EQU F47       //Longitude Rate Vlon [radian/sec]
+Valt             EQU F48       //Height rate    Valt [m/sec]
+
+
+//////////////////////////////////////////////////////////////////////////
+/////////////////////Strapdown Inertial Sensor Data///////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+//Strapdown Accelerometer Data
+//Specific force components in Body frame
+Ax               EQU F49       //[m/(sec*sec)]
+Ay               EQU F50       //[m/(sec*sec)]
+Az               EQU F51       //[m/(sec*sec)]
+
+//Strapdown Rate Gyro Data 
+//Angular velocity components in Body frame
+P                EQU F52       //Roll Rate  [radian/sec]
+Q                EQU F53       //Pitch Rate [radian/sec]
+R                EQU F54       //Yaw Rate   [radian/sec] 
+
+
+////////////////////////////////////////////////////////////////////////
+//////Calculated vector quantities for Strapdown IMU mechanization//////
+////////////////////////////////////////////////////////////////////////
+
+//Rotation of the NED Navigation frame, due to the craft's movement, 
+//relative to the ECEF frame, expressed in the NED Navigation frame.
+//It is sometimes called transport rate
+Omega_n_en_0     EQU F55       //[radian/sec]
+Omega_n_en_1     EQU F56       //[radian/sec]
+Omega_n_en_2     EQU F57       //[radian/sec]
+
+//Rotation of the ECEF frame relative to the Inertial frame, expressed
+//in NED Navigation frame.
+Omega_n_ie_0     EQU F58       //[radian/sec]
+Omega_n_ie_1     EQU F59       //[radian/sec]
+Omega_n_ie_2     EQU F60       //[radian/sec]
+
+//The next is the sum of the previous two rotations and represents the
+//rotation of the NED Navigation frame relative to the Inertial frame,
+//expressed in NED Navigation frame. This rotation, relative to the 
+//Inertial frame, is sensed by the gyros. So, after it is projected to
+//the Body frame from the NED Navigation frame, we have to substract it
+//from the sensed values. After this correction, the remaining sensed
+//rotation in the Body frame refers only to the change of the craft's
+//attitude.
+Omega_n_in_0     EQU F61       //[radian/sec]
+Omega_n_in_1     EQU F62       //[radian/sec]
+Omega_n_in_2     EQU F63       //[radian/sec]
+
+//This is the sum of the previous two rotations. This rotation is for
+//Corioli correction of the sensed acceleration in NED Navigation frame. 
+//After the sensed acceleration is expressed in NED Navigation frame, 
+//the vectorial product of this rotation and the speed, expressed in NED
+//Navigation frame, is to be subtracted from the sensed acceleration. 
+Coriolis_0       EQU F64       //[radian/sec]
+Coriolis_1       EQU F65       //[radian/sec]
+Coriolis_2       EQU F66       //[radian/sec]
+
+//Gravity vector in NED Navigation frame coordinates. It contains the 
+//Earth's gravitation and the centripetal acceleration due to the
+//rotation of the Earth. It is to be subtracted from the sensed
+//acceleration, after expressed in NED Navigation frame, too.
+G_n              EQU F67       //[m/(sec*sec)]
+G_e              EQU F68       //[m/(sec*sec)]
+G_d              EQU F69       //[m/(sec*sec)]
+
+
+//////////////////////////////////////////////////////////////////////////
+////////////////Auxiliary quantities for WGS84 calculations///////////////
+//////////////////////////////////////////////////////////////////////////
+
+//WGS84 geometry constants
+Re               EQU F70       //Equatorial radius of Earth 6378137 [m]
+Eps2             EQU F71       //First eccentricity squared
+                               //6.69437999E-3
+Re1mEps2         EQU F72       //Re*(1-Eps2) 6335439.327 [m]
+
+//WGS84 rotation constant
+Omega_ie         EQU F73       //Magnitude of the Earth rotation rate
+                               //7.2921158E-5 [rad/s]
+//WGS84 gravity constants         
+GWGS0            EQU F74       //Gravity at equator 
+                               //9.7803267714 [m/(sec*sec)]
+GWGS1            EQU F75       //Gravity formula empirical constant
+                               //1.93185138639E-3
+//WGS84 gravitation constants
+GWGSMU           EQU F76       //WGS84 mu = 3.986004418E+14 [m3/sec2] 
+GWGSJ2           EQU F77       //WGS84 J2 = 1.08263E-3
+
+//WGS84 position dependent, frequently reused quantities
+Cos_Lat          EQU F78       //Cosinus of Latitude 
+Sin_Lat          EQU F79       //Sinus of Latitude
+Cos_Lon          EQU F80       //Cosinus of Longitude
+Sin_Lon          EQU F81       //Sinus of Longitude 
+Sin2_Lat         EQU F82       //Sin_Lat squared
+Rdenom12         EQU F83       //1/[(1-Eps2*sin2(Lat))^0.5]
+Rdenom32         EQU F84       //1/[(1-Eps2*sin2(Lat))^1.5]
+Nphi             EQU F85       //1/(N+h)
+Mphi             EQU F86       //1/(M+h)
+
+
+//////////////////////////////////////////////////////////////////////////
+///////////////Function Prototypes for the INS math package///////////////
+//////////////////////////////////////////////////////////////////////////
+
+//Functions for INS mathemetics-------------------------------------------
+BOOT_UP              FUNC 0
+
+//Functions for state update calculations
+INS_CALC_WGS84_AUX   FUNC 1
+INS_INIT_FLAT_E      FUNC 2
+INS_INIT_WGS84_E     FUNC 3
+INS_EULER_2_DCM      FUNC 4
+INS_DCM_2_QUAT       FUNC 5
+INS_QUAT_2_EULER     FUNC 6
+INS_G_FLAT_EARTH     FUNC 7 
+INS_G_WGS84_J2       FUNC 8
+INS_WGS84_2_ECEF     FUNC 9     
+INS_CALC_OMEGA_NEN   FUNC 10
+INS_CALC_OMEGA_NIE   FUNC 11
+INS_CALC_OMEGA_NIN   FUNC 12
+INS_CALC_CORIOLIS    FUNC 13
+INS_GYRO_CORR        FUNC 14
+INS_QUAT_UPDATE      FUNC 15
+INS_QUAT_2_DCM       FUNC 16
+INS_SCULLING_CORR    FUNC 17
+INS_GRAVITY_CORR     FUNC 18
+INS_CORIOLIS_CORR    FUNC 19
+INS_UPDATE_FLAT_E    FUNC 20
+INS_UPDATE_WGS84_E   FUNC 21
+
+//Functions for Coordinate Transformations--------------------------------
+CT_WGS84_2_ECEF      FUNC 22
+CT_ECEF_2_WGS84      FUNC 23
+CT_NED2ECEF_DCM      FUNC 24
+CT_POS_NED_2_ECEF    FUNC 25
+CT_VEC_NED_2_ECEF    FUNC 26
+CT_VEC_ECEF_2_NED    FUNC 27
+CT_ECEF2BODY_DCM     FUNC 28
+CT_POS_BODY_2_ECEF   FUNC 29
+CT_VEC_BODY_2_ECEF   FUNC 30
+CT_VEC_ECEF_2_BODY   FUNC 31
+
+
+#FUNCTION BOOT_UP
+//------------------------------------------------------------------------
+//   Action : Clears FPU registers. 
+//            Writes constant WGS84 auxiliaries.
+//------------------------------------------------------------------------
+//   Inputs : Constant WGS84 auxiliary values.
+//------------------------------------------------------------------------
+//  Results : All registers, except preset constant auxiliary values are
+//            cleared to float zero.
+//------------------------------------------------------------------------
+//    +Uses : None.
+//------------------------------------------------------------------------
+#ASM
+  //Clear all registers
+  CLR0
+  SELECTMA 1, 127, 1
+  MOP SCALAR_SET
+#ENDASM
+
+//Write constant auxiliary quantities
+#ASM
+//Geometry
+  FWRITE, Re, 6.378137e+6
+  SELECTA, Eps2
+  FWRITEA, 6.69437999
+  FWRITE0, 1000.0
+  FDIV0
+  FWRITE, Re1mEps2, 6.335439e+6
+
+//Rotation
+  SELECTA, Omega_ie
+  FWRITEA, 7.2921158
+  FWRITE0, 100000.0
+  FDIV0
+
+//Gravitation
+  FWRITE, GWGSMU, 3.986005E+14
+  SELECTA, GWGSJ2
+  FWRITEA, 1.082630
+  FWRITE0, 1000.0
+  FDIV0
+
+//Gravity 
+  FWRITE, GWGS0, 9.7803267714 
+  SELECTA, GWGS1
+  FWRITEA, 1.93185138639
+  FWRITE0, 1000.0
+  FDIV0
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CALC_WGS84_AUX
+//------------------------------------------------------------------------
+//   Action : Calculates WGS84 pos. dependent auxiliary quantities.
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic frame coord.: LAT,LON,ALT,DLAT,DLON,DALT 
+//------------------------------------------------------------------------
+//  Results : TLAT, TLON, TALT
+//            Cos_Lat, Sin_Lat, Sin2_Lat
+//            Rdenom12, Rdenom32 
+//            Nphi, Mphi
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+//     Note : This version of WGS84_AUX does not calculate the Sin_Lon and
+//            Cos_Lon quantities as regular INS update does not need them. 
+//            However, coordinate transformations do need them. During INS
+//            update it is time economical not to calculate the local 
+//            gravity vector in each step since it does not change too
+//            much during, for example, 10 msec for a 100 Hz IMU. It is
+//            more than enough to calculate it in every seconds, or in 
+//            every minute. One such J2 level gravity update takes about
+//            1.2 msec.  
+//------------------------------------------------------------------------
+//First calculate total WGS84 geographic coordinates
+#ASM
+  SELECTMA, TLAT,    3, 1              //MA=Total
+  SELECTMB, DLAT     3, 1              //MB=Increment
+  SELECTMC, LAT,     3, 1              //MC=Initial
+  MOP,      COPYCA                     //MA=MC=Initial
+  MOP,      EWISE_ADD                  //MA=MA+MB=Initial+Increment=Total
+#ENDASM
+
+//Compute WGS84 auxiliaries
+#ASM
+//Cos_Lat = COS(TLAT) 
+  SELECTA, Cos_Lat
+  FSET, TLAT
+  COS
+//Sin_Lat = SIN(TLAT)
+  SELECTA, Sin_Lat
+  FSET, TLAT
+  SIN
+#ENDASM
+
+Sin2_Lat = Sin_Lat * Sin_Lat
+
+//Rdenom32 = 1 / (1 - (Eps2 * Sin2_Lat))
+#ASM
+  SELECTA, Rdenom32
+  FSETI,   1
+  FMSC,    Eps2, Sin2_Lat
+  FINV
+#ENDASM
+
+//Rdenom12 = SQRT(Rdenom32)
+#ASM
+  SELECTA, Rdenom12
+  FSET,    Rdenom32
+  SQRT
+#ENDASM
+
+Rdenom32 = Rdenom32 * Rdenom12
+
+//Nphi = 1 / (Re * Rdenom12 + TALT)
+#ASM
+  SELECTA, NPhi
+  FSET,    TALT
+  FMAC,    Re, Rdenom12  
+  FINV
+#ENDASM
+
+//Mphi = 1 / (Re1mEps2 * Rdenom32 + TALT)
+#ASM
+  SELECTA, Mphi
+  FSET,    TALT
+  FMAC,    Re1mEps2, Rdenom32
+  FINV
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_INIT_FLAT_E
+//------------------------------------------------------------------------
+//   Action : Creates initial Body to Nav DCM matrix from Euler angles
+//            Creates initial Body to Nav Quaternion from DCM matrix 
+//            Calculates flat Earth gravity NED Nav frame vector
+//------------------------------------------------------------------------
+//   Inputs : None
+//------------------------------------------------------------------------
+//  Results : Initial Body to Nav DCM matrix
+//            Initial Body to Nav Quaternion
+//            NED Nav frame gravity vector in flat Earth approximation
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+//    Calls : CALC_WGS84_AUX
+//            EULER_2_DCM
+//            DCM_2_QUAT
+//            G_FLAT_EARTH
+//------------------------------------------------------------------------
+//Calculate WGS84 position dependent auxiliary quantities
+#ASM
+  FCALL INS_CALC_WGS84_AUX
+#ENDASM
+
+//Transform initial Euler attitude angles to Body to Nav DCM
+#ASM
+  FCALL INS_EULER_2_DCM
+#ENDASM
+
+//Transform this DCM to Body to Nav Quaternion
+#ASM
+  FCALL INS_DCM_2_QUAT
+#ENDASM
+
+//Calculate Flat Earth gravity in NED Nav frame
+#ASM
+  FCALL INS_G_FLAT_EARTH
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_INIT_WGS84_E
+//------------------------------------------------------------------------
+//   Action : Creates initial Body to Nav DCM matrix from Euler angles
+//            Creates initial Body to Nav Quaternion from DCM matrix 
+//            Calculates NED Nav frame WGS84 gravity  vector
+//------------------------------------------------------------------------
+//   Inputs : None
+//------------------------------------------------------------------------
+//  Results : Initial Body to Nav DCM: Cbn
+//            Initial Body to Nav Quaternion: Q
+//            NED Nav frame gravity vector in WGS84 J2 approximation
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+//    Calls : CALC_WGS84_AUX
+//            EULER_2_DCM
+//            DCM_2_QUAT
+//            G_WGS84_J2
+//------------------------------------------------------------------------
+//Calculate WGS84 position dependent auxiliary quantities
+#ASM
+  FCALL INS_CALC_WGS84_AUX
+#ENDASM
+
+//Transform initial Euler attitude angles to Body to Nav DCM
+#ASM
+  FCALL INS_EULER_2_DCM
+#ENDASM
+
+//Transform this DCM to Body to Nav Quaternion
+#ASM
+  FCALL INS_DCM_2_QUAT
+#ENDASM
+
+//Calculate WGS84 gravity in NED Nav frame. 
+#ASM
+  FCALL INS_G_WGS84_J2
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_EULER_2_DCM
+//------------------------------------------------------------------------
+//   Action : Calculatest the BODY to NED Direction Cosine Matrix from the
+//            Euler angles  
+//------------------------------------------------------------------------
+//   Inputs : Euler angles: ROLL, PITCH, YAW
+//------------------------------------------------------------------------
+//  Results : BODY to NED DCM: [[Cbn]] 
+//------------------------------------------------------------------------
+//    +Uses : R120-R127
+//------------------------------------------------------------------------
+//Temporary registers
+sphi             EQU F127
+cphi             EQU F126
+stheta           EQU F125
+ctheta           EQU F124
+spsi             EQU F123
+cpsi             EQU F122
+sthetaspsi       EQU F121
+sthetacpsi       EQU F120
+
+#ASM
+//sphi = SIN(ROLL)
+  SELECTA, sphi
+  FSET, ROLL
+  SIN
+//cphi = COS(ROLL)
+  SELECTA, cphi
+  FSET, ROLL
+  COS
+//stheta = SIN(PITCH)
+  SELECTA, stheta
+  FSET, PITCH
+  SIN
+//ctheta = COS(PITCH)
+  SELECTA, ctheta
+  FSET, PITCH
+  COS
+//spsi = SIN(YAW)
+  SELECTA, spsi
+  FSET, YAW
+  SIN
+//cpsi = COS(YAW)
+  SELECTA, cpsi
+  FSET, YAW
+  COS
+#ENDASM
+
+sthetacpsi = stheta * cpsi 
+sthetaspsi = stheta * spsi
+
+Cbn_0_0 = ctheta * cpsi
+
+//Cbn_0_1 = sphi * sthetacpsi - (cphi * spsi)
+#ASM
+  SELECTA,   Cbn_0_1
+  FSET,      sphi
+  FMUL,      sthetacpsi
+  FMSC,      cphi, spsi  
+#ENDASM
+
+//Cbn_0_2 = cphi * sthetacpsi + (sphi * spsi)
+#ASM
+  SELECTA,   Cbn_0_2
+  FSET,      cphi 
+  FMUL,      sthetacpsi
+  FMAC,      sphi, spsi  
+#ENDASM
+
+Cbn_1_0 = ctheta * spsi
+
+//Cbn_1_1 = sphi * sthetaspsi + (cphi * cpsi)
+#ASM
+  SELECTA,   Cbn_1_1
+  FSET,      sphi
+  FMUL,      sthetaspsi
+  FMAC,      cphi, cpsi
+#ENDASM
+
+//Cbn_1_2 = cphi * sthetaspsi - (sphi * cpsi)
+#ASM
+  SELECTA,   Cbn_1_2
+  FSET,      cphi
+  FMUL,      sthetaspsi
+  FMSC,      sphi, cpsi  
+#ENDASM
+
+Cbn_2_0 = -stheta
+Cbn_2_1 = sphi * ctheta
+Cbn_2_2 = cphi * ctheta
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_DCM_2_QUAT
+//------------------------------------------------------------------------
+//   Action : Calculates the Quaternion from Body to Nav DCM  
+//------------------------------------------------------------------------
+//   Inputs : Body to Nav DCM: [[Cbn]] 
+//------------------------------------------------------------------------
+//  Results : Body to Nav Quaternion: [Q]
+//------------------------------------------------------------------------
+//    +Uses : R127
+//------------------------------------------------------------------------
+//Temporary register
+magi             EQU F127
+
+//Q_3 =  SQRT(1 + Cbn_0_0 + Cbn_1_1 + Cbn_2_2) * 0.5
+#ASM
+  SELECTA,  Q_3
+  FSETI,    1
+  FADD,     Cbn_0_0
+  FADD,     Cbn_1_1
+  FADD,     Cbn_2_2
+  SQRT
+  FDIVI     2
+#ENDASM
+
+//magi = 0.25 / Q_3
+#ASM
+  SELECTA,  magi
+  FSET,     Q_3
+  FINV
+  FDIVI,    4
+#ENDASM
+
+Q_0 = Cbn_2_1 - Cbn_1_2 * magi
+Q_1 = Cbn_0_2 - Cbn_2_0 * magi
+Q_2 = Cbn_1_0 - Cbn_0_1 * magi
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_QUAT_2_EULER
+//------------------------------------------------------------------------
+//   Action : Calculates Euler angles from Body to Nav Quaternion  
+//------------------------------------------------------------------------
+//   Inputs : Body to Nav Quaternion: [Q]
+//------------------------------------------------------------------------
+//  Results : Euler angles: ROLL, PITCH, YAW
+//------------------------------------------------------------------------
+//    +Uses : R120-127
+//------------------------------------------------------------------------
+//Temporary registers
+q00              EQU F127
+q11              EQU F126
+q22              EQU F125
+q33              EQU F124
+q23_01           EQU F123
+q12_03           EQU F122
+sth              EQU F121
+tth              EQU F120
+
+q00 = Q_0 * Q_0
+q11 = Q_1 * Q_1
+q22 = Q_2 * Q_2
+q33 = Q_3 * Q_3
+
+//q23_01 = Q_2 * Q_3 + (Q_0 * Q_1) * 2
+#ASM
+  SELECTA,   q23_01
+  FSET,      Q_2
+  FMUL,      Q_3
+  FMAC,      Q_0, Q_1
+  FMULI,     2
+#ENDASM
+
+//q12_03 = Q_1 * Q_2 + (Q_0 * Q_3) * 2
+#ASM
+  SELECTA,   q12_03
+  FSET,      Q_1
+  FMUL,      Q_2
+  FMAC,      Q_0, Q_3
+  FMULI,     2
+#ENDASM
+
+sth = Q_0 * Q_2 - (Q_1 * Q_3) * 2
+#ASM
+  SELECTA,   sth
+  FSET,      Q_0
+  FMUL,      Q_2
+  FMSC,      Q_1, Q_3
+  FMULI,     2
+#ENDASM 
+
+//tth = sth / SQRT(1 - (sth * sth))
+#ASM
+  SELECTA,   tth
+  FSETI,     1
+  FMSC,      sth, sth
+  SQRT
+  FINV
+  FMUL,      sth 
+#ENDASM
+
+YAW = ATAN2(q23_01, (q00 - q11 - q22 + q33))
+PITCH = -ATAN(tth)
+ROLL = ATAN2(q12_03, (q22 + q33 - q00 - q11))
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_G_FLAT_EARTH
+//------------------------------------------------------------------------
+//   Action : Calculates flat Earth gravity approximation from the
+//            Latitude and Altitude of the WGS84 Earth position
+//------------------------------------------------------------------------
+//   Inputs : GWGS0, GWGS1
+//            Sin2_Lat, Rdenom12, Re
+//------------------------------------------------------------------------
+//  Results : [G_n G_e G_d] gravity vector in NED Nav frame coordinates
+//            [0 0 g]
+//------------------------------------------------------------------------
+//    +Uses : GWGS0, GWGS1 constants for WGS84 Earth
+//------------------------------------------------------------------------
+//     Note : The magnitude of gravity on the surface of the WGS84
+//            ellipsoid can be expressed in the form
+//
+//                g = GWGS0*(1+GWGS1*Sin2_Lat)/((1-Eps2*Sin2_Lat)^0.5)
+//
+//            in a good approximation. Flat, nonrotating Earth approximation 
+//            can be adequate for short (5-10 min) missions.
+//------------------------------------------------------------------------
+//Approximate gravity on the surface of the WGS84 ellipsoid
+G_n = 0
+G_e = 0
+//G_d = GWGS1 * Sin2_Lat + 1 * GWGS0 * Rdenom12
+#ASM
+  SELECTA,   G_d
+  FSETI,     1
+  FMAC,      GWGS1, Sin2_Lat
+  FMUL,      GWGS0
+  FMUL,      Rdenom12
+#ENDASM
+
+//Simplified inverse square law correction (1 - 2*h/Re)
+G_d = G_d * (1 - (2 * TALT / Re))
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_G_WGS84_J2
+//------------------------------------------------------------------------
+//   Action : Calculates the WGS84 rotating Earth gravity in J2
+//            approximation
+//------------------------------------------------------------------------
+//   Inputs : GWGSMU, GWGSJ2
+//            Omega_ie, Cos_Lat, Sin_Lat
+//------------------------------------------------------------------------
+//  Results : NED Nav frame gravity vector: [G_n G_e G_d]
+//------------------------------------------------------------------------
+//    +Uses : R104-127
+//------------------------------------------------------------------------
+//    Calls : INS_WGS84_2_ECEF
+//------------------------------------------------------------------------ 
+//     Note :  The J2 is the first nonspherical model term and approximates
+//            the effect due to the Earth's oblateness. J2 approximation
+//            is adequate for shorter than 24h missions. The so called J4
+//            approximation is an even better gravity model that can be
+//            good for hundred days satelite missions.
+//             The WGS84 elllipsoid is defined such a way that the angle 
+//            between the plumb-bob gravity vector and the normal to the
+//            ellipsoid is minimized. The remaining angle between the 
+//            ellipsoid's normal and the gravity vector is usually less
+//            than 5 microrad. 
+//------------------------------------------------------------------------
+//Temporary registers
+r1               EQU F104
+r2               EQU F105
+r2i              EQU F106 
+ri               EQU F107 
+fzri2            EQU F108
+mur3i            EQU F109
+j2reri2          EQU F110 
+r3               EQU F111
+r4               EQU F112
+tmp_0            EQU F113
+tmp_1            EQU F114
+tmp_2            EQU F115
+cen_0_0          EQU F116
+cen_0_1          EQU F117
+cen_0_2          EQU F118
+cen_1_0          EQU F119
+cen_1_1          EQU F120
+cen_1_2          EQU F121
+cen_2_0          EQU F122
+cen_2_1          EQU F123
+cen_2_2          EQU F124
+g_x              EQU F125
+g_y              EQU F126
+g_z              EQU F127
+
+
+//Obtain ECEF cartesian coordinates:  ECEF_X, ECEF_Y, ECEF_Z
+//from the WGS84 position TLAT, TLON, TALT
+#ASM
+  FCALL INS_WGS84_2_ECEF
+#ENDASM
+
+//Calculate gravitation vector in J2 approximation 
+//r2 = ECEF_X * ECEF_X + (ECEF_Y * ECEF_Y) + (ECEF_Z * ECEF_Z)
+#ASM
+  SELECTA,  r2
+  FSET,     ECEF_X
+  FMUL,     ECEF_X
+  FMAC,     ECEF_Y, ECEF_Y
+  FMAC,     ECEF_Z, ECEF_Z
+#ENDASM
+
+r2i = 1 / r2
+
+//ri = SQRT(r2i)
+#ASM
+  SELECTA,   ri
+  FSET,      r2i
+  SQRT
+#ENDASM
+
+fzri2 = 5 * ECEF_Z * ECEF_Z * r2i
+mur3i = -GWGSMU * r2i * ri
+j2reri2 = GWGSJ2 * Re * Re * r2i * 1.5
+
+r1 = 1 - fzri2 
+
+//r3 = r1 * j2reri2 + 1 * mur3i
+#ASM
+  SELECTA,   r3
+  FSETI,     1
+  FMAC,      r1, j2reri2
+  FMUL,      mur3i
+#ENDASM
+
+r1 = 3 - fzri2
+
+//r4 = r1 * j2reri2 + 1 * mur3i
+#ASM
+  SELECTA,   r4
+  FSETI,     1
+  FMAC,      r1, j2reri2
+  FMUL,      mur3i
+#ENDASM
+
+g_x = r3 * ECEF_X
+g_y = r3 * ECEF_Y
+g_z = r4 * ECEF_Z
+
+//We have now the gravitation components: g_x, g_y, g_z.
+//Gravity, however, is the acceleration on a rotating Earth.
+//Now we have to adjust gravitation aceleration to account for
+//centripetal acceleration due to Earth's rotation
+
+//Calculate [Gxyz]-[Omega]x[Omega]x[ECEF]
+r2 = Omega_ie * Omega_ie
+tmp_0 = r2 * ECEF_X                    //Minus correction vector
+tmp_1 = r2 * ECEF_Y
+tmp_2 = 0
+
+#ASM 
+  SELECTMA,   g_x,          3, 1       //MA=[g]
+  SELECTMB    tmp_0,        3, 1       //MB=[tmp]
+  MOP,        EWISE_ADD                //MA=MA+MB=[g]+[tmp] 
+#ENDASM
+
+//Now calculate ECEF to NED Nav frame DCM to transform this gravitation 
+//vector [tmp] into Nav frame [G_n G_e G_d].
+
+cen_0_0 = -Sin_Lat * Cos_Lon
+cen_0_1 = -Sin_Lat * Sin_Lon
+cen_0_2 = Cos_Lat
+cen_1_0 = -Sin_Lon
+cen_1_1 = Cos_Lon
+cen_1_2 = 0
+cen_2_0 = -Cos_Lat * Cos_Lon
+cen_2_1 = -Cos_Lat * Sin_Lon
+cen_2_2 = -Sin_Lat
+
+//Project [g_x g_y g_z] into NED Nav frame to obtain [G_n G_e G_d]
+#ASM
+  SELECTMA,   G_n,        3, 1   //MA=[G]
+  SELECTMB,   cen_0_0,    3, 3   //MB=[[cen]]
+  SELECTMC    g_x,        3, 1   //MC=[g]
+  MOP,        MULTIPLY           //MA=MB*MC=[G]=[[cen]]*[g]
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_WGS84_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Transforms WGS84 geographic coordinates into ECEF cartesian
+//            coordinates
+//------------------------------------------------------------------------
+//   Inputs : TLON, TALT
+//            Sin_Lat, Cos_Lat 
+//------------------------------------------------------------------------
+//  Assumes : that WGS84 auxiliares has been calculated by the 
+//            INS_CALC_WGS84_AUX using the actual WGS84 position TLAT,
+//            TLON, TALT
+//------------------------------------------------------------------------
+//  Results : ECEF_X, ECEF_Y, ECEF_Z 
+//------------------------------------------------------------------------
+//    +Uses : Re1mEps2
+//            Nphi, Rdenom12
+//            Sin_Lon, Cos_Lon
+//            R127
+//------------------------------------------------------------------------
+//    Calls : None
+//------------------------------------------------------------------------
+//Temporary register
+r1      EQU F127
+
+//Do some trigonometry as Sin_Lon and Cos_Lon are not computed by the
+//INS_CALC_WGS84_AUX
+#ASM
+//Sin_Lon = SIN(TLON)
+  SELECTA, Sin_Lon
+  FSET, TLON
+  SIN
+//Cos_Lon = COS(TLON)
+  SELECTA, Cos_Lon
+  FSET, TLON
+  COS
+#ENDASM
+
+r1 = Cos_Lat / Nphi
+ECEF_X = Cos_Lon * r1
+ECEF_Y = Sin_Lon * r1
+//ECEF_Z = Re1mEps2 * Rdenom12 + TALT * Sin_Lat
+#ASM
+  SELECTA,   ECEF_Z
+  FSET,      TALT
+  FMAC,      Re1mEps2, Rdenom12
+  FMUL,      Sin_Lat
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CALC_OMEGA_NEN
+//------------------------------------------------------------------------
+//   Action : Calculates Transport Rates
+//------------------------------------------------------------------------
+//   Inputs : NED Nav frame velocities: [TVn TVe TVd]
+//            WGS84 data : Nphi, Mphi, TLAT 
+//------------------------------------------------------------------------
+//  Results : Omega_n_en
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+Omega_n_en_0 = TVe * Nphi
+Omega_n_en_1 = -TVn * Mphi
+//Omega_n_en_2 = -Omega_n_en_0 * TAN(TLAT) 
+#ASM
+  SELECTA,  Omega_n_en_2
+  FSET,     TLAT
+  TAN
+  FMUL,     Omega_n_en_0
+  FNEG
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CALC_OMEGA_NIE
+//------------------------------------------------------------------------
+//   Action : Calculates Earth rotation in ECEF frame
+//------------------------------------------------------------------------
+//   Inputs : Earth rotation rate: Omega_ie
+//            Cos_Lat, Sin_Lat 
+//------------------------------------------------------------------------
+//  Results : Omega_n_ie vector
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+
+Omega_n_ie_0 = Omega_ie * Cos_Lat
+Omega_n_ie_1 = 0                   
+Omega_n_ie_2 = -Omega_ie * Sin_Lat
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CALC_OMEGA_NIN
+//------------------------------------------------------------------------
+//   Action : Calculates NED Nav frame rotation in Nav frame
+//------------------------------------------------------------------------
+//   Inputs : Omega_n_ie vector
+//            Omega_n_en vector
+//------------------------------------------------------------------------
+//  Results : Omega_n_in vector
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+//Add Omega_n_ie + Omega_n_en vectors
+#ASM
+  SELECTMA, Omega_n_in_0,    3, 1      //MA=Omega_n_in
+  SELECTMB, Omega_n_ie_0,    3, 1      //MB=Omega_n_ie
+  SELECTMC, Omega_n_en_0,    3, 1      //MC=Omega_n_en
+  MOP,      COPYCA                     //MA=MC=Omega_n_en
+  MOP,      EWISE_ADD                  //MA=MA+MB=Omega_n_en+Omega_n_ie
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CALC_CORIOLIS
+//------------------------------------------------------------------------
+//   Action : Calculates NED Nav frame rotation vector for Coriolis corr.
+//------------------------------------------------------------------------
+//   Inputs : Omega_n_ie vector
+//            Omega_n_in vector
+//------------------------------------------------------------------------
+//  Results : Coriolis vector
+//------------------------------------------------------------------------
+//    +Uses : None
+//------------------------------------------------------------------------
+//Add Omega_n_in + Omega_n_ie vectors
+#ASM
+  SELECTMA, Coriolis_0,      3, 1      //MA=Coriolis
+  SELECTMB, Omega_n_ie_0,    3, 1      //MB=Omega_n_ie
+  SELECTMC, Omega_n_in_0,    3, 1      //MC=Omega_n_in
+  MOP,      COPYCA                     //MA=MC=Omega_n_in
+  MOP,      EWISE_ADD                  //MA=MA+MB=Omega_n_in+Omega_n_ie
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_GYRO_CORR
+//------------------------------------------------------------------------
+//   Action : Removes the NED Nav frame rotation (rel. to inertial) angle 
+//            increments from the total sensed (rel. to inertial) rotation
+//            angle increments. 
+//------------------------------------------------------------------------
+//   Inputs : Gyro angle increments stored in: [P Q R]
+//            [Omega_n_in] vector
+//            Body to Nav DCM: [[Cbn]]
+//------------------------------------------------------------------------
+//  Results : Corrected [P Q R] angle increments which now correspond only
+//            to the change of attitude of the craft.
+//------------------------------------------------------------------------
+//    +Uses : R116-127
+//------------------------------------------------------------------------
+//     Note : [P Q R] angle increments are expressed in body frame yet.
+//------------------------------------------------------------------------
+//Temporary registers
+tmp_0            EQU F116
+tmp_1            EQU F117
+tmp_2            EQU F118
+//Nav to body DCM
+cnb_0_0          EQU F119
+cnb_0_1          EQU F120
+cnb_0_2          EQU F121
+cnb_1_0          EQU F122
+cnb_1_1          EQU F123
+cnb_1_2          EQU F124
+cnb_2_0          EQU F125
+cnb_2_1          EQU F126
+cnb_2_2          EQU F127
+
+//Calculate Nav to Body DCM Cnb=CbnT
+#ASM
+  SELECTMA,  cnb_0_0, 3,3
+  SELECTMB,  Cbn_0_0, 3,3
+  MOP,       TRANSPOSE
+#ENDASm
+
+//Project [Omega_n_in] to Body frame
+#ASM
+  SELECTMA, tmp_0,         3, 1        //MA=[tmpg
+  SELECTMB, cnb_0_0,       3, 3        //MB=[[cnb]]
+  SELECTMC, Omega_n_in_0,  3, 1        //MC=[Omega_n_in]
+  MOP,      MULTIPLY                   //MA=MB*MC=[[cnb]]*[Omega_n_in]=[tmp]
+  LOAD Dt                              //Multiply [tmp] with Dt
+  MOP SCALAR_MUL                       //MA=dt*[tmp]=dt*[Omega_b_in]
+#ENDASM
+
+//Subtract [tmp] from [P Q R] angle increments
+#ASM
+  SELECTMA, P,             3, 1        //MA=[P Q R]
+  SELECTMB, tmp_0,         3, 1        //MB=[tmp]
+  MOP,      EWISE_SUB                  //MA=MA-MB=[P Q R]-[tmp]
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_QUAT_UPDATE
+//------------------------------------------------------------------------
+//   Action : Updates the Body to Nav Quaternion
+//------------------------------------------------------------------------
+//   Inputs : Roll, pitch, yaw angle increments stored in [P Q R]
+//------------------------------------------------------------------------
+//  Results : Updated Body to Nav Quaternion: [Q]
+//------------------------------------------------------------------------
+//    +Uses : R102-127
+//------------------------------------------------------------------------
+//Temporary registers
+mag              EQU F127
+sdth             EQU F126
+cdth             EQU F125 
+sdx              EQU F124
+sdy              EQU F123
+sdz              EQU F122
+pQ_0             EQU F121
+pQ_1             EQU F120
+pQ_2             EQU F119
+pQ_3             EQU F118
+//Quaternion update matrix (4-by-4)
+qu_0_0           EQU F102
+qu_0_1           EQU F103
+qu_0_2           EQU F104
+qu_0_3           EQU F105
+qu_1_0           EQU F106
+qu_1_1           EQU F107
+qu_1_2           EQU F108
+qu_1_3           EQU F109
+qu_2_0           EQU F110
+qu_2_1           EQU F111
+qu_2_2           EQU F112
+qu_2_3           EQU F113
+qu_3_0           EQU F114
+qu_3_1           EQU F115
+qu_3_2           EQU F116
+qu_3_3           EQU F117 
+
+//mag = SQRT(P * P + (Q * Q) + (R * R))
+#ASM
+  SELECTA,  mag
+  FSET,     P
+  FMUL,     P
+  FMAC,     Q, Q
+  FMAC      R, R
+  SQRT
+#ENDASM
+
+#ASM
+  SELECTA mag
+  FCMPI,  0
+  BRA,    EQ,  _Zero
+  COPYA,  sdth
+  SELECTA sdth
+  FDIVI   2
+  SIN
+  FDIV    mag
+  BRA,    _Cont
+_Zero:
+  SELECTA sdth
+  FSETI   0
+_Cont:
+#ENDASM
+
+//cdth = COS(mag / 2)
+#ASM
+  SELECTA, cdth
+  FSET,    mag
+  FDIVI,   2
+  COS
+#ENDASM
+
+sdx = sdth * P
+sdy = sdth * Q
+sdz = sdth * R
+qu_0_0 = cdth
+qu_0_1 = sdz
+qu_0_2 = -sdy
+qu_0_3 = sdx
+qu_1_0 = -sdz
+qu_1_1 = cdth
+qu_1_2 = sdx
+qu_1_3 = sdy
+qu_2_0 = sdy
+qu_2_1 = -sdx
+qu_2_2 = cdth
+qu_2_3 = sdz
+qu_3_0 = -sdx
+qu_3_1 = -sdy
+qu_3_2 = -sdz
+qu_3_3 = cdth
+
+//Update Quaternion
+// [Q] = [[qu]] * [Q]
+#ASM                               
+  SELECTMA, Q_0,      4, 1             //MA=Q=Body to Nav Quaternion
+  SELECTMB  qu_0_0,   4, 4             //MB=qu=Quaternion update matrix
+  SELECTMC  pQ_0,     4, 1             //MC=pQ=Place for Prev. Quaternion
+  MOP       COPYAC                     //MC=pQ=MA
+  MOP       MULTIPLY                   //MA=MB*MC=Q=[[qu]]*[pQ]=New BtoN Q
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_QUAT_2_DCM
+//------------------------------------------------------------------------
+//   Action : Calculates Body to Nav DCM from Body to Nav Quaternion  
+//------------------------------------------------------------------------
+//   Inputs : Body to Nav Quaternion: [Q]
+//------------------------------------------------------------------------
+//  Results : Body to Nav DCM: [[Cbn]]
+//------------------------------------------------------------------------
+//    +Uses : R127-R118
+//------------------------------------------------------------------------
+//Temporary registers
+q00              EQU F127
+q11              EQU F126
+q22              EQU F125
+q33              EQU F124
+q01              EQU F123
+q02              EQU F122
+q03              EQU F121
+q12              EQU F120
+q13              EQU F119
+q23              EQU F118
+
+q00 = q_0 * q_0
+q11 = q_1 * q_1
+q22 = q_2 * q_2
+q33 = q_3 * q_3
+q01 = q_0 * q_1
+q02 = q_0 * q_2
+q03 = q_0 * q_3
+q12 = q_1 * q_2
+q13 = q_1 * q_3
+q23 = q_2 * q_3
+Cbn_0_0 = q00 - q11 - q22 + q33
+Cbn_0_1 = q01 - q23 * 2
+Cbn_0_2 = q02 + q13 * 2
+Cbn_1_0 = q01 + q23 * 2
+Cbn_1_1 = q11 - q00 - q22 + q33
+Cbn_1_2 = q12 - q03 * 2
+Cbn_2_0 = q02 - q13 * 2
+Cbn_2_1 = q12 + q03 * 2
+Cbn_2_2 = q22 - q00 - q11 + q33
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_SCULLING_CORR
+//------------------------------------------------------------------------
+//   Action : Applies Sculling correction to Body frame velocity incr. 
+//------------------------------------------------------------------------
+//   Inputs : Euler angle increments in [P Q R]
+//            Body frame velocity increments in [Ax Ay Az]
+//------------------------------------------------------------------------
+//  Results : Corrected Body frame velocity increments in [Ax Ay Az] 
+//------------------------------------------------------------------------
+//    +Uses : R116-127
+//------------------------------------------------------------------------
+//Temporary registers
+//Sculling matrix
+s_0_0            EQU F116
+s_0_1            EQU F117
+s_0_2            EQU F118
+s_1_0            EQU F119
+s_1_1            EQU F120
+s_1_2            EQU F121
+s_2_0            EQU F122
+s_2_1            EQU F123
+s_2_2            EQU F124
+//Tmp vector
+tmp_0            EQU F125
+tmp_1            EQU F126
+tmp_2            EQU F127
+
+#ASM
+//Fill diagonal of Sculling matrix with one
+  SELECTA, s_0_0
+  FSETI, 1
+  SELECTA, s_1_1
+  FSETI, 1
+  SELECTA, s_2_2
+  FSETI, 1
+#ENDASM
+
+//Load off-diagonals
+s_0_1 = 0.5 * R
+s_0_2 = -0.5 * Q
+s_1_0 = -0.5 * R
+s_1_2 = 0.5 * P
+s_2_0 = 0.5 * Q
+s_2_1 = -0.5 * P
+
+#ASM
+//Apply Sculling correction to Body frame velocity increments
+  SELECTMA, Ax,       3, 1             //MA=Ax
+  SELECTMB, s_0_0,    3, 3             //MB=s
+  SELECTMC, tmp_0,    3, 1             //MC=tmp
+  MOP,      COPYAC                     //MC=tmp=MA=Ax
+  MOP,      MULTIPLY                   //MA=MB*MC=s*Ax=Ax
+ #ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_GRAVITY_CORR
+//------------------------------------------------------------------------
+//   Action : Calculates gravity corretion
+//------------------------------------------------------------------------
+//   Inputs : NED Nav frame gravity: [G_n G_e G_d]
+//            NED Nav frame velocity increments: [Ax Ay Az]
+//------------------------------------------------------------------------
+//  Results : Corrected NED Nav frame velocity increments: [Ax Ay Az]
+//------------------------------------------------------------------------
+//    +Uses : R125-127
+//------------------------------------------------------------------------
+//Temporary registers
+tmp_0            EQU F125
+tmp_1            EQU F126
+tmp_2            EQU F127
+
+//Add Nav frame velocity increments due to gravity : dV = dt * Gn
+#ASM
+  SELECTMA  tmp_0     3, 1             //MA=[tmp]
+  SELECTMB  G_n       3, 1             //MB=[Gn]
+  MOP,      COPYBA                     //MA=[tmp]=MB=[Gn] 
+  LOAD Dt
+  MOP,      SCALAR_MUL                 //MA=dt*MA=dt*[Gn]
+  SELECTMA, Ax,       3, 1             //MA=dVn
+  SELECTMB, tmp_0     3, 1             //MB=[tmp]=dt*[Gn]
+  MOP,      EWISE_ADD                  //MA=MA+MB=[dVn]+dt*[Gn]
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_CORIOLIS_CORR
+//------------------------------------------------------------------------
+//   Action : Calculates Coriolis correction
+//------------------------------------------------------------------------
+//   Inputs : Coriolis vector: [Coriolis]
+//            Nav frame velocity: [Vn Ve Vd]
+//            Nav frame velocity increments: [Ax Ay Az]
+//------------------------------------------------------------------------
+//  Results : Corrected Nav frame velocity increments in: [Ax Ay Az]
+//------------------------------------------------------------------------
+//    +Uses : R116-127
+//------------------------------------------------------------------------
+//Temporary registers
+tmp_0            EQU F116
+tmp_1            EQU F117
+tmp_2            EQU F118
+skew_0_0         EQU F119
+skew_0_1         EQU F120
+skew_0_2         EQU F121
+skew_1_0         EQU F122
+skew_1_1         EQU F123
+skew_1_2         EQU F124
+skew_2_0         EQU F125
+skew_2_1         EQU F126
+skew_2_2         EQU F127
+
+//Make skew-symmetric matrix form of Coriolis vector for vect. product
+skew_0_0 = 0
+skew_0_1 = -Coriolis_2
+skew_0_2 = Coriolis_1
+skew_1_0 = Coriolis_2
+skew_1_1 = 0
+skew_1_2 = -Coriolis_0
+skew_2_0 = -Coriolis_1
+skew_2_1 = Coriolis_0
+skew_2_2 = 0
+
+//Calculate vectorial product [Coriolis ] x [Vn Ve Vd]
+//                    in form    [[skew]] * [Vn Ve Vd]
+#ASM
+  SELECTMA, tmp_0,        3, 1         //MA=[tmp]
+  SELECTMB, skew_0_0,     3, 3         //MB=[[skew]]
+  SELECTMC, TVn,          3, 1         //MC=[TVn TVe TVd]
+  MOP,      MULTIPLY                   //MA=MB*MC=[[skew]]*[TVn TVe TVd]
+  LOAD Dt                              //Multiply with Dt
+  MOP SCALAR_MUL                       //MA=dt*[tmp]
+#ENDASM
+
+//Apply Corriolis correction 
+#ASM
+  SELECTMA, Ax,            3, 1        //MA=[Ax Ay Az]
+  SELECTMB, tmp_0,         3, 1        //MB=[tmp]
+  MOP,      EWISE_SUB                  //MA=MA-MB=[Ax Ay Az]-[tmp]
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_UPDATE_FLAT_E
+//------------------------------------------------------------------------
+//   Action : Updates the Navigation state variables in flat, nonrotating
+//            Earth approximation
+//------------------------------------------------------------------------
+//   Inputs : Body frame acceleratons Ax, Ay, Az
+//            Body frame rotation rates P, Q, R
+//------------------------------------------------------------------------
+//  Results : Integrated new state variables
+//------------------------------------------------------------------------
+//    +Uses : R122-127
+//------------------------------------------------------------------------
+//Temporary registers
+tmp_0            EQU F125
+tmp_1            EQU F126
+tmp_2            EQU F127
+
+//Increment Time
+Time = Time + Dt
+
+//Calculate Body frame velocity and angle increments from sensor values
+//and time increment
+#ASM
+  LOAD Dt
+  SELECTMA, Ax,       6, 1             //MA=[Ax Ay Az P Q R]
+  MOP SCALAR_MUL                       //MA=dt*MA=[dVb], [dP dQ dR]
+#ENDASM
+
+//Update Body to Nav Quaternion from the angle increments
+#ASM
+  FCALL INS_QUAT_UPDATE
+#ENDASM
+                 
+//Update Body to Nav DCM from the new Quaternion
+#ASM
+  FCALL INS_QUAT_2_DCM
+#ENDASM
+
+//Apply Sculling correction to Body frame velocity increments
+#ASM
+  FCALL INS_SCULLING_CORR
+#ENDASM
+
+//Project velocity increments from Body to Nav frame
+//dVn = Cbn * dVb
+#ASM
+  SELECTMA, Ax,       3, 1             //MA=dVb
+  SELECTMB, Cbn_0_0,  3, 3             //MB=Cbn
+  SELECTMC, tmp_0,    3, 1             //MC=tmp
+  MOP,      COPYAC                     //MC=tmp=dVb
+  MOP,      MULTIPLY                   //MA=MB*MC=Cbc*dVb=dVn
+#ENDASM
+
+//Velocity increments are now expressed in Nav frame, we can apply
+//corrections to these velocity increments. In this flat, nonrotating
+//Earth approximation we will apply only gravity correction
+
+//Apply gravity correction to NED Nav frame velocity increments in [Ax]
+#ASM
+  FCALL INS_GRAVITY_CORR
+#ENDASM
+
+//Store previous NED Nav frame velocity
+#ASM
+  SELECTMA, TVn,      3, 1             //MA=TVn
+  SELECTMB, tmp_0     3, 1             //MB=[tmp]
+  MOP,      COPYAB                     //MB=MA, Store previous NED v.
+#ENDASM 
+
+//Update Nav frame total velocity increment with the Nav frame velocity
+//increment during time step 
+//                 DVn=DVn+dVn (dVn stored in Ax)
+#ASM
+  SELECTMA, DVn,      3, 1             //MA=[DV]
+  SELECTMB, Ax,       3, 1             //MB=Ax=time step vel. increment
+  MOP,      EWISE_ADD                  //MA=MA+MB=DVn+Ax=Integrated
+#ENDASM
+
+//Calculate new total NED Nav rame velocity [TVn]=[Vn]+[DVn]
+#ASM
+  SELECTMA, TVn,      3, 1             //MA=[TVn]
+  SELECTMB, DVn,      3, 1             //MB=[DVn]
+  SELECTMC, Vn,       3, 1             //MC=[Vn]
+  MOP,      COPYCA                     //MA=MC
+  MOP,      EWISE_ADD                  //MA=MA+MB=[Vn]+[DVn]=[TVn]
+#ENDASM
+
+//Update position with 2nd order Runge-Kutta integration, i.e.
+//    New pos. = Old pos. + (Average speed) * (delta t)
+#ASM
+  SELECTMA, tmp_0,    3, 1             //MA=[tmp]=Previous NED velocity
+  SELECTMB, TVn,      3, 1             //MC=[TVn]=New NED velocity
+  MOP,      EWISE_ADD                  //MA=MA+MB    
+  FWRITE0   0.5
+  MOP,      SCALAR_MUL                 //MA=0.5*MA, average speed in tmp 
+  LOAD,     Dt             
+  MOP,      SCALAR_MUL                 //MA=MA*dt=[tmp]=NED pos. increment
+
+  SELECTMA, NED_N,    3, 1             //MA=Old NED position
+  SELECTMB, tmp_0,    3, 1             //MB=[tmp]=NED position increment
+  MOP,      EWISE_ADD                  //MA=MA+MB=Updated NED position
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION INS_UPDATE_WGS84_E
+//------------------------------------------------------------------------
+//   Action : Updates the Navigation state variables in WGS84 rotating
+//            Earth
+//------------------------------------------------------------------------
+//   Inputs : Body frame accelerations
+//            Body frame rotation rates
+//------------------------------------------------------------------------
+//  Results : Integrated new state variables
+//------------------------------------------------------------------------
+//    +Uses : R122-127
+//------------------------------------------------------------------------
+//Temporary registers
+tmp_0            EQU F125
+tmp_1            EQU F126
+tmp_2            EQU F127
+
+//Increment Time
+Time = Time + Dt
+
+//Calculate Body frame velocity and angle increments from sensor values
+//and time increment
+#ASM
+  LOAD Dt
+  SELECTMA, Ax,       6, 1             //MA=[Ax Ay Az P Q R]
+  MOP SCALAR_MUL                       //MA=dt*MA=[dVb], [dP dQ dR]
+#ENDASM
+
+//Calculate position dependent WGS84 auxiliary quantities
+#ASM
+  FCALL INS_CALC_WGS84_AUX
+#ENDASM
+
+//Calculate Omega_n_en vector (transfer rate)
+#ASM
+  FCALL INS_CALC_OMEGA_NEN
+#ENDASM
+
+//Calculate Omega_n_ie vector (Earth rotation)
+#ASM
+  FCALL INS_CALC_OMEGA_NIE
+#ENDASM
+
+//Calculate Omega_n_in vector (Full rotation of Nav frame)
+#ASM
+  FCALL INS_CALC_OMEGA_NIN
+#ENDASM
+
+//Calculate vector for Coriolis correction 
+#ASM
+  FCALL INS_CALC_CORIOLIS
+#ENDASM
+
+//Correct Gyro readings
+#ASM
+  FCALL INS_GYRO_CORR
+#ENDASM
+
+//Update Body to Nav Quaternion from the corrected angle increments
+#ASM
+  FCALL INS_QUAT_UPDATE
+#ENDASM
+                 
+//Update Body to Nav DCM from the new Quaternion
+#ASM
+  FCALL INS_QUAT_2_DCM
+#ENDASM
+
+//Apply Sculling correction to Body frame velocity increments
+#ASM
+  FCALL INS_SCULLING_CORR
+#ENDASM
+
+//Project velocity increments from Body to Nav frame
+//dVn = Cbn * dVb
+#ASM
+  SELECTMA, Ax,       3, 1             //MA=dVb
+  SELECTMB, Cbn_0_0,  3, 3             //MB=Cbn
+  SELECTMC, tmp_0,    3, 1             //MC=tmp
+  MOP,      COPYAC                     //MC=tmp=dVb
+  MOP,      MULTIPLY                   //MA=MB*MC=Cbc*dVb=dVn
+#ENDASM
+
+//Velocity increments are now expressed in Nav frame, we can apply
+//corrections to these velocity increments. In this full WGS84 
+//calculation we will apply both gravity and Coriolis corrections
+
+//Apply gravity correction to NED Nav frame velocity increments in [Ax]
+#ASM
+  FCALL INS_GRAVITY_CORR
+#ENDASM
+
+//Apply Corriolis correction to NED Nav frame velocity increments in [Ax]
+#ASM
+  FCALL INS_CORIOLIS_CORR
+#ENDASM
+
+//Update Nav frame total velocity increment with the Nav frame velocity
+//increment during time step 
+//                 DVn=DVn+dVn (dVn stored in Ax)
+#ASM
+  SELECTMA, DVn,      3, 1             //MA=[DV]
+  SELECTMB, Ax,       3, 1             //MB=Ax=time step vel. increment
+  MOP,      EWISE_ADD                  //MA=MA+MB=DVn+Ax=Integrated
+#ENDASM
+
+//Calculate new total NED Nav rame velocity [TVn]=[Vn]+[DVn]
+#ASM
+  SELECTMA, TVn,      3, 1             //MA=[TVn]
+  SELECTMB, DVn,      3, 1             //MB=[DVn]
+  SELECTMC, Vn,       3, 1             //MC=[Vn]
+  MOP,      COPYCA                     //MA=MC
+  MOP,      EWISE_ADD                  //MA=MA+MB=[Vn]+[DVn]=[TVn]
+#ENDASM
+
+//Store previous rate of change of WGS84 coordinates
+#ASM
+  SELECTMA, tmp_0,    3, 1             //MA=pV=Previous WGS84 rates backup
+  SELECTMB, Vlat,     3, 1             //MB=[Vlat Vlon Valt]=WGS84 rates
+  MOP,      COPYBA                     //MA=MB: WGS84 rates stored
+#ENDASM
+
+//Calculate new rate of change of WGS84 geographic coordinates
+Vlat = TVn * Mphi
+Vlon = TVe * Nphi / Cos_Lat
+Valt = -TVd
+
+//Update WGS84 position with 2nd order Runge-Kutta integration, i.e.
+//
+//    New pos. = Old pos. + (Average rate of change) * (delta t)
+//
+//Accumulate the position changes in DLAT, DLON, DALT to decrease round-off
+//errors since these changes are usually very small when compared to LAT,
+//LON and ALT 
+#ASM
+  SELECTMA, tmp_0 ,   3, 1             //MA=[tmp]
+  SELECTMB, Vlat,     3, 1             //MC=Vlat=New WGS84 rates
+  MOP,      EWISE_ADD                  //MA=MA+MB
+  FWRITE0   0.5
+  MOP,      SCALAR_MUL                 //MA=0.5*MA, average rates in tmp 
+  LOAD,     Dt             
+  MOP,      SCALAR_MUL                 //MA=MA*dt=[tmp]=WGS84 pos. incr.
+
+  SELECTMA, DLAT,     3, 1             //MA=[DLAT]=Old WGS84 position
+  SELECTMB, tmp_0,    3, 1             //MB=[tmp]=WGS84 position increment
+  MOP,      EWISE_ADD                  //MA=MA+MB=Updated WGS84 position
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION CT_WGS84_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Calculates WGS84 pos. dependent auxiliary quantities.
+//            Calculates ECEF coordinates of geographic position
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates TLAT, TLON, TALT 
+//------------------------------------------------------------------------
+//  Results : Cos_Lat, Sin_Lat, Cos_Lon, Sin_Lon,Sin2_Lat     /auxiliaries
+//            Rdenom12, Rdenom32                              /auxiliaries
+//            Nphi, Mphi                                      /auxiliaries
+//            ECEF frame coordinates ECEF_X, ECEF_Y, ECEF_Z
+//------------------------------------------------------------------------
+//    +Uses : R127
+//------------------------------------------------------------------------
+//     Note : -TLAT and TLON are given in radians
+//            -TALT is given in meters
+//            -ECEF coordinates are obtained in meters
+//            -Due to the approximately seven and half digit precision of
+//            the 32 bit IEEE 754 format the precision of the obtained 
+//            coordinates is about 0.5 m since their values are some 
+//            millions of meters  in the Troposphere
+//------------------------------------------------------------------------
+//Temporary register
+r1      EQU F127
+
+//Compute WGS84 auxiliaries
+#ASM
+//Sin_Lat = SIN(TLAT)
+  SELECTA, Sin_Lat
+  FSET, TLAT
+  SIN
+//Cos_Lat = COS(TLAT) 
+  SELECTA, Cos_Lat
+  FSET, TLAT
+  COS
+//Sin_Lon = SIN(TLON)
+  SELECTA, Sin_Lon
+  FSET, TLON
+  SIN
+//Cos_Lon = COS(TLON)
+  SELECTA, Cos_Lon
+  FSET, TLON
+  COS
+#ENDASM
+
+Sin2_Lat = Sin_Lat * Sin_Lat
+
+//Rdenom32 = 1 / (1 - (Eps2 * Sin2_Lat))
+#ASM
+  SELECTA, Rdenom32
+  FSETI,   1
+  FMSC,    Eps2, Sin2_Lat
+  FINV
+#ENDASM
+
+//Rdenom12 = SQRT(Rdenom32)
+#ASM
+  SELECTA, Rdenom12
+  FSET,    Rdenom32
+  SQRT
+#ENDASM
+
+Rdenom32 = Rdenom32 * Rdenom12
+
+//Nphi = 1 / (Re * Rdenom12 + TALT)
+#ASM
+  SELECTA, NPhi
+  FSET,    TALT
+  FMAC,    Re, Rdenom12  
+  FINV
+#ENDASM
+
+//Mphi = 1 / (Re1mEps2 * Rdenom32 + TALT)
+#ASM
+  SELECTA, Mphi
+  FSET,    TALT
+  FMAC,    Re1mEps2, Rdenom32
+  FINV
+#ENDASM
+
+//Calculate ECEF coordinates of the TLAT, TLON, TALT location input
+r1 = Cos_Lat / Nphi
+ECEF_X = Cos_Lon * r1
+ECEF_Y = Sin_Lon * r1
+//ECEF_Z = Re1mEps2 * Rdenom12 + TALT * Sin_Lat
+#ASM
+  SELECTA,   ECEF_Z
+  FSET,      TALT
+  FMAC,      Re1mEps2, Rdenom12
+  FMUL,      Sin_Lat
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION CT_ECEF_2_WGS84
+//------------------------------------------------------------------------
+//   Action : Calculates WGS84 geographic coordinates from the ECEF  
+//            coordinates of a position
+//------------------------------------------------------------------------
+//   Inputs : ECEF frame coordinates ECEF_X, ECEF_Y, ECEF_Z 
+//------------------------------------------------------------------------
+//  Results : WGS84 geographic coordinates TLAT, TLON, TALT 
+//------------------------------------------------------------------------
+//    +Uses : R121-127
+//------------------------------------------------------------------------
+//     Note : -ECEF coordinates are given in meters
+//            -TLAT and TLON are obtained in radians
+//            -TALT is obtained in meters
+//            -Due to the approximately seven and half digit precision of
+//            the 32 bit IEEE 754 format the precision of the obtained 
+//            coordinates is about 1 m 
+//------------------------------------------------------------------------
+//Temporary registers
+r1      EQU F127
+r2      EQU F126
+r3      EQU F125
+r4      EQU F124
+r5      EQU F123
+r6      EQU F122
+r7      EQU F121
+
+//Check for singularities close to the poles
+r2 = 1.0
+
+//r1 = SQRT((ECEF_X * ECEF_X) + (ECEF_Y * ECEF_Y))
+#ASM
+  SELECTA, r1
+  FSET,    ECEF_X
+  FMUL,    ECEF_X
+  FMAC,    ECEF_Y, ECEF_Y
+  SQRT
+#ENDASM
+
+#ASM
+  FCMP, r2
+  BRA GT, _1
+//If here then very close to the Earth's rotation axis,
+//i.e. close than 1 meter to the poles
+//     WGS84_LON = 0.0
+  SELECTA, TLON
+  FSETI, 0
+//Now check the sign of ECEF_Z
+  SELECTA, r2
+  FSETI, 0
+  SELECTA, ECEF_Z
+  FCMP, r2
+  BRA GT, _2
+//ECEF_Z is negative, then 
+//     WGS84_LAT = -PI / 2
+  SELECTA, TLAT
+  FWRITEA, -1.5707963
+  BRA _3
+
+_2:
+//ECEF_Z is positive, then
+//     WGS84_LAT = PI / 2
+  SELECTA, TLAT
+  FWRITEA, 1.5707963
+
+  _3:
+//Latitude and Longitude have been set in the "Close to the
+//Poles" case. Now set Altitude here
+//WGS84_ALT = ABS(ECEF_Z) - 6356752.3
+//Where 6356752.3 [m] is the polar radius of the WGS84 Earth
+  SELECTA, TALT
+  FSET, ECEF_Z
+  FABS
+  FWRITE0, -6.356752e+6
+  FADD0
+  RET
+
+_1:
+#ENDASM
+
+
+//The ECEF position is more than 1 m offset from the poles
+
+//Calculate Longitude
+//TLON = ATAN2 (ECEF_Y, ECEF_X)
+#ASM
+  SELECTA,   TLON
+  FSET,      ECEF_Y
+  ATAN2,     ECEF_X
+#ENDASM
+
+//Solve equations for Latitude and Altitude  with iteration
+
+//1st iteration
+
+//r7=0.99330562
+//Where 0.99330562 = (1 - Eps2)
+#ASM
+  SELECTA,   r7
+  FWRITEA,   0.99330562
+#ENDASM
+
+r2 = ECEF_Z / r1
+
+//r3 = ATAN(r2 / 0.99330562)
+#ASM
+  SELECTA,   r3
+  FSET,      r2
+  ATAN2,     r7
+#ENDASM
+
+//r4 = SIN(r3)
+#ASM
+  SELECTA,   r4
+  FSET,      r3
+  SIN
+#ENDASM
+
+//r5 = Re / (SQRT(1.0 - (Eps2 * r4 * r4)))
+#ASM
+  SELECTA,   r5
+  FSET,      Eps2
+  FMUL,      r4
+  FMUL,      r4
+  FNEG
+  FADDI,     1
+  SQRT
+  FINV
+  FMUL,      Re
+#ENDASM
+
+//r6 = (r1 / COS(r3)) - r5
+//r6 contains the 1st approximation of Altitude
+#ASM
+  SELECTA,   r6
+  FSET,      r3
+  COS
+  FINV
+  FMUL,      r1
+  FSUB,      r5
+#ENDASM
+
+//2nd iteration
+
+//Refine Latitude
+
+r3 = r5 + r6
+
+//TLAT = ATAN(r2 * r3 / (r5 * r7 + r6))
+#ASM
+  SELECTA,   TLAT
+  FSET,      r6
+  FMAC,      r5, r7
+  FINV
+  FMUL,      r2
+  FMUL,      r3
+  ATAN
+#ENDASM
+
+//r2 = SIN(TLAT) ; r2 = r2 * r2
+#ASM
+  SELECTA,   r2
+  FSET,      TLAT
+  SIN
+  FMUL,      r2
+#ENDASM
+
+//r3 = COS(TLAT)
+#ASM
+  SELECTA,   r3
+  FSET,      TLAT
+  COS
+#ENDASM
+
+//Refine Altitude
+
+//r4 = Re / (SQRT(1.0 - (Eps2 * r2)))
+#ASM
+  SELECTA,   r4
+  FSETI,     1
+  FMSC,      Eps2, r2
+  SQRT
+  FINV
+  FMUL,      Re
+#ENDASM
+
+TALT = r1 / r3 - r4 
+//We have reached the seven and half digit precision of 32-bit floats. No
+//more iteration is realy usefull here
+//------------------------------------------------------------------------
+
+
+#FUNCTION CT_NED2ECEF_DCM
+//------------------------------------------------------------------------
+//   Action : Calculates the NED 2 ECEF  Direction Cosine Marix
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates TLAT, TLON, TALT of NED frame
+//------------------------------------------------------------------------
+//  Results : NED 2 ECEF DCM in temporary registers
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[cne]]
+//------------------------------------------------------------------------
+//    Calls : CT_WGS84_2_ECEF
+//------------------------------------------------------------------------
+//Temporary registers
+//NED 2 ECEF DCM
+cne_0_0          EQU F119
+cne_0_1          EQU F120
+cne_0_2          EQU F121
+cne_1_0          EQU F122
+cne_1_1          EQU F123
+cne_1_2          EQU F124
+cne_2_0          EQU F125
+cne_2_1          EQU F126
+cne_2_2          EQU F127
+
+//Calculate WGS84 auxiliaries
+#ASM
+  FCALL CT_WGS84_2_ECEF
+#ENDASM
+
+cne_0_0 = -Sin_Lat * Cos_Lon
+cne_1_0 = -Sin_Lat * Sin_Lon
+cne_2_0 = Cos_Lat
+cne_0_1 = -Sin_Lon
+cne_1_1 = Cos_Lon
+cne_2_1 = 0
+cne_0_2 = -Cos_Lat * Cos_Lon
+cne_1_2 = -Cos_Lat * Sin_Lon
+cne_2_2 = -Sin_Lat
+//------------------------------------------------------------------------
+
+
+#FUNCTION CT_POS_NED_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Calculates the absolute ECEF coordinates of an object from
+//            the geographic coordinates of the origin of the NED frame
+//            and from the relative coordinates of object in that NED
+//            frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates TLAT, TLON, TALT of NED frame
+//            Coordinates of object in NED frame in NED_N, NED_E, NED_D
+//------------------------------------------------------------------------
+//  Results : Absolute ECEF coordinates of object in ECEF_X,ECEF_Y,ECEF_Z 
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[cne]]
+//            R116-118 for [ecf]
+//------------------------------------------------------------------------
+//    Calls : CT_WGS84_2_ECEF            
+//            CT_NED2ECEF_DCM
+//------------------------------------------------------------------------
+//Temporary registers
+//NED 2 ECEF DCM
+cne_0_0          EQU F119
+cne_0_1          EQU F120
+cne_0_2          EQU F121
+cne_1_0          EQU F122
+cne_1_1          EQU F123
+cne_1_2          EQU F124
+cne_2_0          EQU F125
+cne_2_1          EQU F126
+cne_2_2          EQU F127
+//ECEF vector of relative position
+ecf_0            EQU F116
+ecf_1            EQU F117
+ecf_2            EQU F118
+
+//Calculate [ECEF] of NED frame's origin and [[cne]] DCM
+#ASM
+  FCALL CT_WGS84_2_ECEF
+  FCALL CT_NED2ECEF_DCM
+#ENDASM
+
+//Project NED position vector to ECEF frame
+//    [ecf] = [[cne]] * [NED]
+#ASM
+  SELECTMA, ecf_0,    3, 1             //MA=[ecf]
+  SELECTMB, cne_0_0,  3, 3             //MB=[[cne]]
+  SELECTMC, NED_N,    3, 1             //MC=[NED]
+  MOP,      MULTIPLY                   //MA=MB*MC=[ecf]=[[cne]]*[NED]
+#ENDASM
+
+//Add ECEF coordinates of NED frame's origin to the [ecf] relative 
+//coordinates of the position of the object to obtain absolute ECEF
+//coordinates of it
+//    [ECEF] = [ECEF] + [ecf]
+#ASM
+  SELECTMA, ECEF_X,   3, 1             //MA=[ECEF]   
+  SELECTMB, ecf_0,    3, 1             //MB=[ecf]
+  MOP,      EWISE_ADD                  //MA=MA+MB=[ECEF]=[ECEF]+[ecf]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+#FUNCTION CT_VEC_NED_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Calculates the ECEF frame components of a vector given by
+//            its NED components. In other words, it projects a NED vector
+//            into ECEF frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates of NED frame in TLAT,TLON,TALT
+//            NED frame components of the vector in NED_N, NED_E, NED_D 
+//------------------------------------------------------------------------
+//  Results : ECEF frame components of vector in ECEF_X, ECEF_Y, ECEF_Z 
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[cne]]
+//------------------------------------------------------------------------
+//    Calls : CT_WGS84_2_ECEF                    /CT_NED2ECEF_DCM needs it
+//            CT_NED2ECEF_DCM
+//------------------------------------------------------------------------
+//Temporary registers
+//NED 2 ECEF DCM
+cne_0_0          EQU F119
+cne_0_1          EQU F120
+cne_0_2          EQU F121
+cne_1_0          EQU F122
+cne_1_1          EQU F123
+cne_1_2          EQU F124
+cne_2_0          EQU F125
+cne_2_1          EQU F126
+cne_2_2          EQU F127
+
+//Calculate [[cne]] DCM
+#ASM
+  FCALL CT_WGS84_2_ECEF
+  FCALL CT_NED2ECEF_DCM
+#ENDASM
+
+//Project [NED] vector into [ECEF] frame
+//   [ECEF] = [[cne]] * [NED]
+#ASM
+  SELECTMA, ECEF_X,   3, 1             //MA=[ECEF]
+  SELECTMB, cne_0_0,  3, 3             //MB=[[cne]]
+  SELECTMC, NED_N,    3, 1             //MC=[NED]
+  MOP,      MULTIPLY                   //MA=MB*MC=[ECEF]=[[cne]]*[NED]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+#FUNCTION CT_VEC_ECEF_2_NED
+//------------------------------------------------------------------------
+//   Action : Calculates the NED frame components of a vector given by
+//            its ECEF components. In other words, it projects an ECEF
+//            vector into NED frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates of NED frame in TLAT,TLON,TALT
+//            ECEF frame components of vector in ECEF_X, ECEF_Y, ECEF_Z
+//------------------------------------------------------------------------
+//  Results : NED frame  components of the vector in NED_N, NED_E, NED_D
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[cne]]
+//            R110-118 for [[cen]]
+//------------------------------------------------------------------------
+//    Calls : CT_WGS84_2_ECEF                    /CT_NED2ECEF_DCM needs it
+//            CT_NED2ECEF_DCM
+//------------------------------------------------------------------------
+//Temporary registers
+//NED 2 ECEF DCM
+cne_0_0          EQU F119
+cne_0_1          EQU F120
+cne_0_2          EQU F121
+cne_1_0          EQU F122
+cne_1_1          EQU F123
+cne_1_2          EQU F124
+cne_2_0          EQU F125
+cne_2_1          EQU F126
+cne_2_2          EQU F127
+//ECEF 2 NED DCM
+cen_0_0          EQU F110
+cen_0_1          EQU F111
+cen_0_2          EQU F112
+cen_1_0          EQU F113
+cen_1_1          EQU F114
+cen_1_2          EQU F115
+cen_2_0          EQU F116
+cen_2_1          EQU F117
+cen_2_2          EQU F118
+
+//Calculate [[cne]] DCM
+#ASM
+  FCALL CT_WGS84_2_ECEF
+  FCALL CT_NED2ECEF_DCM
+#ENDASM
+
+//Calculate ECEF to NED DCM from [[cne]]
+//   [[cen]]=Transpose of [[cne]]
+#ASM
+  SELECTMA,  cen_0_0, 3,3
+  SELECTMB,  cne_0_0, 3,3
+  MOP,       TRANSPOSE
+#ENDASm
+
+//Project ECEF frame expressed vector to NED frame
+//     [NED] = [[cen]] * [ECEF]
+#ASM
+  SELECTMA, NED_N,    3, 1             //MA=[NED]
+  SELECTMB, cen_0_0,  3, 3             //MB=[[cen]]
+  SELECTMC, ECEF_X,   3, 1             //MC=[ECEF]
+  MOP,      MULTIPLY                   //MA=MB*MC=[NED]=[[cen]]*[ECEF]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+#FUNCTION CT_ECEF2BODY_DCM
+//------------------------------------------------------------------------
+//   Action : Calculates the ECEF 2 BODY  Direction Cosine Matrix
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates TLAT, TLON, TALT of BODY frame
+//            Attitude of craft (BODY frame) in ROLL, PITCH, YAW
+//------------------------------------------------------------------------
+//  Results : ECEF 2 BODY DCM in temporary registers 
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[ceb]]
+//            R110-118 for [[cen]]
+//            R101-109 for [[cnb]]
+//------------------------------------------------------------------------
+//    Calls : CT_WGS84_2_ECEF
+//            CT_NED2ECEF_DCM
+//            INS_EULER_2_DCM
+//------------------------------------------------------------------------
+//Temporary registers
+//ECEF 2 BODY DCM
+ceb_0_0          EQU F119
+ceb_0_1          EQU F120
+ceb_0_2          EQU F121
+ceb_1_0          EQU F122
+ceb_1_1          EQU F123
+ceb_1_2          EQU F124
+ceb_2_0          EQU F125
+ceb_2_1          EQU F126
+ceb_2_2          EQU F127
+//ECEF 2 NED DCM
+cen_0_0          EQU F110
+cen_0_1          EQU F111
+cen_0_2          EQU F112
+cen_1_0          EQU F113
+cen_1_1          EQU F114
+cen_1_2          EQU F115
+cen_2_0          EQU F116
+cen_2_1          EQU F117
+cen_2_2          EQU F118
+//NED 2 BODY DCM
+cnb_0_0          EQU F101
+cnb_0_1          EQU F102
+cnb_0_2          EQU F103
+cnb_1_0          EQU F104
+cnb_1_1          EQU F105
+cnb_1_2          EQU F106
+cnb_2_0          EQU F107
+cnb_2_1          EQU F108
+cnb_2_2          EQU F109
+
+//Calculate WGS84 auxiliaries, [[cne]] and [[Cbn]] DCMs
+#ASM
+  FCALL CT_WGS84_2_ECEF
+  FCALL CT_NED2ECEF_DCM                //Calculates [[cne]]
+  FCALL INS_EULER_2_DCM                //Calculates [[Cbn]]
+#ENDASM
+
+//Calculate ECEF 2 NED DCM [[cen]]
+//   [[cen]]=Transpose of [[cne]]
+#ASM
+  SELECTMA,  ceb_0_0, 3,3              //MA=[[cne]] from CT_NED2ECEF_DCM
+  SELECTMB,  cen_0_0, 3,3              //MB=Place for [[cen]] here
+  MOP,       COPYAB                    //MB=[[cne]]
+  MOP,       TRANSPOSE                 //MA=[[cen]] but not in place
+  MOP,       COPYAB                    //MB=[[cen]] in place and ready
+#ENDASM
+
+//Calculate NED to BODY DCM [[cnb]]
+//    [[cnb]]=Transpose of [[Cbn]]
+#ASM
+  SELECTMA,  cnb_0_0, 3,3              //MA=Place for [[cnb]]
+  SELECTMB,  Cbn_0_0, 3,3              //MB=[[Cbn]]
+  MOP,       TRANSPOSE                 //MA=[[cnb]]
+#ENDASM
+
+//Calculate ECEF 2 BODY DCM
+#ASM
+  SELECTMA, ceb_0_0,  3, 3             //MA=Place for [[ceb]]
+  SELECTMB, cnb_0_0,  3, 3             //MB=[[cnb]]
+  SELECTMC, cen_0_0,  3, 3             //MC=[[cen]]
+  MOP,      MULTIPLY                   //MA=MB*MC=[[ceb]]=[[cnb]]*[[cen]]
+#ENDASM
+//------------------------------------------------------------------------
+
+
+#FUNCTION CT_POS_BODY_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Calculates the absolute ECEF coordinates of an object from
+//            the geographic coordinates of the origin of the BODY frame
+//            and from the relative coordinates of object in that BODY
+//            frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates TLAT, TLON, TALT of BODY frame
+//            Attitude of craft (BODY frame) in ROLL, PITCH, YAW      
+//            Coordinates of object in BODY frame in BODY_X, BODY_Y and
+//            BODY_Z
+//------------------------------------------------------------------------
+//  Results : Absolute ECEF coordinates of object in ECEF_X,ECEF_Y,ECEF_Z 
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[ceb]]
+//            R110-118 for [[cbe]]
+//            R107-109 for [ecf]
+//------------------------------------------------------------------------
+//    Calls : CT_ECEF2BODY_DCM            
+//------------------------------------------------------------------------
+//Temporary registers
+//ECEF 2 BODY DCM
+ceb_0_0          EQU F119
+ceb_0_1          EQU F120
+ceb_0_2          EQU F121
+ceb_1_0          EQU F122
+ceb_1_1          EQU F123
+ceb_1_2          EQU F124
+ceb_2_0          EQU F125
+ceb_2_1          EQU F126
+ceb_2_2          EQU F127
+//BODY 2 ECEF DCM
+cbe_0_0          EQU F110
+cbe_0_1          EQU F111
+cbe_0_2          EQU F112
+cbe_1_0          EQU F113
+cbe_1_1          EQU F114
+cbe_1_2          EQU F115
+cbe_2_0          EQU F116
+cbe_2_1          EQU F117
+cbe_2_2          EQU F118
+//ECEF vector of relative position
+ecf_0            EQU F107
+ecf_1            EQU F108
+ecf_2            EQU F109
+
+//Calculate [ECEF] of BODY frame's origin and [[ceb]] DCM
+#ASM
+  FCALL CT_ECEF2BODY_DCM
+#ENDASM
+
+//Calculate BODY 2 ECEF DCM
+//   [[cbe]]=Transpose of [[ceb]]
+#ASM
+  SELECTMA,  cbe_0_0, 3,3              //MA=Place for [[cbe]]
+  SELECTMB,  ceb_0_0, 3,3              //MB=[[ceb]]
+  MOP,       TRANSPOSE                 //MA=[[cbe]]
+#ENDASM
+
+//Project BODY position vector to ECEF frame
+//    [ecf] = [[cbe]] * [BODY]
+#ASM
+  SELECTMA, ecf_0,    3, 1             //MA=[ecf]
+  SELECTMB, cbe_0_0,  3, 3             //MB=[[cbe]]
+  SELECTMC, BODY_X,   3, 1             //MC=[BODY]
+  MOP,      MULTIPLY                   //MA=MB*MC=[ecf]=[[cbe]]*[BODY]
+#ENDASM
+
+//Add ECEF coordinates of BODY frame's origin to the [ecf] relative 
+//coordinates of the position of the object to obtain absolute ECEF
+//coordinates of it
+//    [ECEF] = [ECEF] + [ecf]
+#ASM
+  SELECTMA, ECEF_X,   3, 1             //MA=[ECEF]   
+  SELECTMB, ecf_0,    3, 1             //MB=[ecf]
+  MOP,      EWISE_ADD                  //MA=MA+MB=[ECEF]=[ECEF]+[ecf]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+#FUNCTION CT_VEC_BODY_2_ECEF
+//------------------------------------------------------------------------
+//   Action : Calculates the ECEF frame components of a vector given by
+//            its BODY components. In other words, it projects a BODY
+//            vector into ECEF frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates of BODY frame in TLAT,TLON,TALT
+//            Attitude of craft (BODY frame) in ROLL, PITCH, YAW      
+//            BODY frame components of the vector in BODY_X,BODY_Y,BODY_Z 
+//------------------------------------------------------------------------
+//  Results : ECEF frame components of vector in ECEF_X, ECEF_Y, ECEF_Z 
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[ceb]]
+//            R110-118 for [[cbe]]
+//------------------------------------------------------------------------
+//    Calls : CT_ECEF2BODY_DCM            
+//------------------------------------------------------------------------
+//Temporary registers
+//ECEF 2 BODY DCM
+ceb_0_0          EQU F119
+ceb_0_1          EQU F120
+ceb_0_2          EQU F121
+ceb_1_0          EQU F122
+ceb_1_1          EQU F123
+ceb_1_2          EQU F124
+ceb_2_0          EQU F125
+ceb_2_1          EQU F126
+ceb_2_2          EQU F127
+//BODY 2 ECEF DCM
+cbe_0_0          EQU F110
+cbe_0_1          EQU F111
+cbe_0_2          EQU F112
+cbe_1_0          EQU F113
+cbe_1_1          EQU F114
+cbe_1_2          EQU F115
+cbe_2_0          EQU F116
+cbe_2_1          EQU F117
+cbe_2_2          EQU F118
+
+//Calculate [ECEF] of BODY frame's origin and [[ceb]] DCM
+#ASM
+  FCALL CT_ECEF2BODY_DCM
+#ENDASM
+
+//Calculate BODY 2 ECEF DCM
+//   [[cbe]]=Transpose of [[ceb]]
+#ASM
+  SELECTMA,  cbe_0_0, 3,3              //MA=Place for [[cbe]]
+  SELECTMB,  ceb_0_0, 3,3              //MB=[[ceb]]
+  MOP,       TRANSPOSE                 //MA=[[cbe]]
+#ENDASM
+
+//Project BODY frame expressed vector to ECEF frame
+//    [ECEF] = [[cbe]] * [BODY]
+#ASM
+  SELECTMA, ECEF_X,   3, 1             //MA=[ECEF]
+  SELECTMB, cbe_0_0,  3, 3             //MB=[[cbe]]
+  SELECTMC, BODY_X,   3, 1             //MC=[BODY]
+  MOP,      MULTIPLY                   //MA=MB*MC=[ecf]=[[cbe]]*[BODY]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+#FUNCTION CT_VEC_ECEF_2_BODY
+//------------------------------------------------------------------------
+//   Action : Calculates the BODY frame components of a vector given by
+//            its ECEF components. In other words, it projects an ECEF
+//            vector into BODY frame
+//------------------------------------------------------------------------
+//   Inputs : WGS84 geographic coordinates of BODY frame in TLAT,TLON,TALT
+//            Attitude of craft (BODY frame) in ROLL, PITCH, YAW  
+//            ECEF frame components of vector in ECEF_X, ECEF_Y, ECEF_Z
+//------------------------------------------------------------------------
+//  Results : BODY frame components of the vector in BODY_X,BODY_Y,BODY_Z
+//------------------------------------------------------------------------
+//    +Uses : R119-127 for [[ceb]]
+//------------------------------------------------------------------------
+//    Calls : CT_ECEF2BODY_DCM            
+//------------------------------------------------------------------------
+//Temporary registers
+//ECEF 2 BODY DCM
+ceb_0_0          EQU F119
+ceb_0_1          EQU F120
+ceb_0_2          EQU F121
+ceb_1_0          EQU F122
+ceb_1_1          EQU F123
+ceb_1_2          EQU F124
+ceb_2_0          EQU F125
+ceb_2_1          EQU F126
+ceb_2_2          EQU F127
+
+//Calculate ECEF 2 BODY DCM [[ceb]]
+#ASM
+  FCALL CT_ECEF2BODY_DCM
+#ENDASM
+
+//Project ECEF frame expressed vector to BODY frame
+//    [BODY] = [[ceb]] * [ECEF]
+#ASM
+  SELECTMA, BODY_X,   3, 1             //MA=[BODY]
+  SELECTMB, ceb_0_0,  3, 3             //MB=[[ceb]]
+  SELECTMC, ECEF_X,   3, 1             //MC=[ECEF]
+  MOP,      MULTIPLY                   //MA=MB*MC=[BODY]=[[ceb]]*[ECEF]
+#ENDASM
+//-------------------------------------------------------------------------
+
+
+//------------------------------------------------------------------------+
+//                        TERMS OF USE: MIT License                       |
+//------------------------------------------------------------------------+
+//  Permission is hereby granted, free of charge, to any person obtaining |
+// a copy of this software and associated documentation files (the        |
+// "Software"), to deal in the Software without restriction, including    |
+// without limitation the rights to use, copy, modify, merge, publish,    |
+// distribute, sublicense, and/or sell copies of the Software, and to     |
+// permit persons to whom the Software is furnished to do so, subject to  |
+// the following conditions:                                              |
+//------------------------------------------------------------------------+
+//  The above copyright notice and this permission notice shall be        |
+// included in all copies or substantial portions of the Software.        |
+//------------------------------------------------------------------------+
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND        |
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     |
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. |
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   |
+// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   |
+// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      |
+// SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 |
+//------------------------------------------------------------------------+
