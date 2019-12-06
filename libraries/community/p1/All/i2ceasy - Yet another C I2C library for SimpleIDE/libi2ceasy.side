@@ -1,0 +1,12 @@
+libi2ceasy.c
+i2ceasy.h
+i2ceasy.c
+>compiler=C
+>memtype=lmm main ram
+>optimize=-Os
+>-m32bit-doubles
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>-create_library
+>BOARD::ACTIVITYBOARD
