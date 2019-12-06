@@ -1,0 +1,10 @@
+  Connect the prop's tx pin through a 4.7K resistor
+  to the ummc's rx pin and the prop's rx pin through
+  a 4.7K resistor to the ummc's tx pin.  This way if
+  there is any error neither device will be harmed.
+               
+  Start a terminal emulator on the com port
+  used by the Propeller Tool.  Set 8N1 and
+  115200 baud.  Open the port and press any
+  key when "any key to begin" is shown.
+
