@@ -64,7 +64,7 @@
 
 [MyPong](../All/MyPong)
 
-['Paul''s Standard Library'](../All/'Paul''s%20Standard%20Library')
+[Paul's Standard Library](../All/Paul's%20Standard%20Library)
 
 [PC Debug Test & Blink LED Demo](../All/PC%20Debug%20Test%20&%20Blink%20LED%20Demo)
 
@@ -134,7 +134,7 @@
 
 [24-channel LED driver with 8 bit per channel PWM](../All/24-channel%20LED%20driver%20with%208%20bit%20per%20channel%20PWM)
 
-['VGA HiRes Font Pack - Onkyo''s VFD Font w/ Single/Double Box Drawing.'](../All/'VGA%20HiRes%20Font%20Pack%20-%20Onkyo''s%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.')
+[VGA HiRes Font Pack - Onkyo's VFD Font w/ Single/Double Box Drawing.](../All/VGA%20HiRes%20Font%20Pack%20-%20Onkyo's%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.)
 
 [WS2812 LED Driver modified by Doug Hilton for RadioShack p/n 2760339 Tri-LED strip](../All/WS2812%20LED%20Driver%20modified%20by%20Doug%20Hilton%20for%20RadioShack%20part%20number%202760339%20Tri-LED%20strip)
 

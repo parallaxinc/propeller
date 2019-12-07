@@ -164,7 +164,7 @@
 
 [SparkFun Serial LCD driver](../All/SparkFun%20Serial%20LCD%20driver)
 
-['Sparkfun''s Huge LCD with Bigchars from ROM'](../All/'Sparkfun''s%20Huge%20LCD%20with%20Bigchars%20from%20ROM')
+[Sparkfun's Huge LCD with Bigchars from ROM](../All/Sparkfun's%20Huge%20LCD%20with%20Bigchars%20from%20ROM)
 
 [SSD1351 128x128 OLED parallel driver](../All/SSD1351%20128x128%20OLED%20parallel%20driver)
 
@@ -240,7 +240,7 @@
 
 [24-channel LED driver with 8 bit per channel PWM](../All/24-channel%20LED%20driver%20with%208%20bit%20per%20channel%20PWM)
 
-["Four Character, Seven Segment 0.8"" LED"](../All/'Four%20Character,%20Seven%20Segment%200.8''''%20LED')
+[Four Character, Seven Segment 0.8'' LED](../All/Four%20Character,%20Seven%20Segment%200.8''%20LED)
 
 [Driver for HT16K133 and 8x8 bicolor led matrix (Adafruit backpack)](../All/Driver%20for%20HT16K133%20and%208x8%20bicolor%20led%20matrix%20(Adafruit%20backpack))
 
@@ -248,7 +248,7 @@
 
 [C Raycast Sample](../All/C%20Raycast%20Sample)
 
-['VGA HiRes Font Pack - Onkyo''s VFD Font w/ Single/Double Box Drawing.'](../All/'VGA%20HiRes%20Font%20Pack%20-%20Onkyo''s%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.')
+[VGA HiRes Font Pack - Onkyo's VFD Font w/ Single/Double Box Drawing.](../All/VGA%20HiRes%20Font%20Pack%20-%20Onkyo's%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.)
 
 [cm_ws2812SB_v10](../All/cm_ws2812SB_v10)
 

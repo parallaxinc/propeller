@@ -8,7 +8,7 @@
 
 [Lowest Common Denominator Algorithm](../All/Lowest%20Common%20Denominator%20Algorithm)
 
-['VGA HiRes Font Pack - Onkyo''s VFD Font w/ Single/Double Box Drawing.'](../All/'VGA%20HiRes%20Font%20Pack%20-%20Onkyo''s%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.')
+[VGA HiRes Font Pack - Onkyo's VFD Font w/ Single/Double Box Drawing.](../All/VGA%20HiRes%20Font%20Pack%20-%20Onkyo's%20VFD%20Font%20with%20Single%20&%20Double%20Box%20Drawing.)
 
 [Unicode character mappings for the Propeller ROM font](../All/Unicode%20character%20mappings%20for%20the%20Propeller%20ROM%20font)
 
