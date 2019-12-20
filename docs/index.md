@@ -5,6 +5,7 @@ A collection of resources for Propeller Community members.
 
 ## Resources
 ### How Do I Find Out The Latest?
+  * [View the "Chat with Chip About P2" Webinar](https://www.youtube.com/watch?v=vjvMqgIm27o) - 12/18/2019 - in this informal-style webinar, Chip demonstrates some P2 capabilities and answers many attendee questions along the way
   * [Follow Parallax Social Sites and Join the P2 Community Newsletter](https://www.parallax.com/company/follow-us) - be sure to select __P2 Community__ and submit your email address
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
 
