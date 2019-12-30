@@ -7,7 +7,10 @@ A collection of resources for Propeller Community members.
 ### How Do I Find Out The Latest?
   * [View the "Chat with Chip About P2" Webinar](https://www.youtube.com/watch?v=vjvMqgIm27o) - 12/18/2019 - in this informal-style webinar, Chip demonstrates some P2 capabilities and answers many attendee questions along the way
   * [Read "Evaluating the Parallax Propeller P2 Chip" by Richard J. S. Morrison](https://github.com/parallaxinc/propeller/raw/master/resources/Articles/P2-EVALB_Evaluation.pdf) - 12/16/2019 - an exploration of the P2's unique capabilities and extensive, powerful instruction set
-  * [Follow Parallax Social Sites and Join the P2 Community Newsletter](https://www.parallax.com/company/follow-us) - be sure to select __P2 Community__ and submit your email address
+  * [Follow Parallax Social Sites and Join the P2 Community Newsletter](https://www.parallax.com/company/follow-us) - be sure to select __P2 Community__ and submit your email address.  See previous newsletters below:
+    * [December 30, 2019](https://mailchi.mp/7e3e463c48ff/propeller-2-webinar-chat-with-chip): YouTube Link to December “Chat with Chip” Webinar, survey of P2 language interests, white paper by Richard Morrison, update on P2 Demo Boards
+    * [December 12, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=d16e3e5388): How to order trays of P2 chips, preliminary pricing, “Chat with Chip” webinar registration
+    * [January 1, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=5de37d30e9): P2 evaluation board add-ons available.
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
 
 ### Documentation
