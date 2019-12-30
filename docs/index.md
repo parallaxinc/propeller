@@ -6,6 +6,7 @@ A collection of resources for Propeller Community members.
 ## Resources
 ### How Do I Find Out The Latest?
   * [View the "Chat with Chip About P2" Webinar](https://www.youtube.com/watch?v=vjvMqgIm27o) - 12/18/2019 - in this informal-style webinar, Chip demonstrates some P2 capabilities and answers many attendee questions along the way
+  * [Read "Evaluating the Parallax Propeller P2 Chip" by Richard J. S. Morrison](https://github.com/parallaxinc/propeller/tree/master/resources) - 12/16/2019 - an exploration of the P2's unique capabilities and extensive, powerful instruction set
   * [Follow Parallax Social Sites and Join the P2 Community Newsletter](https://www.parallax.com/company/follow-us) - be sure to select __P2 Community__ and submit your email address
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
 
@@ -66,10 +67,10 @@ by Dave Hein
   * #### [More Software and Examples](software.md)
 
 ### Firmware
-  * [boot rom P2 v33k](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v33k.spin2) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
-    - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/examples/FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
+  * [boot rom P2 v33k](https://github.com/parallaxinc/propeller/blob/master/resources/FPGA%20Examples/ROM_Booter_v33k.spin2) - Boot ROM for [P2 Rev B](https://forums.parallax.com/discussion/169282/list-of-changes-in-next-p2-silicon) as available on P2-ES Rev B
+    - [boot rom P2 v32i](https://github.com/parallaxinc/propeller/blob/master/resources/FPGA%20Examples/ROM_Booter_v32i.spin2) - Boot ROM for P2 Rev A as available on P2-ES Rev A board
   * [TAQOZ discussion](https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom) - treasure trove of information on TAQOZ by Peter Jakacki
 
 ### Other
-  * [P2 example](https://github.com/parallaxinc/propeller/tree/master/examples) source code
+  * [P2 example](https://github.com/parallaxinc/propeller/tree/master/resources) source code and articles
   * [Visit and contribute to the source repository of this site](https://github.com/parallaxinc/propeller)
