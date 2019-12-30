@@ -11,5 +11,5 @@ Please [follow these steps](https://github.com/parallaxinc/propeller/wiki/Contri
 
 ## Resources
 - Visit the [Propeller Website](https://propeller.parallax.com) (driven by content in this repository's /docs subfolder) for a collection of resources.
-- See the [/examples](https://github.com/parallaxinc/propeller/tree/master/examples) subfolder for Propeller 2 code examples.
+- See the [/resources](https://github.com/parallaxinc/propeller/tree/master/resources) subfolder for Propeller 2 code examples and articles.
 - See the [/libraries/community/p1](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1) subfolder for Propeller 1 objects transferred here from the Propeller Object Exchange.

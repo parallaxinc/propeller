@@ -19,7 +19,7 @@ Make sure to check out the different discussions in TAQOZ, fastspin, p2gcc as mo
 
 ### Protocol
 #### serial
-  * [smartpin demo](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/smartpin_serial_turnaround.spin2) - 10 MBaud example by Chip Gracey
+  * [smartpin demo](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/smartpin_serial_turnaround.spin2) - 10 MBaud example by Chip Gracey
   * [fullduplex smart serial with interrupt](https://forums.parallax.com/discussion/169660/cogserial-fullduplex-smart-serial-using-interrupt) - by msrobot
  
 #### USB
@@ -34,7 +34,7 @@ Make sure to check out the different discussions in TAQOZ, fastspin, p2gcc as mo
 #### I2C
 
 #### PWM
-  * [smartpin example](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/smartpin_pwm.spin2) - example PWM driver by Chip Gracey
+  * [smartpin example](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/smartpin_pwm.spin2) - example PWM driver by Chip Gracey
 
 #### TCP/UDP
   * [ENC28J60](https://forums.parallax.com/discussion/170022/enc28j60-ethernet-driver) - by localroger
@@ -42,7 +42,7 @@ Make sure to check out the different discussions in TAQOZ, fastspin, p2gcc as mo
 
 ### Devices
 #### Goertzel
-  * [goertzel_to_hdmi](https://github.com/parallaxinc/propeller/tree/master/examples/P2-ES/goertzel_to_hdmi.spin2) - example by Chip Gracey
+  * [goertzel_to_hdmi](https://github.com/parallaxinc/propeller/tree/master/resources/P2-ES/goertzel_to_hdmi.spin2) - example by Chip Gracey
 #### SD-card
   * [fsrw](https://forums.parallax.com/discussion/169877/sd-fat32-implementations) - by ke4pjw
   * [fsrw](https://forums.parallax.com/discussion/169786/working-on-fsrw) - by cheezus
@@ -50,12 +50,12 @@ Make sure to check out the different discussions in TAQOZ, fastspin, p2gcc as mo
 
 ### Display
 #### NTSC
-  * [256x192](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/NTSC_256_x_192.spin2) - example driver by Chip Gracey
-  * [256x192 interrupt driven](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/NTSC_256_x_192_interrupt.spin2) - example driver by Chip Gracey
+  * [256x192](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/NTSC_256_x_192.spin2) - example driver by Chip Gracey
+  * [256x192 interrupt driven](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/NTSC_256_x_192_interrupt.spin2) - example driver by Chip Gracey
 
 #### VGA
-  * [640x480x8bpp](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/VGA_640_x_480_8bpp.spin2) - example driver by Chip Gracey
-  * [640x480x16bpp](https://github.com/parallaxinc/propeller/tree/master/examples/FPGA%20Examples/VGA_640_x_480_16bpp.spin2) - example driver by Chip Gracey
+  * [640x480x8bpp](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/VGA_640_x_480_8bpp.spin2) - example driver by Chip Gracey
+  * [640x480x16bpp](https://github.com/parallaxinc/propeller/tree/master/resources/FPGA%20Examples/VGA_640_x_480_16bpp.spin2) - example driver by Chip Gracey
   * [640x480 & 800x600 tile driver](https://forums.parallax.com/discussion/169803/vga-640x480-and-800x600-full-color-tile-text-driver) - by Eric R. Smith
   * [1920x1080x4bpp](https://forums.parallax.com/discussion/169288/vga-1920x1080x4bpp-148-5mhz-rock-stable-and-240-chars-x-135-lines) - by cluso99
   * [Hyperram XGA 720P&1080P](https://forums.parallax.com/discussion/169926/hyperram-as-vga-screen-buffer-now-xga-720p-1080p) - by Rayman
