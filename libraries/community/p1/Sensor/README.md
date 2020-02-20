@@ -66,6 +66,8 @@
 
 [Capacitive Touch Switch](../All/Capacitive%20Touch%20Switch)
 
+[CM2302 Driver]
+
 [CMUCam Color Tracking](../All/CMUCam%20Color%20Tracking)
 
 [CMUCAM Serial Data Check](../All/CMUCAM%20Serial%20Data%20Check)
