@@ -1,7 +1,5 @@
 # BME280 Library
 
-![iseries1.png](iseries1.png)
-
 By: Michael Burmeister
 
 Language: C
@@ -23,49 +21,3 @@ enjoy
 Mike
 
 Updated code so that if the sensor is not found the code would not hang.  Added documentation for functions.
-
-![libbme280/html/bc_s.png](libbme280/html/bc_s.png)
-
-![libbme280/html/bdwn.png](libbme280/html/bdwn.png)
-
-![libbme280/html/closed.png](libbme280/html/closed.png)
-
-![libbme280/html/doc.png](libbme280/html/doc.png)
-
-![libbme280/html/doxygen.png](libbme280/html/doxygen.png)
-
-![libbme280/html/folderclosed.png](libbme280/html/folderclosed.png)
-
-![libbme280/html/folderopen.png](libbme280/html/folderopen.png)
-
-![libbme280/html/nav_f.png](libbme280/html/nav_f.png)
-
-![libbme280/html/nav_g.png](libbme280/html/nav_g.png)
-
-![libbme280/html/nav_h.png](libbme280/html/nav_h.png)
-
-![libbme280/html/open.png](libbme280/html/open.png)
-
-![libbme280/html/search/close.png](libbme280/html/search/close.png)
-
-![libbme280/html/search/mag_sel.png](libbme280/html/search/mag_sel.png)
-
-![libbme280/html/search/search_l.png](libbme280/html/search/search_l.png)
-
-![libbme280/html/search/search_m.png](libbme280/html/search/search_m.png)
-
-![libbme280/html/search/search_r.png](libbme280/html/search/search_r.png)
-
-![libbme280/html/splitbar.png](libbme280/html/splitbar.png)
-
-![libbme280/html/sync_off.png](libbme280/html/sync_off.png)
-
-![libbme280/html/sync_on.png](libbme280/html/sync_on.png)
-
-![libbme280/html/tab_a.png](libbme280/html/tab_a.png)
-
-![libbme280/html/tab_b.png](libbme280/html/tab_b.png)
-
-![libbme280/html/tab_h.png](libbme280/html/tab_h.png)
-
-![libbme280/html/tab_s.png](libbme280/html/tab_s.png)

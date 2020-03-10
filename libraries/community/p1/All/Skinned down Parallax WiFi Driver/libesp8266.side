@@ -1,8 +1,6 @@
 libesp8266.c
 esp8266.c
 esp8266.h
--I ./../libtimer
--L ./../libtimer
 >compiler=C
 >memtype=cmm main ram compact
 >optimize=-Os
@@ -11,5 +9,4 @@ esp8266.h
 >defs::-std=c99
 >-lm
 >-create_library
->linker::-ltimer
 >BOARD::ACTIVITYBOARD
