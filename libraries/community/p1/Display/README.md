@@ -68,6 +68,8 @@
 
 [HD44780 PASM driver](../All/HD44780%20PASM%20driver)
 
+[IL3820 ePaper Driver](../All/IL3820%20ePaper%20Driver)
+
 [ILI9320 320x240 TFT driver](../All/ILI9320%20320x240%20TFT%20driver)
 
 [ILI9325 320x240 TFT driver](../All/ILI9325%20320x240%20TFT%20driver)
