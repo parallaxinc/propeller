@@ -66,6 +66,8 @@
 
 [Capacitive Touch Switch](../All/Capacitive%20Touch%20Switch)
 
+[CM2302 Temperature and Humidity Driver](../All/CM2302%20Temperature%20and%20Humidity%20Driver)
+
 [CMUCam Color Tracking](../All/CMUCam%20Color%20Tracking)
 
 [CMUCAM Serial Data Check](../All/CMUCAM%20Serial%20Data%20Check)
