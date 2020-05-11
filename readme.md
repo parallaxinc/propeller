@@ -9,6 +9,13 @@ Parallax welcomes Propeller Community members to [contribute to this repository]
 
 Please [follow these steps](https://github.com/parallaxinc/propeller/wiki/Contributing) to include them here for all to see.
 
+## This Repository Uses Git LFS
+Most content in this repository is source code that Git excels at storing and versioning efficiently; however, some resources (like graphic and data files) are not as compatible.  This repository uses Git LFS (Large File Storage) to include those resources in an efficient manner and __you need Git LFS installed__ to fully access those resources from a local repo clone. 
+
+LFS has long been a Git add-on but now is automatically included with the latest [Git for Windows](https://git-scm.com/download/win) installers.
+
+The same may not hold true for other platforms; for example, on Mac, first [install Git](https://git-scm.com/download/mac) then [install LFS](https://github.com/git-lfs/git-lfs/wiki/Installation#mac-osx).
+
 ## Resources
 - Visit the [Propeller Website](https://propeller.parallax.com) (driven by content in this repository's /docs subfolder) for a collection of resources.
 - See the [/resources](https://github.com/parallaxinc/propeller/tree/master/resources) subfolder for Propeller 2 code examples and articles.
