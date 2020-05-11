@@ -1,0 +1,106 @@
+DAT
+
+{ Park transformation
+
+  Park matrix: [+cos(T) +cos(T-120°) +cos(T+120°)]
+               [-sin(T) -sin(T-120°) -sin(T+120°)]
+
+  PM x (Iu Iv Iw) = (Id Iq)
+
+  Id:=  Iu*cos(T) + Iv*cos(T-120°) + Iw*cos(T+120°)
+  Iq:= -Iu*sin(T) - Iv*sin(T-120°) - Iw*sin(T+120°)
+
+  QROTATE performs x:= D*cos(S) - Q*sin(S)
+                   y:= D*sin(S) + Q*cos(S)
+
+  So the matrix multiplication can be carried out with 3 QROTATE operations
+  with Q=0, summing up the X/Y results and then scaling them by 2/3.
+
+  x1,y1:= QROTATE Iu,T
+  x2,y2:= QROTATE Iv,T-120°
+  x3,y3:= QROTATE Iw,T+120°
+  Id:= 2/3 * (x1 + x2 + x3)
+  Iq:= -2/3 * (y1 + y2 + y3)
+}
+
+parkTrafo	qrotate	actU,theta	' input: actU,V,W, theta
+		sub	theta,angle120
+		qrotate actV,theta
+		add	theta,angle240
+		qrotate actW,theta
+		sub	theta,angle120
+		getqx	actD
+		getqy	actQ
+		getqx	x
+		getqy	y
+		add	actD,x		' output: actD, actQ
+		add	actQ,y
+		getqx	x
+		getqy	y
+		add	actD,x
+		add	actQ,y
+' use 32 bit multiplication instead of the SCAS instructions
+' if you need more than 16 bit resolution
+		scas	actD,##$2AAA	' *= +2/3
+		mov	actD,#0
+		scas	actQ,##$D555	' *= -2/3
+		mov	actQ,#0
+		ret
+
+angle120	long	$5555_5555 ' 120° as unsigned long
+angle240	long	$AAAA_AAAA ' 240°
+
+
+{ Inverse Park transformation
+
+  Park-1 matrix: [+cos(T)      -sin(T)     ]
+                 [+cos(T-120°) -sin(T-120°)]
+                 [+cos(T+120°) -sin(T+120°)]
+
+  IM x (Vd Vq) = (Vu Vv Vw)
+
+  Vu:= Vd*cos(T)      - Vq*sin(T)
+  Vv:= Vd*cos(T-120°) - Vq*sin(T-120°)
+  Vw:= Vd*cos(T+120°) - Vq*sin(T+120°)
+
+  So the matrix multiplication can be again carried out with 3 QROTATE 
+  operations. But this time 2 input operands are used and only the X
+  result is taken.
+
+  Vu:= QROTATE Vd,Vq,T
+  Vv:= QROTATE Vd,Vq,T-120°
+  Vw:= QROTATE Vd,Vq,T+120°
+}
+inverseTrafo	setq	dutyQ		' input: dutyQ,D, theta
+		qrotate dutyD,theta
+		sub	theta,angle120
+		setq	dutyQ
+		qrotate	dutyD,theta
+		add	theta,angle240
+		setq	dutyQ
+		qrotate	dutyD,theta
+		sub	theta,angle120
+		getqx	dutyU
+		getqx	dutyV
+		getqx	dutyW		' output: dutyU,V,W
+		ret
+
+
+
+
++------------------------------------------------------------------------------------------------------------------------------+
+¦                                                   TERMS OF USE: MIT License                                                  ¦                                                            
++------------------------------------------------------------------------------------------------------------------------------¦
+¦Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    ¦ 
+¦files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    ¦
+¦modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software¦
+¦is furnished to do so, subject to the following conditions:                                                                   ¦
+¦                                                                                                                              ¦
+¦The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.¦
+¦                                                                                                                              ¦
+¦THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          ¦
+¦WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         ¦
+¦COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   ¦
+¦ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         ¦
++------------------------------------------------------------------------------------------------------------------------------+
+
