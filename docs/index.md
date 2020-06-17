@@ -14,7 +14,7 @@ A collection of resources for Propeller Community members.
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
 
 ### Documentation
-  * Rev B/C Silicon (v33 - 08/2019 - LPD1941)
+  * Rev B/C Silicon (v33 - 08/2019-LPD1941 & 06/2020-LHU2019)
     * [Propeller 2 Rev B/C Silicon Documentation](https://docs.google.com/document/d/1gn6oaT5Ib7CytvlZHacmrSbVBJsD9t_-kmvjd7nUR6o/edit?usp=sharing) is contained in a Google Doc with community commenting enabled
     * [Propeller 2 Rev B/C PASM Instructions](https://docs.google.com/spreadsheets/d/1_vJk-Ad569UMwgXTKTdfJkHYHpc1rZwxB-DcIiAZNdk/edit?usp=sharing) are contained in a Google Spreadsheet
     * [Propeller 2 Rev B/C Spin 2 Language Documentation](https://docs.google.com/document/d/16qVkmA6Co5fUNKJHF6pBfGfDupuRwDtf-wyieh_fbqw/edit) is contained in a Google Doc with community commenting enabled
@@ -50,7 +50,7 @@ Propeller 2 early adopters may experiment with two options: 1) limited-edition b
 ### Software
   * #### IDEs
     - Propeller Tool - Parallax P1 & P2 IDE (built for Windows)
-      - [Propeller Tool v2.1.0.0 Alpha (06/12/20)](https://www.parallax.com/downloads/propeller-tool-software-windows-spin-assembly) - for P2 Rev B/C (2nd/3rd -ES silicon) [3rd is slated as production version] as used on the Rev B and Rev C P2 Eval boards
+      - [Propeller Tool v2.2.0.0 Alpha (06/17/20)](https://www.parallax.com/downloads/propeller-tool-software-windows-spin-assembly) - for P2 Rev B/C (2nd/3rd -ES silicon) [3rd is slated as production version] as used on the Rev B and Rev C P2 Eval boards
     - PNut - Parallax P2 IDE (built for Windows- can be used with wine on Linux and MacOS)
       - [PNut v34s](https://github.com/parallaxinc/propeller/releases/download/v34S/PNut_v34S.exe) - for P2 Rev B/C (2nd/3rd ES silicon) [3rd is slated as production version] as used on the Rev C P2 Eval boards
       - [PNut v33L](https://github.com/parallaxinc/propeller/releases/download/v33L/PNut_v33L.exe) - for P2 Rev B (2nd -ES silicon, as used on the Rev B P2 Eval boards and available in the P2 sample 4-packs)
