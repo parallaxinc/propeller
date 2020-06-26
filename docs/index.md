@@ -1,10 +1,36 @@
-# Propeller 2 Developer Site
-A collection of resources for Propeller Community members.
+# Propeller Developer Site
+Resources for the Propeller user community.
+
+Not familiar with the Propeller?  Read an [overview of the Propeller Microcontroller](https://www.parallax.com/microcontrollers/propeller)
+
+## Propeller 1 (P1 or P8X32A)
+
+<img src="assets/Propeller1Chips.png" alt="P1 Chips">
+
+### Object Exchange
+The object exchange is a collection of community and Parallax developed source code objects for the Propeller, also known as libraries.  They are free to use under the MIT license.  [Explore the P1 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1)
+
+### Documentation
+Reference [documentation and application notes](https://www.parallax.com/downloads/propeller-p8x32a-documentation) for the Propeller 1 (P8X32A) multicore microcontroller.
+
+### Software
+Software options from Parallax include [Propeller Tool, SimpleIDE, and Propeller IDE](https://www.parallax.com/downloads/propeller-p8x32a-software).
+
+## Propeller 2 (P2 or P2X8C4M64P)
 
 [<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](assets/p2-es_rev_a.jpg)
 
-## Resources
-### How Do I Find Out The Latest?
+### Latest Information
+  * Propeller 2 Live Forums - Early Adopter Series - Presentations and discussion around programming tools, languages, hardware, applications, code examples, and projects of all kinds.  Learn, lurk, and ask questions.
+    * Watch recorded sessions:
+      * [Testing Hardware with TAQOZ in ROM - Peter Jakacki and Ray Rodrick](https://www.youtube.com/watch?v=DfDaXcbk-dY&list=PLt_MJJ1F_EXa25_TWa4Sdi77daQaxA_ZU&index=2&t=0s) - June 18
+      * [Display, GUI, and Multimedia Options with the Propeller 2 with Raymond Allen](https://www.youtube.com/watch?v=wmzQY6SayQE&list=PLt_MJJ1F_EXa25_TWa4Sdi77daQaxA_ZU&index=3&t=0s) - June 24
+    * Next on schedule: 
+      * [Multi-language Development with fastspin/flexgui](https://www.parallax.com/company/event/3432/multi-language-development-fastspinflexgui) - July 01
+      * [Visual Programming with Touch Logic Control (TLC) and TAQOZ](https://www.parallax.com/company/event/3434/visual-programming-touch-logic-control-tlc-and-taqoz) - July 08
+      * [Spin 2 Debug with Runtime Expression Reporting](https://www.parallax.com/company/event/3433/spin-2-debug-runtime-expression-reporting) - July 15
+
+  * [Propeller Tool Software](https://github.com/parallaxinc/Propeller-Tool/releases) - Actively updating to support P2 - New alpha version released each week on average.
   * [View the "Chat with Chip About P2" Webinar](https://www.youtube.com/watch?v=vjvMqgIm27o) - 12/18/2019 - in this informal-style webinar, Chip demonstrates some P2 capabilities and answers many attendee questions along the way
   * [Read "Evaluating the Parallax Propeller P2 Chip" by Richard J. S. Morrison](https://github.com/parallaxinc/propeller/raw/master/resources/Articles/P2-EVALB_Evaluation.pdf) - 12/16/2019 - an exploration of the P2's unique capabilities and extensive, powerful instruction set
   * [Follow Parallax Social Sites and Join the P2 Community Newsletter](https://www.parallax.com/company/follow-us) - be sure to select __P2 Community__ and submit your email address.  See previous newsletters below:
