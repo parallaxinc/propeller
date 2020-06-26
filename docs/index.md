@@ -47,6 +47,8 @@ An advanced multicore microcontroller in active development; projected general r
   * [prng](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_prng) (Pseudo-Random and Random Number Generator)
   * [serial](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_serial) (True-most, unbuffered serial coms using smart pins
   * [nstr](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_nstr) (Number String)
+  * [p2eb_matrix](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_matrix) (P2ES Matrix accessory persistent display)
+  * [p2eb_control](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_control) (P2ES Control accessory)
 
 
 ### Documentation
