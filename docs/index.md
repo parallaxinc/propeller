@@ -41,16 +41,6 @@ An advanced multicore microcontroller in active development; projected general r
     * [January 1, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=5de37d30e9): P2 evaluation board add-ons available.
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
 
-### Recent Activity
-* Updated references to [Park Transformation](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/ParkTransformation) object
-* Added Jon "JonnyMac" McPhalen's objects
-  * [prng](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_prng) (Pseudo-Random and Random Number Generator)
-  * [serial](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_serial) (True-most, unbuffered serial coms using smart pins
-  * [nstr](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_nstr) (Number String)
-  * [p2eb_matrix](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_matrix) (P2ES Matrix accessory persistent display)
-  * [p2eb_control](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_control) (P2ES Control accessory)
-
-
 ### Documentation
   * Rev B/C Silicon (v33 - 08/2019-LPD1941 & 06/2020-LHU2019)
     * [Propeller 2 Rev B/C Silicon Documentation](https://docs.google.com/document/d/1gn6oaT5Ib7CytvlZHacmrSbVBJsD9t_-kmvjd7nUR6o/edit?usp=sharing) is contained in a Google Doc with community commenting enabled
@@ -119,3 +109,12 @@ by Dave Hein
 ### Other
   * [P2 example](https://github.com/parallaxinc/propeller/tree/master/resources) source code and articles
   * [Visit and contribute to the source repository of this site](https://github.com/parallaxinc/propeller)
+
+### Recent Activity
+* Updated references to [Park Transformation](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/ParkTransformation) object
+* Added Jon "JonnyMac" McPhalen's objects
+  * [prng](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_prng) (Pseudo-Random and Random Number Generator)
+  * [serial](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_serial) (True-most, unbuffered serial coms using smart pins
+  * [nstr](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_nstr) (Number String)
+  * [p2eb_matrix](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_matrix) (P2ES Matrix accessory persistent display)
+  * [p2eb_control](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_p2eb_control) (P2ES Control accessory)
