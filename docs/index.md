@@ -3,13 +3,18 @@ Resources for the Propeller user community.
 
 Not familiar with the Propeller?  Read an [overview of the Propeller Microcontroller](https://www.parallax.com/microcontrollers/propeller)
 
+## Object Exchange
+The object exchange is a collection of community and Parallax developed source code objects for the Propeller, also known as libraries.  They are free to use under the MIT license.  
+  * [Explore the P1 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1)
+  * [Explore the P2 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1)
+
 ## Propeller 1 (P1 or P8X32A)
 A multicore microcontroller released in Q1 2006.
 
 <img src="assets/Propeller1Chips.png" alt="P1 Chips">
 
-### Object Exchange
-The object exchange is a collection of community and Parallax developed source code objects for the Propeller, also known as libraries.  They are free to use under the MIT license.  [Explore the P1 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1)
+### P1 Object Exchange
+See [Object Exchange](#object-exchange), above.
 
 ### Documentation
 Reference [documentation and application notes](https://www.parallax.com/downloads/propeller-p8x32a-documentation) for the Propeller 1 (P8X32A) multicore microcontroller.
@@ -40,6 +45,9 @@ An advanced multicore microcontroller in active development; projected general r
     * [December 12, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=d16e3e5388): How to order trays of P2 chips, preliminary pricing, “Chat with Chip” webinar registration
     * [January 1, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=5de37d30e9): P2 evaluation board add-ons available.
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
+
+### P2 Object Exchange
+See [Object Exchange](#object-exchange), above.
 
 ### Documentation
   * Rev B/C Silicon (v33 - 08/2019-LPD1941 & 06/2020-LHU2019)
