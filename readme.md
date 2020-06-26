@@ -1,5 +1,14 @@
 # Propeller Repository
-This repository is a collection of information and source code written for (and often written by) the Parallax Propeller Community.  Most recent activity involves resources for the Propeller 2 Microcontroller; however, all Propeller 1 objects formerly published on the Propeller Object Exchange are now located in the /libraries/community/p1 folder.
+This repository is a collection of information and source code written for (and often written by) the Parallax Propeller Community.  
+
+## Object Exchange
+[View Propeller 1 objects](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1) formerly published on the Propeller Object Exchange.  These are now located in the /libraries/community/p1 folder.
+
+[View Propeller 2 objects](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2) being collected 
+ in the /libraries/community/p2 folder.
+
+## Website: propeller.parallax.com
+The [Propeller Website](https://propeller.parallax.com) is driven by content in this repository's /docs subfolder.
 
 ## Want to contribute?
 Parallax welcomes Propeller Community members to [contribute to this repository](https://github.com/parallaxinc/propeller/wiki/Contributing).  Don't allow great resources to remain buried in the forums - share them here in a version-controlled, centralized place for new and existing users to enjoy.  
@@ -17,6 +26,5 @@ LFS has long been a Git add-on but now is automatically included with the latest
 The same may not hold true for other platforms; for example, on Mac, first [install Git](https://git-scm.com/download/mac) then [install LFS](https://github.com/git-lfs/git-lfs/wiki/Installation#mac-osx).
 
 ## Resources
-- Visit the [Propeller Website](https://propeller.parallax.com) (driven by content in this repository's /docs subfolder) for a collection of resources.
 - See the [/resources](https://github.com/parallaxinc/propeller/tree/master/resources) subfolder for Propeller 2 code examples and articles.
 - See the [/libraries/community/p1](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1) subfolder for Propeller 1 objects transferred here from the Propeller Object Exchange.
