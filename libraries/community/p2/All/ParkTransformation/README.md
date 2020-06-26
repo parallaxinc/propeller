@@ -6,7 +6,7 @@ Language: P2 assembly
 
 Created: 09-May-2020
 
-Category: math, motor control, snippets
+Category: math, motor control, snippet
 
 Description:
 The Park or d/q-transformation is useful when controlling AC motors or brushless servo motors. It transforms currents or voltages from a three phase system with stator reference into a rectangular coordinate system that is referenced to the rotor. The output can be treated as if the motor was a DC machine. After calculations (PID control) are done the values are transformed back to the three phase system using the inverse Park transformation. The results can then be output to a three phase power stage.
