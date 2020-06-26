@@ -4,6 +4,7 @@ Resources for the Propeller user community.
 Not familiar with the Propeller?  Read an [overview of the Propeller Microcontroller](https://www.parallax.com/microcontrollers/propeller)
 
 ## Propeller 1 (P1 or P8X32A)
+A multicore microcontroller released in Q1 2006.
 
 <img src="assets/Propeller1Chips.png" alt="P1 Chips">
 
@@ -17,6 +18,7 @@ Reference [documentation and application notes](https://www.parallax.com/downloa
 Software options from Parallax include [Propeller Tool, SimpleIDE, and Propeller IDE](https://www.parallax.com/downloads/propeller-p8x32a-software).
 
 ## Propeller 2 (P2 or P2X8C4M64P)
+An advanced multicore microcontroller in active development; projected general release Q4 2020.
 
 [<img src="assets/p2_pinout_large.jpg" alt="P2 Pinout; click to enlarge" height="200" width="200">](assets/p2_pinout_large.jpg)&nbsp;&nbsp;&nbsp;&nbsp;[<img src="assets/p2-es_rev_a.jpg" alt="P2 ES Eval Board; click to enlarge" height="200" width="200">](assets/p2-es_rev_a.jpg)
 
@@ -38,6 +40,14 @@ Software options from Parallax include [Propeller Tool, SimpleIDE, and Propeller
     * [December 12, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=d16e3e5388): How to order trays of P2 chips, preliminary pricing, “Chat with Chip” webinar registration
     * [January 1, 2019](https://us19.campaign-archive.com/?u=0234d4a511fd7724a797df3d3&id=5de37d30e9): P2 evaluation board add-ons available.
   * View or join the discussions in the [Propeller 2 Forum](http://forums.parallax.com/categories/propeller-2-multicore-microcontroller)
+
+### Recent Activity
+* Updated references to [Park Transformation](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/ParkTransformation) object
+* Added Jon "JonnyMac" McPhalen's objects
+  * [prng](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_prng) (Pseudo-Random and Random Number Generator)
+  * [serial](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_serial) (True-most, unbuffered serial coms using smart pins
+  * [nstr](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_nstr) (Number String)
+
 
 ### Documentation
   * Rev B/C Silicon (v33 - 08/2019-LPD1941 & 06/2020-LHU2019)
