@@ -1,5 +1,5 @@
 # Propeller Developer Site
-Resources for the Propeller developer community.
+Resources for the Propeller developer community; gathered and served on [GitHub](https://github.com/parallaxinc/propeller/).
 
 Not familiar with the Propeller?  Read an [overview of the Propeller Microcontroller](https://www.parallax.com/microcontrollers/propeller)
 
