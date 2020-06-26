@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.15"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>ESP8266 Library: esp8266.c File Reference</title>
+<title>ESP8266 Skinned down Library: esp8266.c File Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -21,10 +21,10 @@
  <tbody>
  <tr style="height: 56px;">
   <td id="projectalign" style="padding-left: 0.5em;">
-   <div id="projectname">ESP8266 Library
-   &#160;<span id="projectnumber">1.0</span>
+   <div id="projectname">ESP8266 Skinned down Library
+   &#160;<span id="projectnumber">1.3</span>
    </div>
-   <div id="projectbrief">Send Commands to Parallax ESP8266 board</div>
+   <div id="projectbrief">Use with Parallax ESP module</div>
   </td>
  </tr>
  </tbody>
@@ -79,6 +79,9 @@ $(function() {
 </div><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:a216b2abde239eb946227cab4973b5bc8"><td class="memItemLeft" align="right" valign="top"><a id="a216b2abde239eb946227cab4973b5bc8"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOIN</b>&#160;&#160;&#160;0xEF</td></tr>
+<tr class="separator:a216b2abde239eb946227cab4973b5bc8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a65528c74adc6691eac2c7a2f39328064"><td class="memItemLeft" align="right" valign="top"><a id="a65528c74adc6691eac2c7a2f39328064"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>CONNECT</b>&#160;&#160;&#160;0xE4</td></tr>
 <tr class="separator:a65528c74adc6691eac2c7a2f39328064"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -100,42 +103,91 @@ Macros</h2></td></tr>
 <tr class="memitem:abc9603445bf79a3793831ee1d0ea8890"><td class="memItemLeft" align="right" valign="top"><a id="abc9603445bf79a3793831ee1d0ea8890"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SEND</b>&#160;&#160;&#160;0xEA</td></tr>
 <tr class="separator:abc9603445bf79a3793831ee1d0ea8890"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4ccc9878008def89d325d0bb7efdbd6b"><td class="memItemLeft" align="right" valign="top"><a id="a4ccc9878008def89d325d0bb7efdbd6b"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>CHECK</b>&#160;&#160;&#160;0xEE</td></tr>
+<tr class="separator:a4ccc9878008def89d325d0bb7efdbd6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a59da1d65e87a723efe808dbabb4fc205"><td class="memItemLeft" align="right" valign="top"><a id="a59da1d65e87a723efe808dbabb4fc205"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SET</b>&#160;&#160;&#160;0xED</td></tr>
 <tr class="separator:a59da1d65e87a723efe808dbabb4fc205"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0a5ceb9ceb914e08d345410b561cb37a"><td class="memItemLeft" align="right" valign="top"><a id="a0a5ceb9ceb914e08d345410b561cb37a"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>CMD</b>&#160;&#160;&#160;0xFE</td></tr>
 <tr class="separator:a0a5ceb9ceb914e08d345410b561cb37a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1db55153877cfdc729091d3aecdb3bd2"><td class="memItemLeft" align="right" valign="top"><a id="a1db55153877cfdc729091d3aecdb3bd2"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>UDP</b>&#160;&#160;&#160;0xDE</td></tr>
+<tr class="separator:a1db55153877cfdc729091d3aecdb3bd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a44e89d523436fcbbf2c56e4fb335d509"><td class="memItemLeft" align="right" valign="top"><a id="a44e89d523436fcbbf2c56e4fb335d509"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SLEEP</b>&#160;&#160;&#160;0xF1</td></tr>
+<tr class="separator:a44e89d523436fcbbf2c56e4fb335d509"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed73fe325abb65b0bd60d72c1e0a58e3"><td class="memItemLeft" align="right" valign="top"><a id="aed73fe325abb65b0bd60d72c1e0a58e3"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>DROP</b>&#160;&#160;&#160;0xDC</td></tr>
+<tr class="separator:aed73fe325abb65b0bd60d72c1e0a58e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a9e91884f3a65adb562adf90ffe82095e"><td class="memItemLeft" align="right" valign="top"><a id="a9e91884f3a65adb562adf90ffe82095e"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>doWait</b> (void)</td></tr>
+<tr class="separator:a9e91884f3a65adb562adf90ffe82095e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6950b8daf78cf1ccfafeef183fbe13ee"><td class="memItemLeft" align="right" valign="top"><a id="a6950b8daf78cf1ccfafeef183fbe13ee"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>Recv</b> (void)</td></tr>
 <tr class="separator:a6950b8daf78cf1ccfafeef183fbe13ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba5a6f2e03363850d5fe913998bb5398"><td class="memItemLeft" align="right" valign="top"><a id="aba5a6f2e03363850d5fe913998bb5398"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>Results</b> (void)</td></tr>
 <tr class="separator:aba5a6f2e03363850d5fe913998bb5398"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a365c9d83f15e97f5aeee08164804ba4e"><td class="memItemLeft" align="right" valign="top"><a id="a365c9d83f15e97f5aeee08164804ba4e"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>millis</b> (void)</td></tr>
+<tr class="separator:a365c9d83f15e97f5aeee08164804ba4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acec7a869274a941da797966d9f6ccfdb"><td class="memItemLeft" align="right" valign="top">fdserial *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#acec7a869274a941da797966d9f6ccfdb">esp8266_open</a> (int rx, int tx)</td></tr>
 <tr class="memdesc:acec7a869274a941da797966d9f6ccfdb"><td class="mdescLeft">&#160;</td><td class="mdescRight">open connection to esp8266 board  <a href="#acec7a869274a941da797966d9f6ccfdb">More...</a><br /></td></tr>
 <tr class="separator:acec7a869274a941da797966d9f6ccfdb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a407d3d1f41ee5e7ecc46dac9bec903aa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a407d3d1f41ee5e7ecc46dac9bec903aa">esp8266_connect</a> (char *url, char port)</td></tr>
-<tr class="memdesc:a407d3d1f41ee5e7ecc46dac9bec903aa"><td class="mdescLeft">&#160;</td><td class="mdescRight">open connection to url and port  <a href="#a407d3d1f41ee5e7ecc46dac9bec903aa">More...</a><br /></td></tr>
-<tr class="separator:a407d3d1f41ee5e7ecc46dac9bec903aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2cb26c27d691249f91bf3cf37b558727"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a2cb26c27d691249f91bf3cf37b558727">esp8266_send</a> (char handle, char *request, short opt)</td></tr>
-<tr class="memdesc:a2cb26c27d691249f91bf3cf37b558727"><td class="mdescLeft">&#160;</td><td class="mdescRight">send request data  <a href="#a2cb26c27d691249f91bf3cf37b558727">More...</a><br /></td></tr>
-<tr class="separator:a2cb26c27d691249f91bf3cf37b558727"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0087be22da2c29f40bdfe4e56ba72954"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a0087be22da2c29f40bdfe4e56ba72954">esp8266_recv</a> (char handle, char *data)</td></tr>
-<tr class="memdesc:a0087be22da2c29f40bdfe4e56ba72954"><td class="mdescLeft">&#160;</td><td class="mdescRight">receive request data  <a href="#a0087be22da2c29f40bdfe4e56ba72954">More...</a><br /></td></tr>
-<tr class="separator:a0087be22da2c29f40bdfe4e56ba72954"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad2c2839fddb0da319b54d5e24b3b1bac"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#ad2c2839fddb0da319b54d5e24b3b1bac">esp8266_connect</a> (char *url, short port)</td></tr>
+<tr class="memdesc:ad2c2839fddb0da319b54d5e24b3b1bac"><td class="mdescLeft">&#160;</td><td class="mdescRight">open connection to url and port  <a href="#ad2c2839fddb0da319b54d5e24b3b1bac">More...</a><br /></td></tr>
+<tr class="separator:ad2c2839fddb0da319b54d5e24b3b1bac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3f02329e681ae0a2808b56fadffa8ade"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a3f02329e681ae0a2808b56fadffa8ade">esp8266_send</a> (char handle, char *request)</td></tr>
+<tr class="memdesc:a3f02329e681ae0a2808b56fadffa8ade"><td class="mdescLeft">&#160;</td><td class="mdescRight">send request data  <a href="#a3f02329e681ae0a2808b56fadffa8ade">More...</a><br /></td></tr>
+<tr class="separator:a3f02329e681ae0a2808b56fadffa8ade"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:affe6990dc72230efc07cf5362f3fb272"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#affe6990dc72230efc07cf5362f3fb272">esp8266_http</a> (char handle, char *request, short opt)</td></tr>
+<tr class="memdesc:affe6990dc72230efc07cf5362f3fb272"><td class="mdescLeft">&#160;</td><td class="mdescRight">send http request  <a href="#affe6990dc72230efc07cf5362f3fb272">More...</a><br /></td></tr>
+<tr class="separator:affe6990dc72230efc07cf5362f3fb272"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6aba954a66594ee8e1c5dae59c299e14"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a6aba954a66594ee8e1c5dae59c299e14">esp8266_sendbin</a> (char handle, unsigned char *data, short size)</td></tr>
+<tr class="memdesc:a6aba954a66594ee8e1c5dae59c299e14"><td class="mdescLeft">&#160;</td><td class="mdescRight">send binary data  <a href="#a6aba954a66594ee8e1c5dae59c299e14">More...</a><br /></td></tr>
+<tr class="separator:a6aba954a66594ee8e1c5dae59c299e14"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7c9edaa3c6031b02f85c211c16510f35"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a7c9edaa3c6031b02f85c211c16510f35">esp8266_recv</a> (char handle, char *data, int size)</td></tr>
+<tr class="memdesc:a7c9edaa3c6031b02f85c211c16510f35"><td class="mdescLeft">&#160;</td><td class="mdescRight">receive request data  <a href="#a7c9edaa3c6031b02f85c211c16510f35">More...</a><br /></td></tr>
+<tr class="separator:a7c9edaa3c6031b02f85c211c16510f35"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a55c4911307de33bc35c7f682f4f735b7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a55c4911307de33bc35c7f682f4f735b7">esp8266_udp</a> (char *url, short port)</td></tr>
+<tr class="memdesc:a55c4911307de33bc35c7f682f4f735b7"><td class="mdescLeft">&#160;</td><td class="mdescRight">open UDP connection  <a href="#a55c4911307de33bc35c7f682f4f735b7">More...</a><br /></td></tr>
+<tr class="separator:a55c4911307de33bc35c7f682f4f735b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a337bd78b36b5f5a644cfaa7bed494dd3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a337bd78b36b5f5a644cfaa7bed494dd3">esp8266_close</a> (char handle)</td></tr>
 <tr class="memdesc:a337bd78b36b5f5a644cfaa7bed494dd3"><td class="mdescLeft">&#160;</td><td class="mdescRight">close handle  <a href="#a337bd78b36b5f5a644cfaa7bed494dd3">More...</a><br /></td></tr>
 <tr class="separator:a337bd78b36b5f5a644cfaa7bed494dd3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7b9485ad2f503e60609429ed7b8f1df7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a7b9485ad2f503e60609429ed7b8f1df7">esp8266_join</a> (char *ssd, char *pwd)</td></tr>
+<tr class="memdesc:a7b9485ad2f503e60609429ed7b8f1df7"><td class="mdescLeft">&#160;</td><td class="mdescRight">join network router  <a href="#a7b9485ad2f503e60609429ed7b8f1df7">More...</a><br /></td></tr>
+<tr class="separator:a7b9485ad2f503e60609429ed7b8f1df7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab14b179b3bad3bd9b9161075b3713b44"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#ab14b179b3bad3bd9b9161075b3713b44">esp8266_set</a> (char *env, char *value)</td></tr>
+<tr class="memdesc:ab14b179b3bad3bd9b9161075b3713b44"><td class="mdescLeft">&#160;</td><td class="mdescRight">set environment value  <a href="#ab14b179b3bad3bd9b9161075b3713b44">More...</a><br /></td></tr>
+<tr class="separator:ab14b179b3bad3bd9b9161075b3713b44"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a542da2f3e486c991b755dc622bb1c4e4"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a542da2f3e486c991b755dc622bb1c4e4">esp8266_check</a> (char *env)</td></tr>
+<tr class="memdesc:a542da2f3e486c991b755dc622bb1c4e4"><td class="mdescLeft">&#160;</td><td class="mdescRight">get environment value  <a href="#a542da2f3e486c991b755dc622bb1c4e4">More...</a><br /></td></tr>
+<tr class="separator:a542da2f3e486c991b755dc622bb1c4e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b26f9f2df28c14f87574a2f2c8d9616"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a9b26f9f2df28c14f87574a2f2c8d9616">esp8266_poll</a> (char handle)</td></tr>
+<tr class="memdesc:a9b26f9f2df28c14f87574a2f2c8d9616"><td class="mdescLeft">&#160;</td><td class="mdescRight">poll connection status  <a href="#a9b26f9f2df28c14f87574a2f2c8d9616">More...</a><br /></td></tr>
+<tr class="separator:a9b26f9f2df28c14f87574a2f2c8d9616"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedb01699d3a56824f3f815cbe335f803"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#aedb01699d3a56824f3f815cbe335f803">esp8266_listen</a> (char protocol, char *uri)</td></tr>
+<tr class="memdesc:aedb01699d3a56824f3f815cbe335f803"><td class="mdescLeft">&#160;</td><td class="mdescRight">set listen uri  <a href="#aedb01699d3a56824f3f815cbe335f803">More...</a><br /></td></tr>
+<tr class="separator:aedb01699d3a56824f3f815cbe335f803"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af16a2e3a2d2a257beb4b514771d00f7c"><td class="memItemLeft" align="right" valign="top"><a id="af16a2e3a2d2a257beb4b514771d00f7c"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>esp8266_sleep</b> (char type, int microsec)</td></tr>
+<tr class="separator:af16a2e3a2d2a257beb4b514771d00f7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a52d9c2f94e9e166a2828d53ca4f53a8c"><td class="memItemLeft" align="right" valign="top"><a id="a52d9c2f94e9e166a2828d53ca4f53a8c"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a52d9c2f94e9e166a2828d53ca4f53a8c">esp8266_drop</a> (void)</td></tr>
+<tr class="memdesc:a52d9c2f94e9e166a2828d53ca4f53a8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">drop WiFi station connection <br /></td></tr>
+<tr class="separator:a52d9c2f94e9e166a2828d53ca4f53a8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a726cad84c9b68a747bffab8c36a126f0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a726cad84c9b68a747bffab8c36a126f0">esp8266_results</a> ()</td></tr>
 <tr class="memdesc:a726cad84c9b68a747bffab8c36a126f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">get return value  <a href="#a726cad84c9b68a747bffab8c36a126f0">More...</a><br /></td></tr>
 <tr class="separator:a726cad84c9b68a747bffab8c36a126f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3aa677a45c7687bdaf0e063f3077e183"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#a3aa677a45c7687bdaf0e063f3077e183">esp8266_print</a> (char *data)</td></tr>
-<tr class="memdesc:a3aa677a45c7687bdaf0e063f3077e183"><td class="mdescLeft">&#160;</td><td class="mdescRight">special print  <a href="#a3aa677a45c7687bdaf0e063f3077e183">More...</a><br /></td></tr>
-<tr class="separator:a3aa677a45c7687bdaf0e063f3077e183"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af101664c352bc8b68843b040291cce70"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="esp8266_8c.html#af101664c352bc8b68843b040291cce70">esp8266_print</a> (char *data, int size)</td></tr>
+<tr class="memdesc:af101664c352bc8b68843b040291cce70"><td class="mdescLeft">&#160;</td><td class="mdescRight">special print  <a href="#af101664c352bc8b68843b040291cce70">More...</a><br /></td></tr>
+<tr class="separator:af101664c352bc8b68843b040291cce70"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -148,9 +200,9 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>_TX</b></td></tr>
 <tr class="memitem:a6bc4b267a4529138272f6ad8656c5aaa"><td class="memItemLeft" align="right" valign="top"><a id="a6bc4b267a4529138272f6ad8656c5aaa"></a>
 fdserial *&#160;</td><td class="memItemRight" valign="bottom"><b>_esp</b></td></tr>
 <tr class="separator:a6bc4b267a4529138272f6ad8656c5aaa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b8ebe9b269547164ab07eb5f34efe4a"><td class="memItemLeft" align="right" valign="top"><a id="a6b8ebe9b269547164ab07eb5f34efe4a"></a>
-char&#160;</td><td class="memItemRight" valign="bottom"><b>_Buffer</b> [2048]</td></tr>
-<tr class="separator:a6b8ebe9b269547164ab07eb5f34efe4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad17f0f0404e1b400d877b244c651b0bb"><td class="memItemLeft" align="right" valign="top"><a id="ad17f0f0404e1b400d877b244c651b0bb"></a>
+char&#160;</td><td class="memItemRight" valign="bottom"><b>_Buffer</b> [1050]</td></tr>
+<tr class="separator:ad17f0f0404e1b400d877b244c651b0bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a95fa8bde91212e2d8ea7171ba2b9b3d4"><td class="memItemLeft" align="right" valign="top"><a id="a95fa8bde91212e2d8ea7171ba2b9b3d4"></a>
 char&#160;</td><td class="memItemRight" valign="bottom"><b>_Work</b> [16]</td></tr>
 <tr class="separator:a95fa8bde91212e2d8ea7171ba2b9b3d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -171,8 +223,35 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
 <div class="textblock"><p>Connect to Parallax WX board. </p>
 <dl class="section author"><dt>Author</dt><dd>Michael Burmeister </dd></dl>
 <dl class="section date"><dt>Date</dt><dd>April 4, 2019 </dd></dl>
-<dl class="section version"><dt>Version</dt><dd>1.0 </dd></dl>
+<dl class="section version"><dt>Version</dt><dd>1.1 </dd></dl>
 </div><h2 class="groupheader">Function Documentation</h2>
+<a id="a542da2f3e486c991b755dc622bb1c4e4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a542da2f3e486c991b755dc622bb1c4e4">&#9670;&nbsp;</a></span>esp8266_check()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char* esp8266_check </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>env</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>get environment value </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">env</td><td>environment item </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>environment value </dd></dl>
+
+</div>
+</div>
 <a id="a337bd78b36b5f5a644cfaa7bed494dd3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a337bd78b36b5f5a644cfaa7bed494dd3">&#9670;&nbsp;</a></span>esp8266_close()</h2>
 
@@ -199,8 +278,8 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
 
 </div>
 </div>
-<a id="a407d3d1f41ee5e7ecc46dac9bec903aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a407d3d1f41ee5e7ecc46dac9bec903aa">&#9670;&nbsp;</a></span>esp8266_connect()</h2>
+<a id="ad2c2839fddb0da319b54d5e24b3b1bac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad2c2839fddb0da319b54d5e24b3b1bac">&#9670;&nbsp;</a></span>esp8266_connect()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -214,7 +293,7 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">char&#160;</td>
+          <td class="paramtype">short&#160;</td>
           <td class="paramname"><em>port</em>&#160;</td>
         </tr>
         <tr>
@@ -234,6 +313,126 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>handle or negative </dd></dl>
+
+</div>
+</div>
+<a id="affe6990dc72230efc07cf5362f3fb272"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#affe6990dc72230efc07cf5362f3fb272">&#9670;&nbsp;</a></span>esp8266_http()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_http </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>handle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>request</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">short&#160;</td>
+          <td class="paramname"><em>opt</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>send http request </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handle</td><td></td></tr>
+    <tr><td class="paramname">request</td><td></td></tr>
+    <tr><td class="paramname">opt</td><td>option 0 - close, 1 - keep alive </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>status </dd></dl>
+
+</div>
+</div>
+<a id="a7b9485ad2f503e60609429ed7b8f1df7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7b9485ad2f503e60609429ed7b8f1df7">&#9670;&nbsp;</a></span>esp8266_join()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_join </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>ssd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>pwd</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>join network router </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">ssd</td><td>router name </td></tr>
+    <tr><td class="paramname">pwd</td><td>password for router </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>statue </dd></dl>
+
+</div>
+</div>
+<a id="aedb01699d3a56824f3f815cbe335f803"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedb01699d3a56824f3f815cbe335f803">&#9670;&nbsp;</a></span>esp8266_listen()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_listen </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>protocal</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>uri</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>set listen uri </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">protocal</td><td></td></tr>
+    <tr><td class="paramname">uri</td><td>to listen for / </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -274,8 +473,35 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
 
 </div>
 </div>
-<a id="a3aa677a45c7687bdaf0e063f3077e183"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3aa677a45c7687bdaf0e063f3077e183">&#9670;&nbsp;</a></span>esp8266_print()</h2>
+<a id="a9b26f9f2df28c14f87574a2f2c8d9616"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b26f9f2df28c14f87574a2f2c8d9616">&#9670;&nbsp;</a></span>esp8266_poll()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_poll </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>handle</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>poll connection status </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handle</td><td>connection handle </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>status </dd></dl>
+
+</div>
+</div>
+<a id="af101664c352bc8b68843b040291cce70"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af101664c352bc8b68843b040291cce70">&#9670;&nbsp;</a></span>esp8266_print()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -284,8 +510,18 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
           <td class="memname">void esp8266_print </td>
           <td>(</td>
           <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>data</em></td><td>)</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -294,14 +530,15 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">*data</td><td></td></tr>
+    <tr><td class="paramname">size</td><td>total size of data </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="a0087be22da2c29f40bdfe4e56ba72954"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0087be22da2c29f40bdfe4e56ba72954">&#9670;&nbsp;</a></span>esp8266_recv()</h2>
+<a id="a7c9edaa3c6031b02f85c211c16510f35"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7c9edaa3c6031b02f85c211c16510f35">&#9670;&nbsp;</a></span>esp8266_recv()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -316,7 +553,13 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>data</em>&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -331,6 +574,7 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
   <table class="params">
     <tr><td class="paramname">handle</td><td></td></tr>
     <tr><td class="paramname">*data</td><td></td></tr>
+    <tr><td class="paramname">size</td><td>buffer size &lt; 2048 </td></tr>
   </table>
   </dd>
 </dl>
@@ -359,8 +603,8 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
 
 </div>
 </div>
-<a id="a2cb26c27d691249f91bf3cf37b558727"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2cb26c27d691249f91bf3cf37b558727">&#9670;&nbsp;</a></span>esp8266_send()</h2>
+<a id="a3f02329e681ae0a2808b56fadffa8ade"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3f02329e681ae0a2808b56fadffa8ade">&#9670;&nbsp;</a></span>esp8266_send()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -375,13 +619,7 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>request</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">short&#160;</td>
-          <td class="paramname"><em>opt</em>&#160;</td>
+          <td class="paramname"><em>request</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -396,7 +634,127 @@ unsigned long&#160;</td><td class="memItemRight" valign="bottom"><b>_PCNTX</b></
   <table class="params">
     <tr><td class="paramname">handle</td><td></td></tr>
     <tr><td class="paramname">request</td><td></td></tr>
-    <tr><td class="paramname">opt</td><td>option close/leave connection open </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>status </dd></dl>
+
+</div>
+</div>
+<a id="a6aba954a66594ee8e1c5dae59c299e14"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6aba954a66594ee8e1c5dae59c299e14">&#9670;&nbsp;</a></span>esp8266_sendbin()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_sendbin </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>handle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">short&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>send binary data </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handle</td><td>connection handle </td></tr>
+    <tr><td class="paramname">data</td><td>binary data to send </td></tr>
+    <tr><td class="paramname">size</td><td>length of binary data </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>status </dd></dl>
+
+</div>
+</div>
+<a id="ab14b179b3bad3bd9b9161075b3713b44"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab14b179b3bad3bd9b9161075b3713b44">&#9670;&nbsp;</a></span>esp8266_set()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_set </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>env</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>set environment value </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">env</td><td>environment item </td></tr>
+    <tr><td class="paramname">value</td><td>environment value string </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>status </dd></dl>
+
+</div>
+</div>
+<a id="a55c4911307de33bc35c7f682f4f735b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a55c4911307de33bc35c7f682f4f735b7">&#9670;&nbsp;</a></span>esp8266_udp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int esp8266_udp </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>url</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">short&#160;</td>
+          <td class="paramname"><em>port</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>open UDP connection </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">url</td><td>host or address to use </td></tr>
+    <tr><td class="paramname">port</td><td>remote port number to use </td></tr>
   </table>
   </dd>
 </dl>

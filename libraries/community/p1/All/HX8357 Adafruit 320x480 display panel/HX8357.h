@@ -140,7 +140,7 @@ void HX8357_displayMode(char mode);
 void HX8357_textColor(short fgcolor, short bgcolor);
 
 /**
- * @brief write small text
+ * @brief write small string 8x8 (5x7)
  * @param x
  * @param y
  * @param text
@@ -148,7 +148,7 @@ void HX8357_textColor(short fgcolor, short bgcolor);
 void HX8357_writeSStr(short x, short y, char *text);
 
 /**
- * @brief write small character
+ * @brief write small character 8x8 (5x7)
  * @param x
  * @param y
  * @param character
@@ -156,7 +156,7 @@ void HX8357_writeSStr(short x, short y, char *text);
 void HX8357_writeSChar(short x, short y, char character);
 
 /**
- * @brief write char
+ * @brief write character 16x32
  * @param x offset
  * @param y offset
  * @param c character
@@ -164,7 +164,7 @@ void HX8357_writeSChar(short x, short y, char character);
 void HX8357_writeChar(short x, short y, char c);
 
 /**
- * @brief write string
+ * @brief write string 16x32
  * @param x offset
  * @param y offset
  * @param s pointer to string
@@ -172,7 +172,7 @@ void HX8357_writeChar(short x, short y, char c);
 void HX8357_writeStr(short x, short y, char* s);
 
 /**
- * @brief write extra large character
+ * @brief write extra large character 32x64
  * @param x offset
  * @param y offset
  * @param c character
@@ -180,7 +180,7 @@ void HX8357_writeStr(short x, short y, char* s);
 void HX8357_writeXChar(short x, short y, char c);
 
 /**
- * @brief write extra large string
+ * @brief write extra large string 32x64
  * @param x offset
  * @param y offset
  * @param s pointer to string

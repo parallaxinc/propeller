@@ -8,41 +8,49 @@
 
 #include "simpletools.h"
 #include "ds1302.h"
+#include "time.h"
+#include <stdlib.h>
 
-#define MISO 1
-#define MOSI 2
-#define SCLK 3
-#define CS   4
+#define MISO 8
+#define MOSI 9
+#define SCLK 10
+#define CS   11
 
+time_t tm;
 int m, s, d, mn, hr, yr, dw;
 
 
 int main()
 {
-
+  tm = 0;
+  putenv("TZ=CST6CDT");
+  
   DS1302_open(MISO, CS, SCLK, MOSI);
     
   pause(1000);
   
   m = DS1302_getWriteProtect();
   if (m)
-    print("Write Protect On\n");
+    printi("Write Protect On\n");
   else
-    print("Write Protect Off\n");
-    
+    printi("Write Protect Off\n");
   
-  if (1)
+  if (0) //change to 1 to set
   {
     DS1302_clearWriteProtect();
-    DS1302_setYear(18);
-    DS1302_setMonth(1);
-    DS1302_setDay(18);
-    DS1302_setHour(11);
-    DS1302_setMinute(00);
-    DS1302_setSecond(00);
+    DS1302_setMessage("short message");
+    DS1302_setWriteProtect();
   }
   
-  while(1)
+  if (0) //change to 1 to set
+  {
+    DS1302_clearWriteProtect();
+    DS1302_setDate(20, 2, 21);
+    DS1302_setTime(20, 44, 00);
+    DS1302_setWriteProtect();
+  }
+  
+  if (1)
   {
     m = DS1302_getMinutes();
     s = DS1302_getSeconds();
@@ -52,8 +60,18 @@ int main()
     dw = DS1302_getWeekDay();
     yr = 2000 + DS1302_getYear();
     
-    print("Date: %d/%d/%d, %d:%d:%d\n", mn, d, yr, hr, m, s);
-    
-    pause(1000);
-  }  
+    printi("Date: %d/%d/%d, %d:%02d:%02d\n", mn, d, yr, hr, m, s);
+
+    printi("ticks: %d\n", time(&tm));
+    DS1302_setDateTime();
+    printi("Message: %s\n", DS1302_getMessage());
+  }
+  
+  while (1)
+  {
+    time(&tm);
+    printi("Date: %s", asctime(localtime(&tm)));
+    pause(10000);
+  }
+      
 }

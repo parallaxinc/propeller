@@ -1,11 +1,8 @@
 /**
- * @file HX8357.c
  * @brief HX8357 320x480 display panel
  * @author Michael Burmeister
  * @date March 11, 2019
  * @version 1.0
- * 
- * <a href="HX8357_8.html">320x480 display library</a>
 */
 
 #include "simpletools.h"
