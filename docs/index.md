@@ -8,6 +8,8 @@ The object exchange is a collection of community and Parallax developed source c
   * [Explore the P1 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1)
   * [Explore the P2 Object Exchange](https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2)
 
+###### Want to share your objects?  [Here's how to contribute.](https://github.com/parallaxinc/propeller/wiki/Contributing)
+
 ## [Propeller 1 (P1 or P8X32A)](p1.md)
 A multicore microcontroller released in Q1 2006.
 
