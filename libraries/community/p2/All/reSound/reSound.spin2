@@ -1,0 +1,956 @@
+{
+################################################################################################################################
+#         reSound - A sound driver and mixer for the Parallax Propeller 2 (Beta 2)   (C) 2020 Johannes Ahlebrand               #                                                            
+################################################################################################################################
+#                                    TERMS OF USE: Parallax Object Exchange License                                            #                                                            
+################################################################################################################################
+#Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    # 
+#files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    #
+#modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software#
+#is furnished to do so, subject to the following conditions:                                                                   #
+#                                                                                                                              #
+#The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.#
+#                                                                                                                              #
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          #
+#WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         #
+#COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   #
+#ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         #
+################################################################################################################################
+}
+
+CON
+  ' Setup configurations
+  DAC_8BIT_NOISE         = %00_00_01  ' DAC 8-bit noise
+  DAC_16BIT_PWM_DITHER   = %00_00_10  ' DAC 16-bit dither, noise
+  DAC_16BIT_NOISE_DITHER = %00_00_11  ' DAC 16-bit dither, PWM
+  ANALOG_990_OHM_3_3_V   = %00_00_00  ' 990 ohm, 3.3V
+  ANALOG_600_OHM_2_0_V   = %01_00_00  ' 600 ohm, 2.0V
+  ANALOG_123_OHM_3_3_V   = %10_00_00  ' 123 ohm, 3.3V
+  ANALOG_75_OHM_2_0_V    = %11_00_00  '  75 ohm, 2.0V
+  DIR_ENABLE_OUTPUT      = %00_01_00
+  DAC_MODE_PWM           = DIR_ENABLE_OUTPUT | ANALOG_75_OHM_2_0_V | DAC_16BIT_PWM_DITHER
+  DAC_MODE_DEFAULT       = DIR_ENABLE_OUTPUT | ANALOG_75_OHM_2_0_V | DAC_16BIT_NOISE_DITHER
+  DAC_MODE_NOISE         = DIR_ENABLE_OUTPUT | ANALOG_75_OHM_2_0_V | DAC_8BIT_NOISE
+
+  ' Input to output mix options
+  MIX_QUADRO             = %11111111_111_111_111_111_000_000_000_000
+  MIX_STEREO             = %11111111_111_111_111_111_111_111_000_000
+  MIX_MONO               = %11111111_111_111_111_111_111_111_111_000
+
+  ' Input channel options
+  SIGNED16            = %11111111_11111111111_11111_1111000_1
+  SIGNED8             = %11111111_11111111111_11111_1001101_1
+  UNSIGNED16          = %11111111_11111111111_11111_0111000_1
+  UNSIGNED8           = %11111111_11111111111_11111_0001101_1
+  ATTENTION           = %11111111_11111111111_00000_1111111_1
+  HILO                = %11111111_11111111111_01000_1111111_1
+  I_FX1               = %11111110_11111111111_11111_1111111_1
+  I_FX2               = %11111101_11111111111_11111_1111111_1
+  I_FX3               = %11111011_11111111111_11111_1111111_1
+  I_FX4               = %11110111_11111111111_11111_1111111_1
+  I_FX5               = %11101111_11111111111_11111_1111111_1
+  I_FX6               = %11011111_11111111111_11111_1111111_1
+  I_FX7               = %10111111_11111111111_11111_1111111_1
+  I_FX8               = %01111111_11111111111_11111_1111111_1
+
+  ' Common output options
+  C_ATTENTION         = %00001111
+  C_FX1               = %11111110
+  C_FX2               = %11111101
+  C_FX3               = %11111011
+  C_FX4               = %11110111
+  C_FX5               = %11101111
+  C_FX6               = %11011111
+  C_FX7               = %10111111
+  C_FX8               = %01111111
+
+  HZ = $8000_0000
+
+
+PUB start()
+'
+  coginit(COGEXEC_NEW, @RESOUND, hubFootprintStart)
+
+PUB init(sysClock_1, mixingFrequency_1, forceHq_1, nrInputs_1, leftPin_1, rightPin_1, commonEffectsMask_1, enableAttention_1, hubRegPtr_1) 
+
+' Initialize reSound according to the parameters given in stereo mode
+'
+    ' @sysClock          - The Parallax P2 system clock in Hz
+    ' @mixingFrequency   - The mixing frequency that reSound should run at
+    ' @forceHq           - This forces the sample period to be a multiple of 256 to enable the HQ PWM smart pin output mode
+    ' @nrInputs          - The number of inputs buffers to process by the reSound mixer 
+    ' @leftPin           - The smart pin number that should output the left audio signal
+    ' @rightPin          - The smart pin number that should output the right audio signal
+    ' @commonEffectsMask - Sets wich common effects should be used, such as reverb, lowpass filter, etc
+    ' @enableAttention   - Enable cog attention events 
+    ' @hubRegPtr         - A pointer to hub RAM where reSound should store its data (this memory chunk needs to be "big enough")
+'
+
+  left := leftPin_1
+  right := rightPin_1
+  initExplicit(sysClock_1, mixingFrequency_1, forceHq_1, nrInputs_1, 2, @left, commonEffectsMask_1, enableAttention_1, hubRegPtr_1)
+
+
+PUB initExplicit(sysClock_2, mixingFrequency_2, forceHq, nrInputs_2, nrOutputs_2, pinConfigs_2, commonEffectsMask_2, enableAttention_2, hubRegPtr_2)
+'
+' Initialize reSound according to the parameters given in explicit mode
+'
+    ' @sysClock           - The Parallax P2 system clock in Hz
+    ' @mixingFrequency    - The mixing frequency that reSound should run at
+    ' @forceHq            - This forces the sample period to be a multiple of 256 to enable the HQ PWM smart pin output mode
+    ' @nrInputs           - The number of inputs buffers to process by the reSound mixer 
+    ' @nrOutputs          - The number of analog output pins to use
+    ' @pinConfigs         - A list of P2 pin numbers to use as analog outputs
+    ' @commonEffectsMask  - Sets wich common effects should be used, such as reverb, lowpass filter, etc
+    ' @enableAttention    - Enable cog attention events (needed for buffer fill interrupt handling)
+    ' @hubRegPtr          - A pointer to hub RAM where reSound should store its data (this memory chunk needs to be "big enough")
+'
+
+  ' Initialize all outputs amplitudes to zero
+  repeat i from 0 to 7
+    outputAmplitude[i] := 0
+
+  ' Setup reSound API variables and pointers
+  systemClock := sysClock_2
+  hiloMapPtr := hubRegPtr_2
+  hubFootprintStart := hubRegPtr_2 + 4
+  configurationPointer := hubFootprintStart
+  configuredInputsCounter := 0
+  numberOfInputs := nrInputs_2
+  mixFrequency := mixingFrequency_2
+
+  ' Setup the reSound driver init data
+  word[configurationPointer][0] := systemClock / mixingFrequency_2 
+  byte[configurationPointer][3] := nrInputs_2
+  byte[configurationPointer][4] := nrOutputs_2
+  byte[configurationPointer][5] := commonEffectsMask_2 
+
+  if forceHq
+    word[configurationPointer][0] := word[configurationPointer][0] & $FF00
+
+  ' Use the better quality option, PWM dither, if sysClock is a 256x multiple of the mixing frequency
+  if (word[configurationPointer][0] & $FF) == 0
+    byte[configurationPointer][2] := DAC_MODE_PWM 
+  else
+    byte[configurationPointer][2] := DAC_MODE_DEFAULT 
+
+  ' Set the right skip pattern for attention on/off
+  if enableAttention_2
+    byte[configurationPointer][6] := C_ATTENTION
+  else
+    byte[configurationPointer][6] := %11101111
+
+  ' Increment the configuration pointer to point beyond the 7 static parameters
+  configurationPointer += 7
+
+  ' Register all smartpins that should be outputs
+  repeat i from 0 to nrOutputs_2-1
+    byte[configurationPointer][i] := byte[pinConfigs_2][i]
+
+  ' Increment the configuration pointer to point beyond all the init data
+  configurationPointer += nrOutputs_2
+
+PUB configureInput(bufferPtr_3, bufferSize_3, maxBufferSize_3, frequency_3, optionsMask_3, attentionCogNr_3) : r
+'
+' Configure an input channel in stereo mode
+'
+    ' @bufferPtr      - A pointer to the sound buffer in hub memory
+    ' @bufferSize     - The size of the sound buffer in hub memory
+    ' @maxBufferSize  - Sets the maximum allowed buffer size for this sound buffer (the smaller the better frequency resolution)
+    ' @frequency      - The frequency to use when processing the sound buffer
+    ' @optionsMask    - A skip pattern to enable/disable different sample processing options
+    ' @attentionCogNr - If attention is enabled this sets the cog to get the attention of
+'
+
+  r := configureInputExplicit(bufferPtr_3, bufferSize_3, maxBufferSize_3, frequency_3, optionsMask_3, MIX_STEREO, attentionCogNr_3) 
+  'return 
+
+
+PUB configureInputExplicit(bufferPtr_4, bufferSize_4, maxBufferSize_4, frequency_4, optionsMask_4, outputMixMask_4, attentionCogNr_4) : r | nrOfMixes, inputHandle_1, bufferSizeShl, ptrAdjustment, phaseAccuShift
+'
+' Configure an input channel in explicit mode
+'
+    ' @bufferPtr      - A pointer to the sound buffer in hub memory
+    ' @bufferSize     - The size of the sound buffer in hub memory
+    ' @maxBufferSize  - Sets the maximum allowed buffer size for this sound buffer (the smaller the better frequency resolution)
+    ' @frequency      - The frequency to use when processing the sound buffer
+    ' @optionsMask    - A skip pattern to enable/disable different sample processing options
+    ' @outputMixMask  - A skip pattern do enable/disable mxing to different outputs
+    ' @attentionCogNr - If attention is enabled this sets the cog to get the attention of
+'
+
+  inputHandle_1 := configurationPointer ' Input handle is the start address of the current inputs parameters array in hub memory
+
+  ' Get the accumulator shift amount based on the wanted buffer size
+  maxBufferSize_4 := 33 - (encod maxBufferSize_4)
+
+  ' Setup the first common options
+  long[configurationPointer][0] := frequency_4      ' Frequency
+  long[configurationPointer][4] := maxBufferSize_4  ' Shift amount, how many bits of the phase accumulator is used for the sample pointer?
+  long[configurationPointer][5] := optionsMask_4    ' Common sample options, 8bit, 16bit, signed, unsigned, little/big endianess
+  long[configurationPointer][6] := outputMixMask_4  ' Which output channels should output this input?
+
+  phaseAccuShift := long[configurationPointer][4] ' Get the accumulator shift amount for this input
+  bufferSizeShl  := bufferSize_4 << phaseAccuShift
+  ptrAdjustment  := -bufferSizeShl
+
+  ' Handle 8 or 16 bit samples differently
+  if(long[inputHandle_1][5] & 32)
+    ptrAdjustment >>= phaseAccuShift - 1 
+  else
+    ptrAdjustment >>= phaseAccuShift
+
+  ' Fill in the rest of the common options
+  long[configurationPointer][1] :=  bufferPtr_4 - ptrAdjustment ' Buffer pointer, where in hub memory is the starting point of the sample/buffer?
+  long[configurationPointer][2] := -bufferSizeShl               ' Trigger point, from where in the buffer should we start playing?
+  long[configurationPointer][3] :=  bufferSizeShl               ' Loop size, how big is the sample/buffer loop?
+
+  ' Increment the configuration pointer to point beyond the 7 common fixed parameters
+  configurationPointer += 28
+
+  ' Increment the configuration pointer the right amount if the "read in attention mask option" is active
+  if (optionsMask_4 & (1 << 8)) == 0
+    word[configurationPointer] := 1 << attentionCogNr_4
+    'configurationPointer += 2
+
+  ' Increment the configuration pointer the right amount according to the number of effect parameter of the current input
+  repeat i from 0 to 7
+    if (optionsMask_4 & (1 << (i + 24))) == 0
+      configurationPointer += inputEffectParams[i]
+
+  ' Calcualte the amount of output channels that should be used when mixing this input channel
+  nrOfMixes := (ones ((!outputMixMask_4) & $00_ffffff)) / 3
+
+  ' Initialize the volume level for each output to zero
+  repeat i from 0 to nrOfMixes - 1
+    word[configurationPointer][i] := 0 
+
+  ' Increment the hub register pointer the right amount according to the selected number of output mixes for the current input
+  configurationPointer += nrOfMixes << 1 ' Each mix value is 16 bits
+
+  ' Count how many inputs that have been configured
+  configuredInputsCounter++
+
+  return inputHandle_1
+
+
+PUB playSample(inputHandle_2, samplePtr_2, length_2, loopSize_5, frequency_5, volume_2, panning_2) | mix1_2, mix2_2
+'
+' Play a sample in a specific input channel using stereo mode 
+'
+    ' @inputHandle - A pointer to the parameter data in hub memory for a specific input
+    ' @samplePtr   - A pointer in hub memory where the sample is located
+    ' @length      - The number of samples that the audio sample contain
+    ' @loopSize    - The number of samples that should be looped when reaching the end of the audio sample (1 means no loop)
+    ' @frequency   - The frequency to play back the sample at
+    ' @volume      - The volume that should be for mixing the input. A value from -16384 to 16383 (- means inverted waveform)
+    ' @panning     - Panning right/left. 0 = max left, 65535 = max right, 32768 = in the middle
+'
+
+  mix1_2 := ((65535 - panning_2) * volume_2) >> 16
+  mix2_2 := (panning_2 * volume_2) >> 16
+  playSampleExplicit(inputHandle_2, samplePtr_2, length_2, loopSize_5, frequency_5, mix1_2, mix2_2, 0, 0, 0, 0, 0, 0)
+
+
+PUB playSampleExplicit(inputHandle_3, samplePtr_3, length_3, loopSize_6, frequency_6, mix1_3, mix2_3, mix3_3, mix4_3, mix5_3, mix6_3, mix7_3, mix8_3) | bufferSizeShl_2, ptrAdjustment_2, phaseAccuShift_2
+'
+' Play a sample in a specific input channel using explicit mode 
+'
+    ' @inputHandle - A pointer to the parameter data in hub memory for a specific input
+    ' @samplePtr   - A pointer in hub memory where the sample is located
+    ' @length      - The number of samples that the audio sample contain
+    ' @loopSize    - The number of samples that should be looped when reaching the end of the audio sample (1 means no loop)
+    ' @frequency   - The frequency to play back the sample at
+    ' @mix1 - mix8 - The gain values for up to 8 outputs. Should be a value from -16384 to 16383 (- means inverted waveform)
+'
+
+  if samplePtr_3 == 0 or inputHandle_3 == 0
+    return
+
+  phaseAccuShift_2 := long[inputHandle_3][4] 
+  bufferSizeShl_2  := length_3 << phaseAccuShift_2
+  ptrAdjustment_2  := -bufferSizeShl_2
+
+  if(long[inputHandle_3][5] & 32)
+    ptrAdjustment_2 >>= phaseAccuShift_2 - 1  
+  else
+    ptrAdjustment_2 >>= phaseAccuShift_2
+
+  ifnot inputHandle_3 == 0
+    mixExplicit(inputHandle_3, frequency_6, 0, mix1_3, mix2_3, mix3_3, mix4_3, mix5_3, mix6_3, mix7_3, mix8_3)
+
+  long[inputHandle_3][1] :=  samplePtr_3 - ptrAdjustment_2
+  long[inputHandle_3][2] := -bufferSizeShl_2
+  long[inputHandle_3][3] :=  loopSize_6 << phaseAccuShift_2
+
+
+PUB mix(inputHandle_4, freq_3, vol_3, pan_3) | mix1_4, mix2_4
+'
+' Mix a specific input channel in stereo mode using frequency, volume and panning parameters 
+'
+    ' @inputHandle  - A pointer to the parameter data in hub memory for a specific input
+    ' @freq         - The frequency that reSound mix the input at
+    ' @vol          - The volume that should be for mixing the input. A value from -16384 to 16383 (- means inverted waveform)
+    ' @pan          - Panning right/left. 0 = max left, 65535 = max right, 32768 = in the middle
+'
+
+  mix1_4 := ((65535 - pan_3) * vol_3) >> 16
+  mix2_4 := (pan_3 * vol_3) >> 16
+  mixExplicit(inputHandle_4, freq_3, 0, mix1_4, mix2_4, 0, 0, 0, 0, 0, 0)
+
+
+PUB mixExplicit(inputHandle_5, frequency_7, effects, mix1_5, mix2_5, mix3_5, mix4_5, mix5_5, mix6_5, mix7_5, mix8_5) | optionsMask_7, lastParam, j, headroom
+'
+' Mix a specific input channel in explicit mode using frequency, effect parameters and mix amounts for all outputs
+'
+    ' @inputHandle  - A pointer to the parameter data in hub memory for a specific input
+    ' @freq         - The frequency that reSound mix the input at
+    ' @effects      - The effects parameters as a pointer to an array of 16 bits values
+    ' @mix1 - mix8  - The gain values for up to 8 outputs. A value from -16384 to 16383 (- means inverted waveform)
+'
+
+  if inputHandle_5 == 0 or frequency_7 == 0
+    return    
+
+  ' If the HZ bit is set (MSB), calculate the frequency in Hz instead of the raw phase frequency
+  if frequency_7 & HZ
+    frequency_7 := frequency_7 & $7FFF_FFFF
+    frequency_7 := calculateFrequencyHz(mixFrequency, frequency_7, 1 << (long[inputHandle_5][4]))
+
+  ' Set the frequency
+  long[inputHandle_5] := frequency_7
+  optionsMask_7 := (long[inputHandle_5][5]) ' Get a copy of the options mask
+
+  ' Point beyond the 7 longs fixed input parameters
+  inputHandle_5 += 28
+
+  ' Increment the inputHandle pointer the right amount if the attention option is active
+  if (optionsMask_7 & (1 << 8)) == 0
+    inputHandle_5 += 2
+
+  ' Iterate over all enabled effect processors of the selected input and set each parameter
+  repeat i from 0 to 7
+    if (optionsMask_7 & (1<<(24+i))) == 0
+
+      lastParam := inputEffectParams[i] >> 1
+      ifnot lastParam == 0
+        --lastParam
+
+        repeat j from 0 to lastParam
+          word[inputHandle_5][j] := word[effects][j]
+
+      inputHandle_5 += inputEffectParams[i]
+
+  ' Iterate over all available outputs and set mix amount for this input
+  repeat i from 0 to (byte[hubFootprintStart][4] - 1)   ' Number of enabled output pins
+
+    outputAmplitude[i] -= word[inputHandle_5][i]
+    headroom := 16384 - outputAmplitude[i]
+
+    ' This logic handles so that too much gain doesn't clip/distort the composite audio signal
+    if long[@mix1_5][i] <= headroom
+      word[inputHandle_5][i] := long[@mix1_5][i]
+      outputAmplitude[i]     += long[@mix1_5][i]
+    else
+      word[inputHandle_5][i] := headroom
+      outputAmplitude[i]     += headroom
+
+
+' Returns a handle as a reference to "the right bit" in the 32 bit HiLo map for a specific input
+'
+PUB getHiloHandle() : r
+  return (1 << ((numberOfInputs + 1) - configuredInputsCounter))
+
+
+' Returns true if an unhandled buffer swap has occurred for a specific input 
+'
+    ' @hiloHandle - A 32 bit mask value to pinpoint the right HiLo bit for a specific input
+'
+PUB bufferSwapped(hiloHandle) : r
+
+  if ((long[hiloMapPtr] ^ hiloXorMap) & hiloHandle) == 0
+    return false
+  else
+    hiloXorMap ^= hiloHandle    ' Flip the right Hilo xor map bit to indicate that the new buffer is handled
+    return true
+
+
+PUB getWriteBuffer(hiloHandle, inputHandle) : r | halfBufferOffset
+'
+' Returns a pointer to the back buffer for a specific input
+'
+    ' @hiloHandle  - A 32 bit mask value to pinpoint the right HiLo bit for a specific input
+    ' @inputHandle - A pointer to the parameter data in hub memory for a specific input
+'
+
+  ' Return one of the double buffers (HI or LO) to be handled
+  if long[hiloMapPtr] & hiloHandle
+    r := ((long[inputHandle][1]))
+    'return ((long[inputHandle][1]))                     ' Return LO buffer
+  else
+    halfBufferOffset := (-1 >> long[inputHandle][4]) + 1
+    ifnot(long[inputHandle][5] & 32)
+      halfBufferOffset >>= 1
+    r := ((long[inputHandle][1]) + halfBufferOffset)
+    'return ((long[inputHandle][1]) + halfBufferOffset)  ' Return HI buffer
+
+
+PUB fillStereo16(inBuffer, nrSamples, inputHandle1, inputHandle2, hiloHandle) | audioBuffer1, audioBuffer2 
+'
+' Takes an array of multiplexed 16 bit stereo samples and demuxes/fills up two 16 bit input buffers
+'
+    ' @inBuffer     - A pointer to the multiplexed 16 bit stereo data to process
+    ' @nrSamples    - The number of muxed stereo samples to be processed
+    ' @inputHandle1 - A pointer to the parameter data in hub memory for the first input
+    ' @inputHandle2 - A pointer to the parameter data in hub memory for the second input
+    ' @hiloHandle   - A 32 bit mask value to pinpoint the right HiLo bit for a specific input
+'
+
+  ' Get pointers to the two input back buffers to fill up
+  audioBuffer1 := getWriteBuffer(hiloHandle, inputHandle1)
+  audioBuffer2 := getWriteBuffer(hiloHandle, inputHandle2)
+
+  ' Demux the two 16 bit stereo channels into the two back buffers
+  repeat i from 0 to nrSamples - 1 
+    word[audioBuffer1][i] := word[inBuffer][ i << 1]
+    word[audioBuffer2][i] := word[inBuffer][(i << 1) + 1]
+
+
+' Private helper functions
+'
+PRI calculateFrequencyHz(mixingFrequency, frequency_8, accuTopBits) : r | upper, lower
+
+  org
+    QMUL    accuTopBits, frequency_8
+    GETQX   lower
+    GETQY   upper
+    SETQ    upper
+    QDIV    lower, mixingFrequency
+    GETQX   frequency_8
+  end
+
+  return frequency_8
+
+
+VAR
+  long hiloMapPtr
+  long hiloXorMap
+  long hubFootprintStart
+  long configurationPointer
+  long systemClock
+  byte left
+  byte right
+  long configuredInputsCounter
+  long numberOfInputs
+  long mixFrequency
+  word outputAmplitude[8]
+  long i
+
+
+
+DAT org
+'######################################################################################################################
+'                             reSound v0.5 - Parallax Propeller 2 assembly source
+'######################################################################################################################
+
+'----------------------------------------------------------
+'            Read in all configuration parameters
+'----------------------------------------------------------
+RESOUND       mov       hiloChnMapPtr, PTRA
+              sub       hiloChnMapPtr, #4
+              rdfast    #0, PTRA                          ' Read in the static configuration parameter first
+              rfword    samplePeriod
+              rfbyte    dacMode
+              rfbyte    nrInputs
+              rfbyte    numberOfOutputs
+              and       numberOfOutputs, #7               ' There can never be more than 8 output channels
+              mov       outputSkipPattern, numberOfOutputs' Calculate the skip pattern to enable/disable outputs
+              shl       outputSkipPattern, #1             
+              sub       outputSkipPattern, #1
+              bmask     outputSkipPattern
+              xor       outputSkipPattern, mask16
+              shl       outputSkipPattern, #16
+
+              rfword    temp                              ' This load and sets the effect configuration
+              setword   outputSkipPattern, temp, #0
+
+              mov       itt, #0                           ' Dynamically read in up to 8 pin number definitions
+              rep       #4, numberOfOutputs
+                rfbyte  hubValue
+                altd    itt, #pinDefinitions 
+                mov     0-0, hubValue 
+                add     itt, #1
+
+'----------------------------------------------------------
+' Configure the smartpin DAC mode according to the params                  
+'----------------------------------------------------------
+              mov       smartpinConfig, dacMode           ' Smartpin DAC mode
+              and       smartpinConfig, #%11
+              shl       smartpinConfig, #1
+              andn      dacMode, #%11                     ' DIR/OUT control
+              shl       dacMode, #4
+              or        smartpinConfig, dacMode
+              and       smartpinConfig, #%11000110
+              andn      dacMode, #$ff                     ' Analog out mode
+              shl       dacMode, #8
+              or        smartpinConfig, dacMode
+              or        smartpinConfig, fixedConfigBits
+
+              mov       itt, #0                           ' Iterate over and configure each smartpin
+              rep       #5, numberOfOutputs
+                alts    itt, #pinDefinitions
+                wrpin   smartpinConfig, 0-0
+                alts    itt, #pinDefinitions
+                wxpin   samplePeriod, 0-0
+                add     itt, #1
+
+              mov       itt, #0                           ' Iterate over and enable all smartpin DAC outputs
+              rep       #3, numberOfOutputs
+                altd    itt, #pinDefinitions
+                dirh    0-0
+                add     itt, #1
+
+              mov       temp, pinDefinitions              ' Configure selectable event 1 to triggers at each new sample period
+              or        temp, #%001_000000
+              setse1    temp
+              add       PTRA, numberOfOutputs             ' Set the hub register pointer to the
+              add       PTRA, #7                          ' "per sample refreshed" registers in hub memory
+
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+
+
+'----------------------------------------------------------
+'----------------------------------------------------------
+'                        Main loop 
+'----------------------------------------------------------
+
+mainLoop      rdfast    #0, PTRA
+              mov       itt, nrInputs                       ' itt = input buffer index
+
+'----------------------------------------------------------
+'      Iterate over and process all input buffers 
+'----------------------------------------------------------
+inBufferLoop  rflong    frequency                      wz ' Read in the first 7 fixed input buffer registers
+        if_nz mov       phaseAccuNr, itt
+              rflong    bufferPointer
+              getptr    triggerOffsetPtr
+              rflong    triggerOffset                  wz
+              rflong    loopSize
+              rflong    phaseShiftAmount
+              rflong    optionsMask
+              rflong    outputMixMask
+
+              alts      phaseAccuNr, #511                 ' Handle phase accumulation, looping and sample pointer calculation
+              mov       phase, 0-0
+              add       phase, frequency               wc ' Add the frequency value into the phase accumulator
+        if_c  sub       phase, loopSize                   ' Handle buffer looping
+        if_nz mov       phase, triggerOffset
+        if_nz wrlong    #0, triggerOffsetPtr
+              altd      phaseAccuNr, #511
+              mov       0-0, phase
+              mov       phaseCopy, phase
+
+'----------------------------------------------------------
+'             Read in sample and handle options                    
+'----------------------------------------------------------
+              shr       phase, phaseShiftAmount           ' Get the X top most bits of the phase as a offset into the sample buffer 
+              skipf     optionsMask
+
+'              Common sample options (8 slots)
+'---------------------------------------------------------- 
+              nop
+              shl       phase, #1                         ' Shift from 8 to 16 bit sample address
+              add       bufferPointer, phase              ' Add the phase to the buffer pointer
+              rdword    hubSample, bufferPointer          ' Read 16 bit sample
+              movbyts   hubSample, #%%01                  ' Handle big endianess
+              rdbyte    hubSample, bufferPointer          ' Read 8 bit sample
+              shl       hubSample, #8                     ' Convert 8 bit sample to 16 bit
+              bitnot    hubSample, #15                    ' Handle unsigned sample
+
+'            attentionMask event option (5 slots)
+'---------------------------------------------------------- 
+              rfword    temp                              ' Generate an attentionMask event on half and full buffer wraps
+              add       phaseCopy, V8000000
+        if_nc cmp       phaseCopy, frequency             wc
+        if_c  or        attentionMask, temp 
+        if_c  bitnot    hiloChnMap, itt 
+
+'             Free for future use (11 slots)
+'---------------------------------------------------------- 
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+              nop
+
+'          Call up to 8 input effect processors
+'---------------------------------------------------------- 
+              call      #\inputEffect0 
+              call      #\inputEffect1 
+              call      #\inputEffect2 
+              call      #\inputEffect3 
+              call      #\inputEffect4 
+              call      #\inputEffect5 
+              call      #\inputEffect6 
+              call      #\inputEffect7 
+
+'----------------------------------------------------------
+'                      Handle mixing 
+'----------------------------------------------------------    
+              skipf     outputMixMask                      ' Dynamically mix current dry sample into up to 8 output pins
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 0, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 1, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 2, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 3, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 4, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 5, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 6, #0
+              rfword    mixAmount
+              scas      hubSample, mixAmount
+              adds      outSample + 7, #0
+
+              adds      commonEffectSample + 0, hubSample  ' Mix current sample into up to 8 effects
+              adds      commonEffectSample + 1, hubSample
+              adds      commonEffectSample + 2, hubSample
+              adds      commonEffectSample + 3, hubSample
+              adds      commonEffectSample + 4, hubSample
+              adds      commonEffectSample + 5, hubSample
+              adds      commonEffectSample + 6, hubSample
+              adds      commonEffectSample + 7, hubSample
+
+              djnz      itt, #inBufferLoop                 ' Iterate to the next input buffer 
+
+'----------------------------------------------------------
+'   Output samples to the different DAC pins and 
+'   wait the remaining CPU cycles of the current period        
+'----------------------------------------------------------
+              skipf     outputSkipPattern                 ' Call up to 8 common effect processors
+              call      #\commonEffect0 
+              call      #\commonEffect1 
+              call      #\commonEffect2 
+              call      #\commonEffect3 
+              call      #\commonEffect4 
+              call      #\commonEffect5 
+              call      #\commonEffect6 
+              call      #\commonEffect7 
+
+              nop 
+              nop
+              nop
+              nop       'setq      #0                                 
+              wrlong    hiloChnMap, hiloChnMapPtr 
+              cmp       attentionMask, #0                   wz
+        if_nz cogatn    attentionMask
+        if_nz mov       attentionMask, #0
+
+              wypin     outSample + 0, pinDefinitions + 0 ' Output signal on up to 8 smart pins 
+              mov       outSample + 0, initDcLevel  
+              wypin     outSample + 1, pinDefinitions + 1                          
+              mov       outSample + 1, initDcLevel
+              wypin     outSample + 2, pinDefinitions + 2              
+              mov       outSample + 2, initDcLevel
+              wypin     outSample + 3, pinDefinitions + 3    
+              mov       outSample + 3, initDcLevel
+              wypin     outSample + 4, pinDefinitions + 4              
+              mov       outSample + 4, initDcLevel
+              wypin     outSample + 5, pinDefinitions + 5                           
+              mov       outSample + 5, initDcLevel
+              wypin     outSample + 6, pinDefinitions + 6              
+              mov       outSample + 6, initDcLevel
+              wypin     outSample + 7, pinDefinitions + 7              
+              mov       outSample + 7, initDcLevel
+
+              waitse1                                     ' Wait until the right time to start next period
+              jmp      #mainLoop                          ' Begin the processing of the next sample period
+
+
+'----------------------------------------------------------
+' Below follows all the "heavy" signal proccessing effects       
+'----------------------------------------------------------
+'----------------------------------------------------------
+commonEffect0
+
+'----------------------------------------------------------
+'  Inc accs and generate RW pointers with random offsets
+'----------------------------------------------------------
+             add       reverbPhase, reverbFrequency      wc    
+        if_c getrnd    reverbWriteOffset
+        if_c getrnd    reverbReadOffset1
+
+        if_c add       revUpdate, revUpdateFreq
+             cmp       revUpdate, revUpdateFreq          wz
+
+             mov       reverbPhase180, reverbPhase
+             add       reverbPhase180, V8000000             
+             cmp       reverbFrequency, reverbPhase180   wc
+       if_nc getrnd    reverbReadOffset2
+             mov       reverbWritePtr, reverbPhase
+             add       reverbWritePtr, reverbWriteOffset
+             mov       reverbReadPtr1, reverbPhase
+             add       reverbReadPtr1, reverbReadOffset1
+             mov       reverbReadPtr2, reverbPhase180
+             add       reverbReadPtr2, reverbReadOffset2
+             shr       reverbReadPtr1, #32 - 9
+             shr       reverbReadPtr2, #32 - 9
+             shr       reverbWritePtr, #32 - 9
+
+'----------------------------------------------------------
+'    Generate two triangle waveforms 180 degress apart  
+'----------------------------------------------------------
+             abs       reverbTriangle1, reverbPhase            
+             fle       reverbTriangle1, ##$7FFF_FFFF
+                   not       reverbTriangle2, reverbTriangle1
+             zerox     reverbTriangle2, #30
+             shr       reverbTriangle1, #16
+             shr       reverbTriangle2, #16
+
+
+'----------------------------------------------------------
+'               Reverb signal processing
+'----------------------------------------------------------
+             rdlut     sample + 0, reverbReadPtr1
+             muls      sample + 0, reverbTriangle1
+             sar       sample + 0, #16
+             rdlut     sample + 1, reverbReadPtr2
+             muls      sample + 1, reverbTriangle2
+             sar       sample + 1, #16
+             adds      sample + 0, sample + 1
+
+             rdlut     temp2, reverbWritePtr
+
+             ' Extract dry signal into temp
+             mov       temp, outSample + 0
+             add       temp, outSample + 1
+             sub       temp, ##65536
+             sar       temp, #1
+
+             ' Gain wet signal
+             mul       reverbTriangle1, ##13710
+             sar       reverbTriangle1, #15
+             muls      temp, reverbTriangle1
+             sar       temp, #16
+
+             ' Wet decay speed
+             adds      temp2, temp
+             muls      temp2, ##31781
+             sar       temp2, #15
+
+             if_z wrlut     temp2, reverbWritePtr
+
+
+             subs      outSample + 1, sample + 0
+             adds      outSample + 0, sample + 0
+
+             'mov       outSample + 1, sample + 0
+             'mov       outSample + 0, sample + 0
+             'add       outSample + 0, ##32768
+             'add       outSample + 1, ##32768
+
+
+commonEffect0_ret   ret
+
+'----------------------------------------------------------
+commonEffect1
+             mov      highPassFilter, outSample + 0
+             add      highPassFilter, outSample + 1
+             sub      highPassFilter, ##65536
+             mov      filterResonance, #0
+             mov      filterCutoff, ##12192
+
+'-----------------------------------------------------------
+             mov      temp, bandPassFilter  
+             muls     temp, filterResonance                ' Highpass filter
+             sar      temp, #5
+             subs     highPassFilter, bandPassFilter 
+             adds     highPassFilter, temp 
+             subs     highPassFilter, lowPassFilter 
+'----------------------------------------------------------- 
+             mov      temp, highPassFilter 
+             muls     temp, filterCutoff                   ' Bandpass filter
+             sar      temp, #16
+             adds     bandPassFilter, temp 
+'----------------------------------------------------------- 
+             mov      temp, bandPassFilter 
+             muls     temp, filterCutoff                   ' Lowpass filter 
+             sar      temp, #16 
+             adds     lowPassFilter, temp 
+'-----------------------------------------------------------  
+             mov      temp, ##32768
+             adds     temp, lowPassFilter
+             adds     temp, bandPassFilter                 ' Enable filter types
+             'adds     temp, highPassFilter
+             mov      outSample + 0, temp
+             mov      outSample + 1, temp
+
+
+
+
+commonEffect1_ret   ret
+'----------------------------------------------------------
+commonEffect2
+commonEffect2_ret   ret
+'----------------------------------------------------------
+commonEffect3
+commonEffect3_ret   ret
+'----------------------------------------------------------
+commonEffect4
+commonEffect4_ret   ret
+commonEffect5
+commonEffect5_ret   ret
+commonEffect6
+commonEffect6_ret   ret
+commonEffect7
+commonEffect7_ret   ret
+
+' Distortion effect
+inputEffect0
+              rfword    effectParameter+0            ' Read DC offset parameter
+              rfword    effectParameter+1            ' Read gain level parameter
+              rfword    effectParameter+2            ' Read wet/dry level parameter
+
+              signx     hubSample, #15               ' Fix hubSample sign extension
+              mov       signal, hubSample
+              signx     effectParameter+0, #15       ' Fix DC offset parameter sign extionsion
+
+              adds      signal, effectParameter+0
+
+              muls      signal, effectParameter+1
+              sar       signal, #8 
+
+              fles      signal, clipHigh
+              fges      signal, clipLow
+
+              scas      hubSample, effectParameter+2
+              mov       hubSample, #0
+
+              neg       effectParameter+2
+              add       effectParameter+2, ##8192
+
+              scas      signal, effectParameter+2
+              adds      hubSample, #0    
+
+
+inputEffect0_ret   ret
+
+inputEffect1
+inputEffect1_ret   ret
+inputEffect2
+inputEffect2_ret   ret
+inputEffect3
+inputEffect3_ret   ret
+inputEffect4
+inputEffect4_ret   ret
+inputEffect5
+inputEffect5_ret   ret
+inputEffect6
+inputEffect6_ret   ret
+inputEffect7
+inputEffect7_ret   ret
+
+
+'----------------------------------------------------------
+'                Variables / Constants / Data
+'----------------------------------------------------------
+
+reverbPhase            long  0
+reverbPhase180         long  $8000_0000
+reverbWriteOffset      long  0
+reverbReadOffset1      long  0
+reverbReadOffset2      long  0
+reverbTriangle1        long  0
+reverbTriangle2        long  0
+V8000000               long  $8000_0000
+
+fixedConfigBits        long  %10100_00000000_00_00000_0
+initDcLevel            long  32768
+mask16                 long  $0000_ffff
+clipHigh               long  32767
+clipLow                long  -32768
+'reverbFrequency        long  $0275319
+reverbFrequency        long  $0400_000
+
+revUpdate              long  0
+revUpdateFreq          long  $2000_0000
+attentionMask          long  0
+hiloChnMap             long  0
+
+phaseAccuNr            res   1
+filterCutoff           res   1
+filterResonance        res   1
+highPassFilter         res   1
+bandPassFilter         res   1
+lowPassFilter          res   1
+hiloChnMapPtr          res   1
+sample                 res   2
+reverbWritePtr         res   1
+reverbReadPtr1         res   1
+reverbReadPtr2         res   1
+delayCounter           res   1
+signal                 res   1
+outputSkipPattern      res   1
+samplePeriod           res   1
+dacMode                res   1
+nrInputs               res   1
+numberOfOutputs        res   1
+frequency              res   1
+bufferPointer          res   1
+triggerOffset          res   1
+loopSize               res   1
+optionsMask            res   1
+temp                   res   1
+temp2                  res   1
+itt                    res   1
+hubValue               res   1
+smartpinConfig         res   1
+hubSample              res   1
+phase                  res   1
+phaseCopy              res   1
+cogMemSamplePtr        res   1
+outputMixMask          res   1
+mixAmount              res   1
+phaseShiftAmount       res   1
+triggerOffsetPtr       res   1
+sendSignal             res   1
+pinDefinitions         res   8
+effectParameter        res   8
+outSample              res   8
+commonEffectSample     res   8
+
+                       fit   496     
+
+
+DAT
+inputEffectParams byte 6, 0, 0, 0, 0, 0, 0, 0
