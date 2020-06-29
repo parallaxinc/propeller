@@ -1,1 +1,1 @@
-[JM P2ES Control](../All/jm_p2eb_control)
+[JM P2ES Control](../All/jm_p2es_control)
