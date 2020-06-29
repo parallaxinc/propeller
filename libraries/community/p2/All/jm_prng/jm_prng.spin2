@@ -1,1 +1,94 @@
-'' =================================================================================================''''   File....... jm_prng.spin2''   Purpose.... Psuedo-random and random numbers''   Author..... Jon "JonnyMac" McPhalen''               -- see below for terms of use''   E-mail..... jon.mcphalen@gmail.com''   Started....''   Updated.... 17 JUN 2020'''' =================================================================================================var  long  seed   pub null()'' This is not a top-level object  pub set_seed(value)'' Seed prng for predictable "random" sequences'' -- good for memory games  seed := valuepub random() : result'' Returns new psuedo-random #  result := ??seed    pub xrandom() : result'' Returns new random #'' -- uses P2 Xoroshiro128 with random seeding at boot  result := getrnd()pub xrandomize(lo, hi) : result'' Return a random number between lo and hi (inclusive)'' -- uses P2 Xoroshiro128 with random seeding at boot  result := (getrnd() >> 1) // ((hi - lo) + 1) + lo     con { license }                 {{                Terms of Use: MIT License  Permission is hereby granted, free of charge, to any person obtaining a copy of this  software and associated documentation files (the "Software"), to deal in the Software  without restriction, including without limitation the rights to use, copy, modify,  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to  permit persons to whom the Software is furnished to do so, subject to the following  conditions:  The above copyright notice and this permission notice shall be included in all copies  or substantial portions of the Software.  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.}}
+'' =================================================================================================
+''
+''   File....... jm_prng.spin2
+''   Purpose.... Psuedo-random and random numbers
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 28 JUN 2020
+''
+'' =================================================================================================
+
+
+con
+
+  DFLT_SEED = $DABBA_D00   
+  
+
+dat
+
+  Seed          long    DFLT_SEED    
+  
+ 
+pub null()
+
+'' This is not a top-level object
+  
+
+pub start(value)
+
+'' Seed prng for predictable "random" sequences
+'' -- good for memory games like Simon
+
+  if (value == 0)                                               ' 0 not allowed!
+    Seed := DFLT_SEED
+  else
+    Seed := value
+
+
+pub random() : result
+
+'' Returns new psuedo-random number
+
+  result := ??Seed
+
+
+pub randomize(lo, hi) : result
+
+'' Return a psuedo-random number between lo and hi (inclusive)
+
+  result := random() +// ((hi - lo) + 1) + lo 
+  
+  
+pub xrandom() : result
+
+'' Returns new random #
+'' -- uses P2 Xoroshiro128 with random seeding at boot
+
+  result := getrnd()
+
+
+pub xrandomize(lo, hi) : result
+
+'' Return a random number between lo and hi (inclusive)
+'' -- uses P2 Xoroshiro128 with random seeding at boot
+
+  result := getrnd() +// ((hi - lo) + 1) + lo 
+    
+
+con { license } 
+                
+{{              
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
