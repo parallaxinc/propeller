@@ -1,0 +1,366 @@
+'' =================================================================================================
+''
+''   File....... jm_ez_sound.spin2
+''   Purpose.... Create tones and musical notes using P2 smartpin in NCO/FREQ mode
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 30 JUN 2020
+''
+''   {$P2} 
+''
+'' =================================================================================================
+
+{{
+
+   This object is for playing beeps, boops, and simple, monotonic tunes through a piezo. To use
+   a speaker the IO pin should be buffered and a series capacitor placed between the pin and
+   the speaker. DO NOT connect a magnetic speaker directly to an IO pin.
+   
+}}
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+
+
+con
+
+  #0, NO_COG                                                    ' program blocked while playing
+  #1, USE_COG                                                   ' music plays in background
+
+
+var
+
+  long  cog
+  long  stack[32]
+                                                                
+
+pub null()
+
+'' This is not a top level object
+
+
+pub sound(pin, note, ms) | fr01
+
+'' Mimic BASIC Stamp 1 SOUND command
+'' -- pin is output for sound
+'' -- note is 0 (silent), 1..127 (94..10526 Hz)
+'' -- ms is duration (0 for manual stop)
+
+  if (note == 0)                                                ' silence
+    reset(pin)
+    waitms(ms)
+
+  elseif ((note >= 1) && (note <= 127))                         ' valid note
+    fr01 := 1000000_0 / (95 + ((127-note) * 83))                '  calculate BS1 frequency
+    freqout(pin, fr01, ms)                                      '  play it
+
+
+pub freqout(pin, fr01, ms)
+
+'' Output frequency on pin for ms milliseconds
+'' -- pin is output for sound
+'' -- fr01 is in 0.1Hz units
+''    * set to 0 to stop output
+'' -- if ms is 0 note will play until manually stopped.
+
+  if (fr01 <= 0)                                                ' stop tone
+    reset(pin)
+    waitms(ms)
+
+  else
+    pinstart(pin, P_NCO_FREQ | P_OE, 10, fr01 frac clkfreq)     ' start tone
+    if (ms > 0)                                                 ' warning: blocking code
+      waitms(ms)                                                ' hold for timing
+      reset(pin)                                                ' kill output 
+
+      
+pub reset(pin)
+
+'' Reset pin to default mode
+
+  pinclear(pin)
+  pinfloat(pin)
+
+
+pub play_note(pin, note, ms, mode)
+
+'' Play a single note pin for ms milliseconds
+'' -- mode is NO_COG (blocking) or USE_COG (plays in background)
+
+  longmove(@OneNote, note, 2)                                   ' copy note and timing
+  play_tune(pin, @OneNote, 60, mode)                            ' play it
+ 
+  
+pub play_tune(pin, p_tune, bpm, mode) : result
+
+'' Plays simple tune on pin
+'' -- p_tune is pointer to array of note/timing pairs
+'' -- bpm is beats per minute (affects playback rate)
+'' -- mode is NO_COG (blocking) or USE_COG (plays in background)
+
+  if (mode == NO_COG)
+    play_notes(pin, p_tune, bpm, mode)
+  else
+    kill_sound()  
+    cog := cogspin(NEWCOG, play_notes(pin, p_tune, bpm, mode), @stack) + 1 
+    return cog
+
+
+pub kill_sound()
+
+'' Stops background music playback cog
+
+  if ((cog) && cogchk(cog-1))
+    cogstop(cog-1)
+
+  cog := 0
+
+
+pub playing() : result
+
+'' Returns true if background is playing 
+
+  if (cog)
+    result := cogchk(cog-1)
+    if (result == 0)
+      cog := 0
+
+
+dat
+
+  OneNote       long    0, 0, 0, 0
+    
+
+pri play_notes(pin, p_tune, bpm, mode) | note, ms 
+
+  repeat
+    note, ms := long[p_tune], long[p_tune+4]                    ' read note and timing
+    if ((note <= 0) && (ms <= 0))                               ' if done
+      reset(pin)                                                ' silence
+      quit                                                      ' break loop
+    else
+      freqout(pin, note, ms * 60 / bpm)                         ' play note (adjusted for bpm)
+      p_tune += 8                                               ' point to next note pair
+
+  if (mode == USE_COG)                                          ' running in background?
+    cog := 0                                                    ' mark stopped                                           
+    cogstop(cogid())                                            ' kill cog
+
+
+con
+
+  ' base timing at 60 BPM
+  
+  T_1     = 4000                                                ' whole note                       
+  T_2     = T_1 >> 1                                            ' half
+  T_D2    = T_2 * 3 / 2                                         ' dotted half
+  T_4     = T_1 >> 2                                            ' quarter
+  T_D4    = T_4 * 3 / 2                                         ' dotted quarter
+  T_8     = T_1 >> 3                                            ' eighth
+  T_D8    = T_8 * 3 / 2                                         ' dotted eighth
+  T_16    = T_1 >> 4
+  T_32    = T_1 >> 5
+  T_64    = T_1 >> 6    
+
+  ' note frequencies in 0.1Hz units
+
+  REST    =    0_0
+
+  N_C0    =   16_3 
+  N_Cs0   =   17_3                                              ' sharp
+  N_Db0   =   17_3                                              ' flat
+  N_D0    =   18_3 
+  N_Ds0   =   19_4 
+  N_Eb0   =   19_4 
+  N_E0    =   20_6 
+  N_F0    =   21_8 
+  N_Fs0   =   23_1
+  N_Gb0   =   23_1  
+  N_G0    =   24_5 
+  N_Gs0   =   25_9
+  N_Ab0   =   25_9  
+  N_A0    =   27_5 
+  N_As0   =   29_1
+  N_Bb0   =   29_1
+  N_B0    =   30_8 
+
+  N_C1    =   32_7
+  N_Cs1   =   34_6
+  N_Db1   =   34_6  
+  N_D1    =   36_7
+  N_Ds1   =   38_8
+  N_Eb1   =   38_8 
+  N_E1    =   41_2
+  N_F1    =   43_6
+  N_Fs1   =   46_2
+  N_Gb1   =   46_2  
+  N_G1    =   49_0
+  N_Gs1   =   51_9
+  N_Ab1   =   51_9  
+  N_A1    =   55_0
+  N_As1   =   58_2
+  N_Bb1   =   58_2   
+  N_B1    =   61_7
+  
+  N_C2    =   65_4 
+  N_Cs2   =   69_3
+  N_Db2   =   69_3  
+  N_D2    =   73_4 
+  N_Ds2   =   77_8
+  N_Eb2   =   77_8 
+  N_E2    =   82_4 
+  N_F2    =   87_3 
+  N_Fs2   =   92_5
+  N_Gb2   =   92_5  
+  N_G2    =   98_0 
+  N_Gs2   =  103_8
+  N_Ab2   =  103_8 
+  N_A2    =  110_0 
+  N_As2   =  116_5
+  N_Bb2   =  116_5   
+  N_B2    =  123_5 
+
+  N_C3    =  130_8
+  N_Cs3   =  138_6
+  N_Db3   =  138_6  
+  N_D3    =  146_8
+  N_Ds3   =  155_6
+  N_Eb3   =  155_6 
+  N_E3    =  164_8
+  N_F3    =  174_6
+  N_Fs3   =  185_0
+  N_Gb3   =  185_0 
+  N_G3    =  196_0
+  N_Gs3   =  207_7
+  N_Ab3   =  207_7  
+  N_A3    =  220_0
+  N_As3   =  233_0
+  N_Bb3   =  233_0  
+  N_B3    =  247_0
+
+  N_C4    =  261_6 
+  N_Cs4   =  277_2
+  N_Db4   =  277_2    
+  N_D4    =  293_7 
+  N_Ds4   =  311_1
+  N_Eb4   =  311_1  
+  N_E4    =  329_6 
+  N_F4    =  349_2 
+  N_Fs4   =  370_0
+  N_Gb4   =  370_0    
+  N_G4    =  392_0 
+  N_Gs4   =  415_3
+  N_Ab4   =  415_3     
+  N_A4    =  440_0 
+  N_As4   =  466_1
+  N_Bb4   =  466_1  
+  N_B4    =  493_9 
+
+  N_C5    =  523_3    
+  N_Cs5   =  554_4
+  N_Db5   =  554_4     
+  N_D5    =  587_3    
+  N_Ds5   =  622_2
+  N_Eb5   =  622_2     
+  N_E5    =  659_2    
+  N_F5    =  698_5    
+  N_Fs5   =  740_0
+  N_Gb5   =  740_0    
+  N_G5    =  784_0    
+  N_Gs5   =  830_6
+  N_Ab5   =  830_6     
+  N_A5    =  880_0    
+  N_As5   =  932_3
+  N_Bb5   =  932_3    
+  N_B5    =  987_8    
+
+  N_C6    = 1046_5   
+  N_Cs6   = 1108_7
+  N_Db6   = 1108_7   
+  N_D6    = 1174_7   
+  N_Ds6   = 1244_5
+  N_Eb6   = 1244_5   
+  N_E6    = 1318_5   
+  N_F6    = 1396_9   
+  N_Fs6   = 1480_0
+  N_Gb6   = 1480_0     
+  N_G6    = 1568_0   
+  N_Gs6   = 1661_2
+  N_Ab6   = 1661_2    
+  N_A6    = 1760_0   
+  N_As6   = 1864_7
+  N_Bb6   = 1864_7    
+  N_B6    = 1975_5   
+  
+  N_C7    = 2093_0     
+  N_Cs7   = 2217_5
+  N_Db7   = 2217_5       
+  N_D7    = 2349_3     
+  N_Ds7   = 2489_0
+  N_Eb7   = 2489_0       
+  N_E7    = 2637_0     
+  N_F7    = 2793_8     
+  N_Fs7   = 2960_0
+  N_Gb7   = 2960_0       
+  N_G7    = 3136_0     
+  N_Gs7   = 3322_4
+  N_Ab7   = 3322_4      
+  N_A7    = 3520_0     
+  N_As7   = 3729_3
+  N_Bb7   = 3729_3      
+  N_B7    = 3951_0     
+
+  N_C8    = 4186_0    
+  N_Cs8   = 4434_9
+  N_Db8   = 4434_9   
+  N_D8    = 4698_6    
+  N_Ds8   = 4978_0
+  N_Eb8   = 4978_0      
+  N_E8    = 5274_0    
+  N_F8    = 5587_7    
+  N_Fs8   = 5919_9
+  N_Gb8   = 5919_9     
+  N_G8    = 6271_9    
+  N_Gs8   = 6644_9
+  N_Ab8   = 6644_9     
+  N_A8    = 7040_0    
+  N_As8   = 7458_6
+  N_Bb8   = 7458_6      
+  N_B8    = 7902_1    
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
