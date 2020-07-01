@@ -1,0 +1,487 @@
+'' =================================================================================================
+''
+''   File....... jm_lcd_pcf8574.spin2
+''   Purpose.... LCD via I2C using a PCF8574 or PCF8574A "backpack"
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2010-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon@jonmcphalen.com
+''   Started....
+''   Updated.... 30 JUN 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I } 
+
+
+con
+
+  #0, PU_NONE, PU_1K5, PU_3K3, PU_15K                           ' pull-up options
+  #0, ACK, NAK
+
+
+con { lcd control constants }
+
+  CLS     = $01                                                 ' clear the LCD
+  HOME    = $02                                                 ' move cursor home
+  CRSR_LF = $10                                                 ' move cursor left
+  CRSR_RT = $14                                                 ' move cursor right
+
+  CGRAM   = $40                                                 ' character ram
+  DDRAM   = $80                                                 ' display ram
+
+  LINE0   = DDRAM | $00                                         ' cursor positions for col 1
+  LINE1   = DDRAM | $40
+  LINE2   = DDRAM | $14
+  LINE3   = DDRAM | $54
+
+  #0, CRSR_NONE, CRSR_ULINE, CRSR_BLINK, CRSR_UBLNK             ' cursor types
+
+
+con
+
+  RS_MASK = %0000_0001
+  RW_MASK = %0000_0010                                          ' not used!
+  E_MASK  = %0000_0100
+  BL_MASK = %0000_1000
+
+
+obj
+
+  iox  : "jm_pcf8574"                                           '   io expander
+  nstr : "jm_nstr"                                              '   number-to-string conversion
+
+
+var
+
+  byte  ctrlbits                                                ' bl, e, rw, rs
+  byte  dispctrl                                                ' display control bits
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(address, scl, sda, khz, pullup) : result
+
+'' Initializes LCD driver for PCF8574 using I2C bus
+'' -- address is device address, %000..%111
+'' -- scl and sda define i2c bus
+'' -- khz is bus speed, typically 100
+'' -- pullup is high level drive configuration
+
+  iox.start(address, scl, sda, khz, pullup)                     ' connect to PCF8474
+
+  if (present())
+    setup_lcd()                                                 ' initialize lcd for 4-bit mode
+    result := true
+  else
+    result := false
+
+
+pub starta(address, scl, sda, khz, pullup) : result
+
+'' Initializes LCD driver for PCF8574A using I2C bus
+'' -- address is device address, %000..%111
+'' -- scl and sda define i2c bus
+'' -- khz is bus speed, typically 100
+'' -- pullup is high level drive configuration
+
+  iox.starta(address, scl, sda, khz, pullup)                    ' connect to PCF8474A
+
+  if (present())
+    setup_lcd()                                                 ' initialize lcd for 4-bit mode
+    return true
+  else
+    return false
+
+
+pub present() : result
+
+'' Returns true if device responds with ACK
+
+  result := iox.present()
+
+
+pub clear()
+
+'' Clear the LCD
+
+  cmd(CLS)
+
+
+pub crsr_home()
+
+'' Move the cursor to column 0, row 0
+
+  cmd(HOME)
+
+
+pub crsr_left()
+
+'' Move cursor left w/o changing screen
+
+  cmd(CRSR_LF)
+
+
+pub crsr_right()
+
+'' Move cursor right w/o changing screen
+
+  cmd(CRSR_RT)
+
+
+pub line(lnum)
+
+'' Move to column 0 ot specified line (0..3)
+
+  case lnum
+    0: cmd(LINE0)
+    1: cmd(LINE1)
+    2: cmd(LINE2)
+    3: cmd(LINE3)
+
+
+pub cmd(c)
+
+'' Write command byte to LCD
+
+  ctrlbits &= !RS_MASK                                          ' RS low
+  wr_lcd(c)
+
+
+pub out(c)
+
+'' Write character byte to LCD
+
+  ctrlbits |= RS_MASK                                           ' RS high
+  wr_lcd(c)
+
+
+pub outx(c, n)
+
+'' Write character c to LCD n times
+
+  repeat n
+    out(c)
+
+
+pub str(p_str)
+
+'' Print z-string
+'  -- borrowed from FullDuplexSerial
+
+  repeat strsize(p_str)
+    out(byte[p_str++])
+
+
+pub sub_str(p_str, idx, len) | c
+
+'' Prints part of string
+'' -- p_str is pointer to start of string
+'' -- idx is starting index of sub-string (0 to strsize()-1)
+'' -- len is # of chars to print
+
+  p_str += idx                                                  ' caution: do not exceed length of string
+  repeat len
+    c := byte[p_str++]
+    if (c <> 0)
+      out(c)
+    else
+      quit
+
+
+pub set_char(n, p_char) : result
+
+'' Write character map data to CGRAM
+'' -- n is the custom character # (0..7)
+'' -- p_char is the address of the bytes that define the character
+
+  if ((n >= 0) && (n <= 7))                                     ' legal char # (0..7)?
+    cmd(CGRAM + (n << 3))                                       ' move cursor
+    repeat 8                                                    ' output character data
+      out(byte[p_char++])
+    return true
+  else
+    return false
+
+
+pub display(ison)
+
+  if (ison)
+    dispctrl := dispctrl |  %0000_0100                          ' display bit on
+  else
+    dispctrl := dispctrl & !%0000_0100                          ' display bit off
+
+  cmd(dispctrl)
+
+
+pub cursor(mode) : result
+
+'' Sets LCD cursor style: off (0), underline (1), blinking bkg (2), uline+bkg (3)
+
+  case mode
+    CRSR_NONE  : dispctrl := dispctrl & %0000_1100 | %0000_1000
+    CRSR_ULINE : dispctrl := dispctrl & %0000_1100 | %0000_1010
+    CRSR_BLINK : dispctrl := dispctrl & %0000_1100 | %0000_1001
+    CRSR_UBLNK : dispctrl := dispctrl & %0000_1100 | %0000_1011
+    other      : return false
+
+  cmd(dispctrl)
+
+  return true
+
+
+pub crsr_xy(x, y)
+
+'' Moves DDRAM cursor to column, row position
+'' -- home position is indexed as 0, 0
+
+  case y
+    0 : cmd(LINE0 + x)
+    1 : cmd(LINE1 + x)
+    2 : cmd(LINE2 + x)
+    3 : cmd(LINE3 + x)
+
+
+pub wr_mem(dram, src, n)
+
+'' Writes n bytes from src to dram (display ram address) in display
+
+  cmd(dram)                                                     ' setup where to write
+  repeat n
+    out(byte[src++])
+
+
+pub backlight(state)
+
+'' Enables (non-zero) or disables (zero) backlight
+
+  if (state)
+    ctrlbits |= BL_MASK
+  else
+    ctrlbits &= !BL_MASK
+
+  cmd(dispctrl)                                                 ' refresh bl bit
+
+
+pub dec(value)
+
+'' Emit value as decimal
+
+  str(nstr.itoa(value, 10, 0))
+
+
+pub fdec(value, digits)
+
+'' Emit value as decimal using fixed # of digits
+'' -- may add leading zeros
+
+  str(nstr.itoa(value, 10, digits))
+
+
+pub jdec(value, digits, width, pad)
+
+'' Emit value as decimal using fixed # of digits
+'' -- aligned in padded field (negative width to left-align)
+'' -- digits is max number of digits to use
+'' -- width is width of final field (max)
+'' -- pad is character that fills out field
+
+  str(nstr.fmt_number(value, 10, digits, width, pad))
+
+
+pub dpdec(value, dp)
+
+'' Emit value as decimal with decimal point
+'' -- dp is number of digits after decimal point
+
+  str(nstr.dpdec(value, dp))
+
+
+pub jdpdec(value, dp, width, pad)
+
+'' Emit value as decimal with decimal point
+'' -- aligned in padded field (negative width to left-align)
+'' -- dp is number of digits after decimal point
+'' -- width is width of final field (max)
+'' -- pad is character that fills out field
+
+  str(nstr.fmt_number(value, 99, dp, width, pad))
+
+
+pub hex(value)
+
+'' Emit value as hexadecimal
+
+  str(nstr.itoa(value, 16, 0))
+
+
+pub fhex(value, digits)
+
+'' Emit value as hexadecimal using fixed # of digits
+
+  str(nstr.itoa(value, 16, digits))
+
+
+pub jhex(value, digits, width, pad)
+
+'' Emit value as quarternary using fixed # of digits
+'' -- aligned inside field
+'' -- pad fills out field
+
+  str(nstr.fmt_number(value, 16, digits, width, pad))
+
+
+pub oct(value)
+
+'' Emit value as octal
+
+  str(nstr.itoa(value, 8, 0))
+
+
+pub foct(value, digits)
+
+'' Emit value as octal using fixed # of digits
+
+  str(nstr.itoa(value, 8, digits))
+
+
+pub joct(value, digits, width, pad)
+
+'' Emit value as octal using fixed # of digits
+'' -- aligned inside field
+'' -- pad fills out field
+
+  str(nstr.fmt_number(value, 8, digits, width, pad))
+
+
+pub qrt(value)
+
+'' Emit value as quarternary
+
+  str(nstr.itoa(value, 4, 0))
+
+
+pub fqrt(value, digits)
+
+'' Emit value as quarternary using fixed # of digits
+
+  str(nstr.itoa(value, 4, digits))
+
+
+pub jqrt(value, digits, width, pad)
+
+'' Emit value as quarternary using fixed # of digits
+'' -- aligned inside field
+'' -- pad fills out field
+
+  str(nstr.fmt_number(value, 4, digits, width, pad))
+
+
+pub bin(value)
+
+'' Emit value as binary
+
+  str(nstr.itoa(value, 2, 0))
+
+
+pub fbin(value, digits)
+
+'' Emit value as binary using fixed # of digits
+
+  str(nstr.itoa(value, 2, digits))
+
+
+pub jbin(value, digits, width, pad)
+
+'' Emit value as binary using fixed # of digits
+'' -- aligned inside field
+'' -- pad fills out field
+
+  str(nstr.fmt_number(value, 2, digits, width, pad))
+
+
+pri setup_lcd()
+
+' Initializes LCD using 4-bit interface via PCF8574x
+
+  ctrlbits := BL_MASK                                           ' backlight on, others 0
+
+  waitms(15)                                                    ' allow power-up
+  wr_4bits(%0011 << 4)                                          ' 8-bit mode
+
+  waitms(5)
+  wr_4bits(%0011 << 4)
+
+  waitus(250)
+  wr_4bits(%0011 << 4)
+
+  wr_4bits(%0010 << 4)                                          ' 4-bit mode
+
+  cmd(%0010_1000)                                               ' multi-line
+  cmd(%0000_0110)                                               ' auto-increment cursor
+  dispctrl := %0000_1100                                        ' display on, no cursor
+  cmd(dispctrl)
+  cmd(CLS)
+
+
+pri wr_lcd(b)
+
+'' Writes byte b to LCD via PCF8574x using 4-bit interface
+
+  wr_4bits(b)                                                   ' high nibble
+  wr_4bits(b << 4)                                              ' low nibble
+
+  if ((b == CLS) or (b == HOME))
+    waitms(3)
+  else
+    waitus(64)
+
+
+pri wr_4bits(b)
+
+'' Write b[7..4] to lcd with ctrlbits[3..0] (backlight, e, rw, rs)
+
+  b := (b & $F0) | (ctrlbits & %1001)                           ' force E and RW low
+
+  iox.write(b)                                                  ' setup nibble
+  iox.write(b | E_MASK)                                         ' blip lcd.e
+  iox.write(b)
+
+con { license }
+
+{{
+
+  Copyright (c) 2010-2020 Jon McPhalen
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
