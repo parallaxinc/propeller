@@ -1,0 +1,129 @@
+'' =================================================================================================
+''
+''   File....... jm_pcf8574.spin2
+''   Purpose.... Consolodated driver for PCF8574 or PCF8574A
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2013-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon@jonmcphalen.com
+''   Started....
+''   Updated.... 30 JUN 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }
+  
+
+con
+
+  #0, PU_NONE, PU_1K5, PU_3K3, PU_15K                           ' pull-up options
+  #0, ACK, NAK
+
+  PCF8574  = %0100_000_0                                        ' base address
+  PCF8574A = %0111_000_0
+
+
+obj
+
+  i2c : "jm_i2c"                                                '   low-level I2C functions
+
+
+var
+
+  long  devid                                                   ' device code base
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(address, scl, sda, khz, pullup) : result              ' start PCF8574
+
+'' Start PCF8574 object
+'' -- address is device address, %000..%111
+'' -- scl and sda define i2c bus
+'' -- khz is bus speed, typically 100
+'' -- pullup is high level drive configuration
+
+  i2c.setup(scl, sda, khz, pullup)
+
+  devid := PCF8574 | ((address & %111) << 1)
+
+  result := present()
+
+
+pub starta(address, scl, sda, khz, pullup) : result             ' start PCF8574A
+
+'' Start PCF8574A object
+'' -- address is device address, %000..%111
+'' -- scl and sda define i2c bus
+'' -- khz is bus speed, typically 100
+'' -- pullup is high level drive configuration
+
+  i2c.setup(scl, sda, khz, pullup)
+
+  devid := PCF8574A | ((address & %111) << 1)
+
+  result := present()
+
+
+pub present() : result
+
+  result := i2c.present(devid)
+
+
+pub write(b)
+
+'' Write byte b to PCF8574x port
+
+  i2c.start()
+  i2c.write(devid)                                              ' r/w bit = 0
+  i2c.write(b)
+  i2c.stop()
+
+
+pub read() : result
+
+'' Read port bits from PCA8574x
+
+  i2c.start()
+  i2c.write(devid | 1)                                          ' r/w bit = 1
+  result := i2c.read(ACK)
+  i2c.stop()
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}

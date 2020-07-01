@@ -1,0 +1,137 @@
+'' =================================================================================================
+''
+''   File....... jm_servo.spin2
+''   Purpose.... Smart pin servo control
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 30 JUN 2020
+''
+'' =================================================================================================
+
+{
+   Simple servo driver that uses a P2 smart pin to create the servo signal. Ramping and other slow
+   motion behavior of the servo is controlled by the parent application.
+}
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I } 
+
+
+con
+
+  #0, M_ANGLE, M_USECS                                          ' write/read modes
+
+
+var
+
+  long  sp                                                      ' servo pin
+  long  usecs                                                   ' 600..2400
+  long  angle                                                   ' 0..180
+  long  setup                                                   ' true when pin setup
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(pin, deg) | x
+
+'' Configure smart pin for servo output
+'' -- pin is servo output
+'' -- deg is position in degrees (0 to 180)
+
+  angle := 0 #> deg <# 180                                      ' keep legal
+  usecs := angle * 10 + 600                                     ' convert to us
+  startx(pin, usecs)                                            ' start servo
+
+
+pub startx(pin, us) | x
+
+'' Configure smart pin for servo output
+'' -- pin is servo output
+'' -- us is position in microseconds (600 to 2400)
+
+  stop()                                                        ' clear old pin
+
+  sp := pin                                                     ' save pin
+  x.word[0] := clkfreq / 1_000_000                              ' set unit timing (1us)
+  x.word[1] := 20_000                                           ' set period (20ms)
+  usecs := 600 #> us <# 2400                                    ' keep position legal
+  pinstart(pin, P_OE | P_PWM_SAWTOOTH, x, usecs)                ' servo output
+  setup := true                                                 ' mark setup
+
+
+pub stop()
+
+'' Disable servo smart pin if previously configured
+
+  if (setup)
+    pinclear(sp)                                                ' disable smart pin
+    pinfloat(sp)                                                ' release output driver
+    longfill(@usecs, 0, 3)                                      ' mark disabled
+
+
+pub write(mode, value)
+
+'' Update servo
+'' -- mode is 0 for degrees, 1 for microseconds
+'' -- value is new angle or position value
+
+  if (setup)
+    if (mode == M_ANGLE)
+      angle := 0 #> value <# 180                                ' legal degrees
+      usecs := angle * 10 + 600                                 ' convert to us
+      wypin(sp, usecs)                                          ' update servo  
+    elseif (mode == M_USECS)
+      usecs := 600 #> value <# 2400                             ' legal microseconds
+      angle := (usecs - 600) / 10                               ' convert to angle
+      wypin(sp, usecs)                                          ' update servo             
+
+
+pub read(mode) : result
+
+  if (setup)
+    if (mode == M_ANGLE)
+      return angle
+    else
+      return usecs
+  else
+    return 0
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
