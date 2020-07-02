@@ -1,0 +1,331 @@
+'' =================================================================================================
+''
+''   File....... jm_max7219_ez.spin2
+''   Purpose.... Simple MAX7219/MAX7221 serial LED driver (one device)
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2013-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 01 JUL 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1    = 63  { I }                                            ' programming / debug
+  TX1    = 62  { O }                                           
+                                                               
+  SF_CS  = 61  { O }                                            ' serial flash
+  SF_SCK = 60  { O }                                           
+  SF_SDO = 59  { O }                                           
+  SF_SDI = 58  { I } 
+
+
+con { max7219 registers }
+
+  NO_OP  = $00
+
+  DIG_0  = $01
+  DIG_1  = $02
+  DIG_2  = $03
+  DIG_3  = $04
+  DIG_4  = $05
+  DIG_5  = $06
+  DIG_6  = $07
+  DIG_7  = $08
+
+  DECODE = $09                                                  ' decode register, 0 = raw, 1 = decode
+  BRIGHT = $0A                                                  ' brightness, 1..15
+  S_LMT  = $0B                                                  ' scan limit, 1..7
+  SHUTDN = $0C                                                  ' shutdown when 1, run when 0
+
+  D_TEST = $0F                                                  ' display test -- all segs on
+
+  D_RAW  = 0                                                    ' decode as raw segments
+  D_DEC  = 1                                                    ' decode as decimal digit (10 = dash)
+
+
+
+var
+
+  byte  sck                                                     ' to MAX7219.13
+  byte  sdo                                                     ' to MAX7219.1
+  byte  cs                                                      ' to MAX7219.12
+
+  byte  decodebits                                              ' state of decode bits
+  byte  segments[8]                                             ' internal segments register buffer
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(cpin, dpin, cspin)
+
+'' Assign and configures pins for MAX7219/21
+'' -- cpin is SPI sck
+'' -- dpin is SPI sdo
+'' -- cspin is chip select
+
+  sck, sdo, cs := cpin, dpin, cspin                             ' save pins
+
+  pinlow(sck)                                                   ' preset pins
+  pinlow(sdo)
+  pinhigh(cs)   
+
+  decodebits := 0
+  bytefill(@segments, 0, 8)                                     ' clear segments
+
+  out(D_TEST, 0)                                                ' take out of test mode
+  out(S_LMT,  7)                                                ' allow all digits
+  out(DECODE, 0)                                                ' all digits raw mode
+  out(BRIGHT, 0)                                                ' start dim
+  out(SHUTDN, 0)                                                ' display off
+
+  write_buf(@segments, 8, DIG_0)
+
+
+pub shutdown(state)
+
+'' Puts MAX7219/21 into shutdown mode if state <> 0/false
+
+  if (state)
+    out(SHUTDN, 0)
+  else
+    out(SHUTDN, 1)
+
+
+pub set_decode(digit, state) | mask
+
+'' Sets digit to raw or decoded state
+'' -- digit is 0 to 7
+'' -- if state = 0, raw segments, else decimal decoded
+
+  mask := 1 << digit
+
+  if (state)
+    decodebits |= mask                                          ' set to decode
+  else
+    decodebits &= !mask                                         ' set for raw segments
+
+  out(DECODE, decodebits)                                       ' update display
+
+
+pub clear()
+
+'' Clear display
+
+  fill(0)
+
+
+pub fill(bits)
+
+'' Fill display with bits
+'' -- assumes all columns set to same decode mode
+
+  bytefill(@segments, bits, 8)                                  ' fill segments buffer
+  write_buf(@segments, 8, DIG_0)                                ' write to display
+
+
+pub write_buf(p_buf, n, r)
+
+'' Writes n (1..8) bytes at p_buf to MAX7219/21
+'' -- if p_buf is zero or negative, use internal segments buffer
+'' -- r (1..8) is first register to write
+'' -- uses existing register modes
+
+  if (p_buf <= 0)
+    p_buf := @segments                                          ' use internal buffer
+
+  n <#= (9 - r)                                                 ' keep n legal
+
+  repeat n                                                      ' write n registers
+    out(r++, byte[p_buf++])
+
+
+pub set_dp(p_buf, digit, state)
+
+'' Sets decimal point segment for selected digit register
+'' -- if p_buf is zero or negative, use internal segments
+'' -- use write_buf() to update display
+
+  if (p_buf <= 0)
+    p_buf := @segments                                          ' use internal buffer
+
+  if (state)
+    byte[p_buf+digit] |= SEG_DP                                 ' dp led on
+  else
+    byte[p_buf+digit] &= !SEG_DP                                ' dp led off
+
+
+pub out(r, value) | bits
+
+'' Update register in MAX7219/21 with value
+
+  bits.byte[3] := r                                             ' set register
+  bits.byte[2] := value                                         ' set value
+
+  if (r == DECODE)                                              ' save decode register bits
+    decodebits := value.byte[0]
+
+  if ((r >= DIG_0) && (r <= DIG_7))                             ' save new segment bits
+    segments[r-1] := value
+
+  pinlow(cs)                                                    ' enable
+
+  repeat 16                                                     ' shift out reg & value (MSBFIRST)
+    pinwrite(sdo, (bits rol= 1))
+    pinhigh(sck)
+    pinlow(sck)
+
+  pinhigh(cs)                                                   ' load into MAX7219/21
+
+
+pub hex_map(d) : result
+
+'' Returns segments map for hex digit d
+
+  if ((d >= $0) && (d <= $F))
+    return HexDigits[d]
+  else
+    return 0
+
+
+pub char_map(c) : result
+
+'' Returns 7-seg character map of ASCII character c
+
+  if ((c < 32) || (c > 127))
+    return BLANK
+  else
+    return Ascii[c-32]
+
+
+con { segments / character maps }
+
+  BLANK  = %00000000
+
+  SEG_DP = %10000000
+  SEG_A  = %01000000
+  SEG_B  = %00100000
+  SEG_C  = %00010000
+  SEG_D  = %00001000
+  SEG_E  = %00000100
+  SEG_F  = %00000010
+  SEG_G  = %00000001
+
+  DASH   = %00000001
+
+
+'        --- a ---
+'       |         |
+'       f         b
+'       |         |
+'        --- g ---
+'       |         |
+'       e         c
+'       |         |
+'        --- d ---  *
+
+        '  .abcdefg
+  _0    = %01111110
+  _1    = %00110000
+  _2    = %01101101
+  _3    = %01111001
+  _4    = %00110011
+  _5    = %01011011
+  _6    = %01011111
+  _7    = %01110000
+  _8    = %01111111
+  _9    = %01110011
+
+
+        '  *abcdefg
+  _A    = %01110111
+  _b2   = %00011111 { lowercase }
+  _C1   = %01001110
+  _c2   = %00001101 { lc }
+  _d2   = %00111101 { lc }
+  _E1   = %01001111
+  _F    = %01000111
+  _G    = _6
+  _H    = %00110111
+  _h2   = %00010111 { lc }
+  _I    = _1
+  _i2   = %00010000 { lc }
+  _J    = %00111100
+  _L    = %00001110
+  _l2   = %00110000 { lc }
+  _n2   = %00010101 { lc }
+  _O    = _0
+  _o2   = %00011101 { lc }
+  _P    = %01100111
+  _Q    = _9
+  _r2   = %00000101 { lc }
+  _S    = _5
+  _t2   = %00001111 { lc }
+  _U    = %00111110
+  _u2   = %00011100 { lc }
+  _Y    = %00111011
+
+        '  .abcdefg
+  _DQt  = %00100010 { " }
+  _SQt  = %00100000 { ' }
+  _At   = %01101111 { @ }
+  _SBLf = _C        { [ }
+  _SBRt = %01111000 { ] }
+  _UScr = %00001000 { _ }
+  _Eq   = %00001001 { = }
+  _Qm   = %01100101 { ? }
+ 
+
+dat { 7-segment maps }
+
+                        ' convert non-printing control chars to Hex table
+
+  HexDigits     byte       _0,    _1,    _2,    _3,    _4,    _5,    _6,    _7
+                byte       _8,    _9,    _A,   _b2,    _C,   _d2,    _E,    _F
+
+                        ' 7-seg ASCII chars
+
+  Ascii         byte    BLANK, BLANK,  _DQt, BLANK, BLANK, BLANK, BLANK,  _SQt
+                byte    BLANK, BLANK, BLANK, BLANK, BLANK,  DASH, BLANK, BLANK
+                byte       _0,    _1,    _2,    _3,    _4,    _5,    _6,    _7
+                byte       _8,    _9, BLANK, BLANK, BLANK,   _Eq, BLANK,   _Qm
+                byte      _At,    _A, BLANK,   _C1, BLANK,   _E1,    _F,    _G
+                byte       _H,    _I,    _J, BLANK,    _L, BLANK, BLANK,    _O
+                byte       _P,    _Q, BLANK,    _S, BLANK,    _U, BLANK, BLANK
+                byte    BLANK,    _Y, BLANK, _SBLf, BLANK, _SBRt, BLANK, _UScr
+                byte    BLANK, BLANK,   _b2,   _c2,   _d2, BLANK, BLANK, BLANK
+                byte      _h2,   _i2, BLANK, BLANK,   _l2, BLANK,   _n2,   _o2
+                byte    BLANK, BLANK,   _r2, BLANK,   _t2,   _u2, BLANK, BLANK
+                byte    BLANK, BLANK, BLANK, BLANK, BLANK, BLANK, BLANK, BLANK
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

@@ -1,0 +1,141 @@
+'' =================================================================================================
+''
+''   File....... jm_max7219_ez_demo.spin2
+''   Purpose.... Demonstrates use of 8-digit, 7-segment display
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2019 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon@jonmcphalen.com
+''   Started....
+''   Updated.... 01 JUL 2020
+''
+'' =================================================================================================
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+                                                                 
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }                                           
+  SD_SDI   = 59  { O }                                           
+  SD_SDO   = 58  { I }                                           
+                                                                 
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { IO } 
+
+
+con { user io pins }
+
+  CS2      = 26  { O }                                          ' max7219 connections
+  SDO2     = 25  { O }
+  SCK2     = 24  { O }
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  disp : "jm_max7219_ez"                                        '   max7219 interface
+
+
+dat { pre-initialized }
+
+  Message       byte    32[8]                                   ' spaces for padding
+                byte    "PrOPELLEr 2"
+                byte    32[8]
+                byte    0
+                 
+  Spinner       byte    disp.SEG_A, disp.SEG_B, disp.SEG_C
+                byte    disp.SEG_D, disp.SEG_E, disp.SEG_F
+                 
+
+var 
+
+
+pub main() | x 
+
+  setup()
+
+  repeat
+    scroll(@Message, 200)
+
+    repeat 3                                                    ' animate segments
+      repeat x from 0 to 5
+        disp.fill(Spinner[x])
+        waitms(125)
+
+    disp.clear()
+
+    repeat x from disp.DIG_0 to disp.DIG_7                      ' zip on dpoints
+      disp.out(x, disp.SEG_DP)
+      waitms(125)
+
+    repeat x from disp.DIG_0 to disp.DIG_7                      ' zip off dpoints
+      disp.out(x, 0)
+      waitms(125)
+
+
+pub scroll(p_str, delay) | i, c, byte buf[8]
+
+'' Scroll string at p_str through display
+'' -- motion is right to left
+'' -- string should be padded with spaces for clean entry/exit 
+
+  repeat strsize(p_str)-8
+    repeat i from 7 to 0                                        ' left to right
+      c := byte[p_str][7-i]                                     ' get character
+      buf[i] := disp.char_map(c)                                ' convert to segments
+    disp.write_buf(@buf, 8, 1)
+    waitms(delay)
+    p_str++
+
+
+pub setup()
+
+'' Setup IO and objects for application
+
+  disp.start(SCK2, SDO2, CS2)                                   ' start max7219 connection
+  disp.shutdown(false)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
