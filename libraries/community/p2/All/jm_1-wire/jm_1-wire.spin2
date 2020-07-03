@@ -1,0 +1,237 @@
+'' =================================================================================================
+''
+''   File....... jm_1-wire.spin2
+''   Purpose.... Low-level 1-Wire interface routines
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 02 JUL 2020
+''
+''   {$P2} 
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+
+
+con
+
+  #0, PU_NONE, PU_1K5, PU_3K3, PU_15K                           ' pull-up options
+
+
+con
+
+  BUS_SHORT = %00
+  BAD_RESP  = %01
+  GOOD_DEV  = %10
+  NO_DEV    = %11
+
+
+con
+
+  RD_ROM    = $33                                               ' 1W commands
+  SKIP_ROM  = $CC                                                 
+                                                                 
+                                                                 
+var                                                              
+                                                                 
+  long  owpin                                                   ' pin used
+  long  us001                                                   ' ticks per microsecond   
+                                                                  
+
+pub null()
+
+'' This is not a top-level object
+  
+                                                             
+pub start(pin, pullup) : result                                                    
+                                                                  
+'' Starts 1-Wire object
+'' -- pin is io for 1-Wire connection
+'' -- pullup controls high level drive configuration of the 1W bus
+
+  owpin := pin                                                  ' set pin to use
+
+  case pullup
+    PU_NONE : pullup := P_HIGH_FLOAT                            ' use external pull-up
+    PU_1K5  : pullup := P_HIGH_1K5                              ' 1.5k
+    PU_3K3  : pullup := P_HIGH_1MA                              ' acts like ~3.3k
+    other   : pullup := P_HIGH_15K                              ' 15K
+
+  pinclear(owpin)                                               ' clear pin of smart mode
+  pinfloat(owpin)                                               ' reset
+  
+  wrpin(owpin, pullup)                                          ' configure pull-up 
+  pinhigh(owpin) 
+    
+  us001 := clkfreq / 1_000_000                                  ' set ticks per microsecond
+
+  waitus(25)                                                    ' let internal pull-up engage                                                                     
+
+  return reset()
+
+
+pub reset() : result | ow, us1
+
+'' Resets 1-Wire bus; returns bus status
+''
+''   %00 = bus short
+''   %01 = bad response; possible interference on bus
+''   %10 = good bus & presence detection
+''   %11 = no device
+
+  longmove(@ow, @owpin, 2)                                      ' copy pin and timing
+
+  org
+                mov       result, #%11                          ' assume no device
+                drvl      ow                                    ' bus low
+                rep       #1, #500                              ' reset pulse
+                 waitx    us1     
+                drvh      ow                                    ' release bus to pull-up
+                rep       #1, #5
+                 waitx    us1
+                testp     ow                            wc      ' bus -> c
+                muxc      result, #%10                          ' c -> result.[1] (test for short)
+                rep       #1, #70
+                 waitx    us1
+                testp     ow                            wc      ' bus -> c
+                muxc      result, #%01                          ' c -> result.[0] (test for presence)
+                rep       #1, #500
+                 waitx    us1                
+  end
+
+                                                        
+pub write(b) | ow, us1, bits, delay                                                     
+                                                                 
+'' Write byte to 1-Wire bus
+
+  longmove(@ow, @owpin, 2)                                      ' copy pin and timing
+
+  org
+                mov       bits, #8                              ' 8 bits
+.loop           shr       b, #1                         wc      ' b.0 -> c, b >>= 1
+                drvl      ow                                    ' bus low
+  if_c          mov       delay, #6                             ' 1-bit timing
+  if_nc         mov       delay, #60                            ' 0-bit timing
+                rep       #1, delay
+                 waitx    us1
+                drvh      ow                                    ' release bus to pull-up
+  if_c          mov       delay, #64                            ' 1-bit finish
+  if_nc         mov       delay, #10                            ' 0-bit finish                                 ' 
+                rep       #1, delay
+                 waitx    us1
+                djnz      bits, #.loop
+  end
+
+
+                                                             
+pub read() : b  | ow, us1, bits                                                          
+                                                                 
+'' Reads byte from 1-Wire bus
+
+  longmove(@ow, @owpin, 2)                                      ' copy pin and timing
+
+  org
+                mov       bits, #8                              ' 8 bits
+.loop           drvl      ow                                    ' bus low / start read slot 
+                rep       #1, #6
+                 waitx    us1
+                drvh      ow                                    ' release bus to pull-up     
+                rep       #1, #9                                ' hold-off before sample
+                 waitx    us1
+                testp     ow                            wc      ' bus -> c
+                shr       b, #1                                 ' make room for new bit
+                muxc      b, #%1000_0000                        ' c -> b.[7]
+                rep       #1, #55                               ' finish read slot
+                 waitx    us1
+                djnz      bits, #.loop   
+  end
+                           
+                                                            
+pub rdbit() : b  | ow, us1, bits                                                           
+                                                                 
+'' Reads bit from 1-Wire bus                                    
+'' -- useful for monitoring device busy status
+
+  longmove(@ow, @owpin, 2)                                      ' copy pin and timing
+
+  org
+                drvl      ow                                    ' bus low / start read slot
+                rep       #1, #6
+                 waitx    us1
+                drvh      ow                                    ' release bus to pull-up     
+                rep       #1, #9                                ' hold-off before sample
+                 waitx    us1
+                testp     ow                            wc      ' bus -> c
+                muxc      b, #1                                 ' c -> b.[0]
+                rep       #1, #55                               ' finish read slot
+                 waitx    us1
+  end
+                                
+                                                                 
+pub crc8(p_src, n) : crc | b
+
+'' Returns CRC8 of n bytes at p_src                                
+                                                                 
+  org
+.loop           rdbyte    b, p_src
+                add       p_src, #1
+                rev       b
+                setq      b
+                crcnib    crc, #$8C
+                crcnib    crc, #$8C
+                djnz      n, #.loop
+  end                
+                                                                 
+                                                    
+pri crc8x(p_src, n) : crc | b                                     
+                                                                  
+'' Returns CRC8 of n bytes at p_src                                
+'' -- implementation by Micah Dowty
+'' -- for reference only                               
+                                                       
+  repeat n                                                        
+    b := byte[p_src++]                                            
+    repeat 8                                                      
+      if (crc ^ b) & 1                                            
+        crc := (crc >> 1) ^ $8C                                   
+      else                                                        
+        crc >>= 1
+      b >>= 1
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
