@@ -1,0 +1,166 @@
+'' =================================================================================================
+''
+''   File....... jm_dc_motor.spin2
+''   Purpose.... DC motor control use P2 smart pins
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 05 JUL 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+                                                                 
+
+con
+
+  #0, LOW, HIGH
+  #0, M_SAW, M_TRI                                              ' pwm modes
+
+
+var
+
+  byte  mtra                                                    ' pwm forward
+  byte  mtrb                                                    ' pwm reverse
+  byte  enpin                                                   ' enable motor outputs
+  byte  enstate                                                 ' state to enable motor
+  byte  setup                                                   ' true when pins setup
+  long  speed                                                   ' last speed setting
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(a, b, en, enlevel, kHz, mode) : result | x
+
+'' Start dc motor driver
+'' -- a and b are motor control (pwm) pins
+'' -- en is the motor enable/coast pin (-1 if not used)
+'' -- enlevel is enable pin level (0 or 1) to activate h-bridge outputs
+'' -- kHz is pwm frequency in kilohertz
+'' -- mode is pwm [counter] mode; 0 for sawtooth, 1 for triangle
+
+  stop()
+
+  mtra, mtrb, enpin := a, b, en                                 ' copy pins
+  enstate := (enlevel) ? HIGH : LOW                             ' fix enable pin output level
+  
+  x.word[0] := 1 #> ((clkfreq/(kHz*1000)) / 100_0) <# $FFFF     ' set unit timing  
+  x.word[1] := 100_0                                            ' set units (0.1%)  
+
+  if (mode == M_SAW)            
+    pinstart(mtra, P_OE | P_PWM_SAWTOOTH, x, 0)                 ' set mtra pin to pwm, duty = 0
+    pinstart(mtrb, P_OE | P_PWM_SAWTOOTH, x, 0)                 ' set mtrb pin to pwm, duty = 0
+  else
+    x.word[0] >>= 1                                             ' adjust for triangle
+    pinstart(mtra, P_OE | P_PWM_TRIANGLE, x, 0)  
+    pinstart(mtrb, P_OE | P_PWM_TRIANGLE, x, 0)  
+
+  enable(false)                                                 ' disable h-bridge outputs
+  setup := true                                                 ' mark setup
+  
+  
+pub stop()
+
+  if (setup)
+    pinclear(mtra)                                              ' clear motor pins
+    pinclear(mtrb)
+    if (enpin >= 0)
+      pinclear(enpin)
+
+  bytefill(@mtra, 0, 5)                                         ' mark stopped
+  speed := 0
+    
+    
+pub set_speed(spd)
+
+'' Set motor speed in 0.1% increments (-100_0 to 100_0)
+
+  speed := -100_0 #> spd <# 100_0                               ' limit range
+
+  if (speed < 0)                                                ' reverse
+    wypin(mtra, 0)                                              ' - a pin low
+    wypin(mtrb, -speed)                                         ' - pwm on b pin
+
+  elseif (speed == 0)                                           ' stop
+    wypin(mtra, 0)                                              ' - both pins low
+    wypin(mtrb, 0)
+
+  else { speed > 0 }                                            ' forward
+    wypin(mtra, speed)                                          ' - pwm on a pin
+    wypin(mtrb, 0)                                              ' - b pin low
+
+  enable(true)                                                  ' h-bridge outputs active
+
+
+pub get_speed() : result
+
+'' Returns last speed setting, -100_0 to 100_0
+'' -- negative value for reverse
+
+  return speed
+
+  
+pub enable(state)
+
+'' Set enable pin for motor
+
+  if (enpin >= 0)                                               ' enable pin defined?
+    if (state)
+      pinwrite(enpin, enstate)                                  ' h-bridge outputs active
+    else
+      pinwrite(enpin, !enstate)                                 ' h-bridge outputs disabled
+
+
+pub brake()
+
+'' Hold motor in braking condition
+'' -- use with caution
+'' -- release with set_speed()
+
+  wypin(mtra, 100_0)  
+  wypin(mtrb, 100_0)
+  if (enpin >= 0)
+    pinwrite(enpin, enstate)
+
+  speed := 0
+
+      
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}
