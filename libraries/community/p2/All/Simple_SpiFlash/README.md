@@ -1,4 +1,4 @@
-# Park transformation
+# Simple SPI flash driver
 
 By: Nicolas Benezan (forum: ManAtWork)
 
