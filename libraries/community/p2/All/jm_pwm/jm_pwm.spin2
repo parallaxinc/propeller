@@ -1,0 +1,135 @@
+'' =================================================================================================
+''
+''   File....... jm_pwm.spin2
+''   Purpose.... Smart pin PWM control
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 08 JUL 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }  
+
+
+con
+
+  #0, M_SAW, M_TRI                                              ' pwm modes
+
+  
+var
+
+  byte  pp                                                      ' pwm pin
+  word  duty                                                    ' last duty cycle
+  word  dmax                                                    ' maximum duty cycle (100%)
+  byte  setup                                                   ' true when pin setup
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(pin, dc, hz, mode)
+
+'' Configure smart pin for DMX-compatible PWM
+'' -- pin is 0..57
+'' -- dc is duty cycle of output 0 to 255 (100%)
+'' -- hz is pwm output frequency
+'' -- mode is pwm [counter] mode; 0 for sawtooth, 1 for triangle
+
+  dc := 0 #> dc <# 255
+
+  startx(pin, dc, 255, hz, mode)                                ' start PWM pin
+
+
+pub startx(pin, dc, units, hz, mode) | x
+
+'' Configure smart pin PWM
+'' -- pin is 0..57
+'' -- dc is duty cycle, 0 to $FFFF (expressed in units)
+'' -- units is the period, 1 to $FFFF
+'' -- hz is pwm output frequency
+'' -- mode is pwm [counter] mode; 0 for sawtooth, 1 for triangle
+
+  stop()
+
+  if ((hz > 0) && (pin >= 0) && (pin < SF_SDI))
+    pp := pin                                                   ' save pin
+    dmax := units := 1 #> units <# $FFFF                        ' units in pwm period
+    duty := dc := 0 #> dc <# dmax                               ' duty cycle (in units)
+    
+    x.word[0] := 1 #> ((clkfreq / hz) / units) <# $FFFF         ' set unit timing
+    x.word[1] := units                                          ' set period (units)
+
+    if (mode == M_SAW)            
+      pinstart(pin, P_OE | P_PWM_SAWTOOTH, x, duty)             ' start pwm (sawtooth)
+    else
+      x.word[0] >>= 1                                           ' adjust timing for triangle
+      pinstart(pin, P_OE | P_PWM_TRIANGLE, x, duty)             ' start pwm (triangle)
+
+    setup := true                                               ' mark setup
+ 
+
+pub stop()
+
+'' Disable pwm smart pin if previously configured
+
+  if (setup)
+    pinclear(pp)                                                ' disable smart pin
+
+  bytefill(@pp, 0, 6)                                           ' mark disabled
+
+
+pub write(dc)
+
+'' Update duty cycle of pwm pin
+'' -- dc is duty cycle of output: 0..dmax (100%)
+
+  if (setup)
+    duty := 0 #> dc <# dmax                                     ' keep duty in range
+    wypin(pp, duty)                                             ' update the pin
+
+
+pub read() : result
+
+'' Returns current duty cycle value
+
+  return (setup) ? duty : 0                                     ' return duty cycle
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
