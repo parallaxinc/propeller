@@ -13,6 +13,7 @@
 ' author: Nicolas Benezan (nicolas@benezan.de, forum: ManAtWork)
 
 ' bene 07-May-2020 Spi_WrLong() fixed (little endian)
+' bene 09-Jul-2020 Spi_RdByte() fixed, waitx
 
 CON     spi_cs = 61
         spi_ck = 60
@@ -26,28 +27,28 @@ CON     spi_cs = 61
         Read_Data    = $03
         Read_Status  = $05
 
-PUB start ()' Dummy to avoid compiling as top
+PUB start() ' Dummy to avoid compiling as top
   repeat
 
-PUB Erase (flashAdr, size) | cmd
+PUB Erase(flashAdr, size) | cmd
 ' size can be 4kB or 64kB
   cmd:= Erase_4k
   if size > $1000
     cmd:= Erase_64k
-  Spi_Init ()
+  Spi_Init()
   Spi_Cmd8 (Write_Enable)
   Spi_Cmd32 (cmd, flashAdr)
-  Spi_Wait ()
+  Spi_Wait()
 
-PUB WritePage (hubAdr, flashAdr)
+PUB WritePage(hubAdr, flashAdr)
 ' writes a page of 256 bytes
-  Spi_Init ()
-  Spi_Cmd8 (Write_Enable)
-  Spi_Cmd32 (Write_Page, flashAdr)
+  Spi_Init()
+  Spi_Cmd8(Write_Enable)
+  Spi_Cmd32(Write_Page, flashAdr)
   repeat 64
     Spi_WrLong (long[hubAdr])
     hubAdr+= 4
-  Spi_Wait ()
+  Spi_Wait()
 
 PUB Read (hubAdr, flashAdr, size)
 ' read any number of bytes
@@ -58,19 +59,22 @@ PUB Read (hubAdr, flashAdr, size)
   ORG
     drvh        #spi_cs
   END
-
-PUB Verify (hubAdr, flashAdr, size) : ok
+  
+PUB Verify(hubAdr, flashAdr, size) : ok
 ' compare HUBRAM to flash contents, true means match
   ok:= true
-  Spi_Init ()
-  Spi_Cmd32 (Read_Data, flashAdr)
+  Spi_Init()
+  Spi_Cmd32(Read_Data, flashAdr)
   repeat size
-    ok&= byte[hubAdr++] == Spi_RdByte ()
+    ok&= byte[hubAdr++] == Spi_RdByte()
+
   ORG
     drvh        #spi_cs
   END
 
-PRI Spi_Init ()
+  return ok
+
+PRI Spi_Init()
   ORG
                 drvh    #spi_cs                 'spi_cs high
                 fltl    #spi_ck                 'reset smart pin spi_ck
@@ -80,19 +84,21 @@ PRI Spi_Init ()
                 drvl    #spi_di
   END
 
-PRI Spi_Cmd8 (cmd)
+PRI Spi_Cmd8(cmd)
 ' outputs 8 bits command, MSB first
   ORG
                 drvh    #spi_cs
                 shl     cmd,#24                 'shift command up
                 drvl    #spi_cs
   END
-  Spi_WrByte (cmd)
+
+  Spi_WrByte(cmd)
+
   ORG
                 drvl    #spi_di
   END
 
-PRI Spi_WrByte (cmd) : r
+PRI Spi_WrByte(cmd) : result
   ORG
                 shl     cmd,#1 wc
                 outc    #spi_di
@@ -114,7 +120,7 @@ PRI Spi_WrByte (cmd) : r
   END
   return cmd
 
-PRI Spi_Cmd32 (cmd, adr)
+PRI Spi_Cmd32(cmd, adr)
 ' outputs 4 bytes: 8 bit command + 24 bits adr
   ORG
                 drvh    #spi_cs
@@ -122,69 +128,76 @@ PRI Spi_Cmd32 (cmd, adr)
                 or      cmd,adr                 'or in address
                 drvl    #spi_cs
   END
+
   repeat 4
-    cmd:= Spi_WrByte (cmd)
+    cmd:= Spi_WrByte(cmd)
+
   ORG
                 drvl    #spi_di
   END
 
-PRI Spi_WrLong (l)
+PRI Spi_WrLong(l)
 ' outputs 32 bits while spi_cs stays low
-  Spi_WrByte (l<<24)
-  Spi_WrByte (l<<16)
-  Spi_WrByte (l<<8)
-  Spi_WrByte (l)
+  Spi_WrByte(l<<24)
+  Spi_WrByte(l<<16)
+  Spi_WrByte(l<<8)
+  Spi_WrByte(l)
 
 PRI Spi_RdByte (): b
 ' read 8 bits
   ORG
-                wypin   #16,#spi_ck             'start 16 clock transitions
-                mov     b,#0
-                nop
-                nop                             'read later to compensate input/output delay
-                nop
-                nop
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
-                testp   #spi_do wc
-                rcl     b,#1
+        wypin   #16,#spi_ck             'start 16 clock transitions
+        mov     b,#0
+        waitx   #4                      ' 3..6 works for me
+        'nop                            'read later to compensate input/output delay
+        'nop                            ' 2 or 3 nops works, 1+4 nops don't
+        'nop
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
+        testp   #spi_do wc
+        rcl     b,#1
   END
+  return b 
 
-PRI Spi_Wait ()| st
+
+PRI Spi_Wait() | st
+
 ' waits until busy flag == 0, drives spi_cs high when done
   repeat
-    Spi_Cmd8 (Read_Status)
-    st:= Spi_RdByte ()
+    Spi_Cmd8(Read_Status)
+    st:= Spi_RdByte()
   until st & $01 == 0
+  
   ORG
     drvh        #spi_cs
   END
 
+{
 +------------------------------------------------------------------------------------------------------------------------------+
-¦                                                   TERMS OF USE: MIT License                                                  ¦                                                            
-+------------------------------------------------------------------------------------------------------------------------------¦
-¦Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    ¦ 
-¦files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    ¦
-¦modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software¦
-¦is furnished to do so, subject to the following conditions:                                                                   ¦
-¦                                                                                                                              ¦
-¦The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.¦
-¦                                                                                                                              ¦
-¦THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          ¦
-¦WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         ¦
-¦COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   ¦
-¦ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         ¦
+Â¦                                                   TERMS OF USE: MIT License                                                  Â¦                                                            
++------------------------------------------------------------------------------------------------------------------------------Â¦
+Â¦Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    Â¦ 
+Â¦files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    Â¦
+Â¦modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the SoftwareÂ¦
+Â¦is furnished to do so, subject to the following conditions:                                                                   Â¦
+Â¦                                                                                                                              Â¦
+Â¦The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.Â¦
+Â¦                                                                                                                              Â¦
+Â¦THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          Â¦
+Â¦WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         Â¦
+Â¦COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   Â¦
+Â¦ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         Â¦
 +------------------------------------------------------------------------------------------------------------------------------+
-
+}
