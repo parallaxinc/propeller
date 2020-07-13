@@ -1,0 +1,74 @@
+' Flash Demo
+' Run on P2 EVAL board with FLASH Dip Switch set ON
+' Run this code, then within 2 seconds open Parallax Serial Terminal (or equivalent) at 115200 baud
+
+CON
+
+  CLK_FREQ = 180_000_000        ' system freq as a constant
+  _clkfreq = CLK_FREQ
+    
+  BR_TERM = 230_400             ' terminal baud rate
+
+  FLASH_ADR = $60000
+
+  MAXCHK = 255         
+
+
+OBJ
+
+  com : "jm_serial.spin2"
+  spi : "SpiFlash.spin2"
+
+
+VAR
+
+  byte buffer[4096]
+
+  
+PUB main() | i
+
+  com.start(BR_TERM)
+
+  waitms(2000) ' 2 second pause; allow user to open serial debug terminal
+  
+  com.str (string(13, 10, "erase...", 13, 10))
+  spi.Erase (FLASH_ADR, $2000)
+  
+
+  com.str (string("read before: "))
+
+  ' clear buffer
+  repeat i from 0 to 255
+    buffer[i]:= -2
+    
+
+  spi.Read (@buffer, FLASH_ADR, 256)
+
+  repeat i from 0 to MAXCHK
+    com.dec (buffer[i])
+    com.tx (" ")
+  com.tx(10)
+  com.tx(13)
+  
+  repeat i from 0 to 255
+    buffer[i]:= i
+
+  spi.WritePage (@buffer, FLASH_ADR)
+  
+
+
+
+  com.str (string("read after write: "))
+
+  ' clear buffer
+  repeat i from 0 to 255
+    buffer[i]:= -2
+    
+
+  spi.Read (@buffer, FLASH_ADR, 256)
+
+  repeat i from 0 to MAXCHK
+    com.dec (buffer[i])
+    com.tx (" ")
+  com.tx(10)
+  com.tx(13)
