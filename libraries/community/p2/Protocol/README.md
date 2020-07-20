@@ -6,4 +6,6 @@
 
 [JM Serial](../All/jm_serial)
 
+[JM Sony IRCS (infrared control system)](../All/jm_sircs_rx)
+
 [Park Transformation](../All/ParkTransformation)
