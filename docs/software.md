@@ -5,6 +5,7 @@
   * [Project CI Server](https://ci.zemon.name/?guest=1) - David Zemon's CI Server
 
 ## Games
+  * [Pong](https://forums.parallax.com/discussion/comment/1500894/#Comment_1500894) - by Reinhard and rogloh
   * [Space Invaders](https://forums.parallax.com/discussion/169478/p2-invaders-cordic-crickets-vga-demo-for-p2-eval-boards) - by ozpropdev
   * [Cordic Crickets](https://forums.parallax.com/discussion/169478/p2-invaders-cordic-crickets-vga-demo-for-p2-eval-boards) - by ozpropdev
 
