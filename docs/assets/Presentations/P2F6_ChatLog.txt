@@ -1,0 +1,263 @@
+From Ken Gracey to Everyone:  03:10 PM
+Awesome OzPropDev. Many contributions from OzPropDev, Rogloh, Tubular and Damien down under.
+
+From Peter Jakacki to Everyone:  03:14 PM
+Ned Tubular Kelly and his brother Dan Brian Kelly gang :)
+
+From Riley August to Everyone:  03:20 PM
+can you send a /t?
+
+From Peter Jakacki to Everyone:  03:22 PM
+when you import, is that a file on the card or in memory already?
+
+From Ken Gracey to Everyone:  03:23 PM
+https://codewith.mu/en/download
+
+From Me to Everyone:  03:24 PM
+re: /t - No, PST processes most everything literally.  We've made some changes for MicroPython's REPL use, but looks like we have more to do to make it nicer for REPL.
+
+From Riley August to Everyone:  03:25 PM
+did we just lose mic
+
+From ^OzPropDev Tubular^ to Everyone:  03:26 PM
+I think we don't have the correct PST version running Jeff. I noticed the backspace wasn't doing what we fixed 
+
+From Riley August to Everyone:  03:30 PM
+X and Y axis. That's COOL.
+
+From Ken Gracey to Everyone:  03:32 PM
+MicroPython's home https://micropython.org/The alpha version of Mu sees the P2 as an ESP board when connected. 
+
+From duztynn eisenga to Everyone:  03:36 PM
+it live imported from mu rynning on the pc. and your handheld camera is 3% battery
+
+From Me to Everyone:  03:36 PM
+Good observation.
+
+From Ken Gracey to Everyone:  03:37 PM
+Thanks Roy.
+
+From Roy Eltham to Everyone:  03:38 PM
+np, I was curious about importing python modules also
+
+From duztynn eisenga to Everyone:  03:38 PM
+so one is an import for namespace, another is actual loading module from pc via mu?
+
+From Eric Smith to Everyone:  03:38 PM
+It should be able to import files from SD card? At least my version does.
+
+From Roy Eltham to Everyone:  03:39 PM
+that will be great
+
+From Jon McPhalen to Everyone:  03:39 PM
+How our custom modules included?
+
+From Ray Rodrick to Everyone:  03:39 PM
+self hosting should require an SD card formatted as FAT32
+
+From Roy Eltham to Everyone:  03:40 PM
+they mentioned being able to read files from the built in flash also
+
+From Jim Granville to Everyone:  03:40 PM
+Green, but complete with some video shimmer ? Is the native resolution of that LCD not quite the same as the video ?
+
+From duztynn eisenga to Everyone:  03:43 PM
+that is slick.
+
+From Jim Granville to Everyone:  03:44 PM
+Cool editor - what is the overhead of that, and what text size can it manage ?
+
+From Peter Jakacki to Everyone:  03:44 PM
+too quick
+
+From Ken Gracey to Everyone:  03:47 PM
+What do y'all think of this?
+
+From Jon McPhalen to Everyone:  03:47 PM
+Would be great for a P2-powered convention badge.
+
+From Eric Smith to Everyone:  03:47 PM
+Is that some kind of assembly code? Do you have an assembler built in to micropython?
+
+From Jim Granville to Everyone:  03:48 PM
+"What do y'all think of this?" Who would not be impressed. Now, users will want 16 COG p2's ;)
+
+From duztynn eisenga to Everyone:  03:49 PM
+^ i think it works because python is interpretted not compiled correct? or is there a pass that turns it into a byte code?
+
+From Peter Jakacki to Everyone:  03:51 PM
+You can always use SD in plain "Flash" modeThen later on have FAT32
+
+From Jim Granville to Everyone:  03:53 PM
+What is the current Micropython image size, in P2 memory ?
+
+From ^OzPropDev Tubular^ to Everyone:  03:55 PM
+Jim I think its around 200k, but then it reserves most of hub for the Micropython heap. More later
+
+From duztynn eisenga to Everyone:  03:55 PM
+thats what I was seeing. this editor, could somebody write pasm code in it, save it and use somebody elses compiler to have on device spin/pasm.  one step closer, because of your on device editor.
+
+From Eric Smith to Everyone:  03:59 PM
+It would certainly be possible to create a "spin2python" converter; spin2cpp is most of the way there.The current cpu() method in my micropython interpreter (which I think the Oz guys have too) just takes a binary array of data and loads it into a COG. So all you need to do, Jon, is to convert your PASM into a binary blob and then have the python code load that to a COG
+
+From Ken Gracey to Everyone:  04:01 PM
+Eric, how about the link between the Python code accessing the binary blob? See that as a challenge, or no? The blending of architecture and language is over my head. But it's a necessity to make this work!
+
+From Jon McPhalen to Everyone:  04:01 PM
+That's the thing... I'm very fussy about my code and don't want to convert to an intermediary format -- I was hoping that I could translate the Spin interface code to Python leave the P2ASM as is.                      
+
+From Eric Smith to Everyone:  04:02 PM
+Python doesn't have an assembler built in, so the P2ASM has to be compiledBut you could write the python part yourself to interface to the compiled binary blob.
+
+From Roy Eltham to Everyone:  04:02 PM
+this is an amazing debug view
+
+From Jim Granville to Everyone:  04:03 PM
+Very nifty memory snooper. How does it decide a change - is it a checksum per 'P' ?
+
+From duztynn eisenga to Everyone:  04:03 PM
+meaning your p2asm can be called from mpython or spin all the same? is that just a command in mpython being fed a native address.. very similar to cognew command?
+
+From ^OzPropDev Tubular^ to Everyone:  04:04 PM
+yes there is a checksum on each sector, plus a bit of persistence on the interfacing between cogs... this needs further investigation.  We were using smartpin repository mode as a mailbox, but are currently revisiting this 
+
+From Jim Granville to Everyone:  04:04 PM
+Is that snooper in the editor COG, it in a separate Debug COG ? 
+
+From Eric Smith to Everyone:  04:05 PM
+In my micropython at least, yes, the p2asm can be called from mpython (but it has to be assembled outside of python). There are some restrictions, in that the data addresses are not known at compile time, but that's similar to Chip's Spin2
+
+From ^OzPropDev Tubular^ to Everyone:  04:05 PM
+ok we need to look at that Eric
+
+From Michael Green to Everyone:  04:06 PM
+Adafruit has been building an extensive library of interfaces in their version of MicroPython (CircuitPython).  Pretty much all of their current breakout boards now have these and their display library is very sophisticated across their line of displays.  Their processor boards now have over 1MB of file storage that appears as a USB mass storage device.  You copy a compressed version of your library Python sources and a main program source and it just executes or you can debug it via a USB serial port.  It shouldn’t be too hard to use that model for a Propeller version.
+
+From ^OzPropDev Tubular^ to Everyone:  04:08 PM
+yes that should be fine within the MP environment Mike.   ie we should be able to reuse those efforts.  The question is how to bridge to other cores that might be running Spin2 (or other languages) 
+
+From Francis Bauer to Everyone:  04:11 PM
+way cool...
+
+From Michael Green to Everyone:  04:11 PM
+It ought to be fairly easy to make most of the interpreter reentrant and use a mailbox for communication ( with appropriate primitives in the interpretive code)
+
+From Me to Everyone:  04:12 PM
+I'd think that the way to interface MicroPython to PASM or Spin2 would be to map Python variables to shared space in HUB RAM.  It seems like an update to MicroPython could be made to allow the user to create variables that get mapped to the same places as; thought that means a wrapper of sorts need be made for each object.  Maybe there's a more automatic way to do it with Spin2/PASM2 list information.
+
+From duztynn eisenga to Everyone:  04:13 PM
+michael green mentioned compressed python libraries. does p2 micropython use that? so you can have raw python in text format or the compressed format.
+
+From Publison Moderator to Everyone:  04:14 PM
+Great software! Going to be grat for education, schools.
+
+From Riley August to Everyone:  04:15 PM
+I think for "easy to hack" projects, micropython could be a great toolset. If you don't mind the extra overhead, it definitely makes everything more friendly to desktop developers.
+
+From Me to Everyone:  04:16 PM
+That print code feature is nice!
+
+From duztynn eisenga to Everyone:  04:16 PM
+viewing the raw code is awesome.. yes!
+
+From Jim Granville to Everyone:  04:16 PM
+Great! A smart pin disasm was my next question ;)
+
+From ^OzPropDev Tubular^ to Everyone:  04:19 PM
+Riley yes initially the challenge is to get thigs going and connected, and performance can come later.  The .code display feature hopes to help bridge across to higher performance (pasm2)
+
+From Riley August to Everyone:  04:19 PM
+I think that's an excellent place to be, because having a small default image size is good.
+
+From Jim Granville to Everyone:  04:21 PM
+Curious how long does PC-side build take to create the P2 Micropython image ?
+
+From ^OzPropDev Tubular^ to Everyone:  04:23 PM
+Rogloh did the compilation for Native P2 MicroPython, its a question for him.   But we'll take note when we compile 1.13 soon
+
+From Eric Smith to Everyone:  04:24 PM
+On my linux machine it takes a few minutes to build RV32-P2 from scratch.
+
+From Publison Moderator to Everyone:  04:24 PM
+Thanks all the guys from Oz. Stay safe.
+
+From duztynn eisenga to Everyone:  04:25 PM
+not too familiar with python but what happens from editor on o2...to actually running
+
+From Robert Lawrence to Everyone:  04:25 PM
+Excellent Oz guys. Thanks!!
+
+From Riley August to Everyone:  04:25 PM
+That sounds like a neat build
+
+From duztynn eisenga to Everyone:  04:25 PM
+is the .py just a text file. and gets read line by line or is there a pass that happens and turns into byte code
+
+From Michael Green to Everyone:  04:25 PM
+The amount of work you’ve put in is obvious.  Keep up the good work and thank you.  I look forward to trying it.
+
+From Roy Eltham to Everyone:  04:25 PM
+really nice work team oz
+
+From Riley August to Everyone:  04:25 PM
+oh my god what
+
+From ^OzPropDev Tubular^ to Everyone:  04:26 PM
+Duztynn its effectively sent in serially to the REPL in the background
+
+From Publison Moderator to Everyone:  04:26 PM
+A Huminoido Big Brain!!!
+
+From ^OzPropDev Tubular^ to Everyone:  04:26 PM
+thanks for the kind comments all.  Nice to get to present what we're doing 
+
+From duztynn eisenga to Everyone:  04:26 PM
+oh i gotcha. so the editor acts the same as mu does as if it was hand typed. thanks.
+
+From Riley August to Everyone:  04:26 PM
+send that guy some heatsinks ;)
+
+From Henrique Silva Neto to Everyone:  04:26 PM
+Really nice!
+
+From Jon McPhalen to Everyone:  04:26 PM
+That's funny, Publison!
+
+From Jim Granville to Everyone:  04:27 PM
+and some large FANS !!
+
+From Me to Everyone:  04:27 PM
+Thank you OzPropDev and Tubular!                                                                                         
+
+From Jon McPhalen to Everyone:  04:27 PM
+PB PDB, Ken!P2 PDB, Ken!!!
+
+From Roy Eltham to Everyone:  04:27 PM
+yes Jon!
+
+From ^OzPropDev Tubular^ to Everyone:  04:27 PM
+yes PDB bring it back
+
+From Roy Eltham to Everyone:  04:27 PM
+P2 PDB!
+
+From Francis Bauer to Everyone:  04:28 PM
+Just go up, like a skyscraper Flip module
+
+From Riley August to Everyone:  04:28 PM
+flips are great
+
+From Publison Moderator to Everyone:  04:28 PM
+Yes P2 PDB!
+
+From Roy Eltham to Everyone:  04:28 PM
+I use my PPDBs all the time still, would love one for the P2
+
+From Peter Jakacki to Everyone:  04:30 PM
+P2LAB has everything on it and takes 2 P2D2 modules - one for standalone PC functions
+
+From ^OzPropDev Tubular^ to Everyone:  04:30 PM
+lets find a way Ken
+
+From Peter Jakacki to Everyone:  04:30 PM
+or either one
