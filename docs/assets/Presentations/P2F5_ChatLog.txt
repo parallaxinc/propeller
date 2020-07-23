@@ -1,0 +1,114 @@
+﻿14:02:33 Roy Eltham : The P1 Counter features are mostly present inside of the smart pins
+14:03:18 Ken Gracey : https://propeller.parallax.com/p2.html#ides
+14:04:23 Dave Jenson : I had no problem with windows Defender when i installed pNutâ€¦.
+14:07:19 Roy Eltham : I just downloaded pNut v34t and was able to extract the exe and run it fine with no warnings fromd efender
+14:07:37 Roy Eltham : I'm on Win10 pro
+14:08:46 Dennis Gately : I copied the unzipped content of PNut v34t from my macOS side to WIN 10 running in Parallels on the same Mac. It launched without issue!
+14:10:41 Jeff Martin : I just checked it on VirusTotal.  It does indicate 4 antivirus systems detect something.  This may be a false detection (which I've seen from time to time).  648201c4477625b04396adb758ca9e28be9be21918eb1ca8807e51c957046ea6
+14:11:16 Ray Allen : need a delay in there
+14:11:19 Ray Allen : ?
+14:11:49 Jim Granville : I downloaded pNUTt and launches ok on Win10 with a single 'are you sure' type message.
+14:12:46 Cluso99 : No problems with download, unzip with 7-zip, and run .exe Running Windows 10 Pro 1909 build 18363.959
+14:13:33 Ray Allen : task manager
+14:14:30 Dave Jenson : (reboot)??
+14:19:35 Jim Granville : Can this print a timer in each loop, to show how much time is used by debug() ?
+14:27:58 duztynn eisenga :  Ya can table this question to the end, Have you gotten the 7" display 800x480 on the store, to act as serial out device? "serial out" back into a cog running the display? for debugging info on device with no pc required.
+14:33:32 Roy Eltham : can we single step and /or do breakpoints?
+14:37:09 Ray Allen : Is the Debug window just a serial terminal?
+14:37:46 Ken Gracey : Ray, a simplified serial terminal. You can use PST too. 
+14:39:26 Ray Allen : thanks.  that's good.
+14:39:59 Roy Eltham : chip should try the screen share again
+14:42:15 duztynn eisenga : so compiling without debug. is the same as commenting out the debug function calls?
+14:46:16 Jim Granville : There is surely an option to auto-save before run ? 
+14:47:27 Jeff Martin : Yes, Ctrl + B
+14:48:37 Ken Gracey : Super nice, Chip.
+14:49:08 duztynn eisenga :  Is debug a special instruction, or a function? Im not understanding how the debug() parameters know the difference between literal and register. is the difference happening at compile time or runtime, where it handles the difference between literal and register.
+14:49:45 Dario (dMajo) Majovsky : It is possible to view also hub memory from pasm debugger?
+14:50:20 Nicolas Benezan : I think long_array is hub memory and reg_array is cog ram
+14:52:02 Peter Jakacki : Looks like all presenters could benefit with a short zoom trial run a day or so before with maybe just a few  participants to provide feedback so that any zoom bugs can be ironed out.
+14:52:08 Ken Gracey : Documentation is here https://docs.google.com/document/d/16qVkmA6Co5fUNKJHF6pBfGfDupuRwDtf-wyieh_fbqw/edit
+14:52:29 Nicolas Benezan : Duztynn, debug is compiled to a single BRK instruction. All the arguments are stored in a table
+14:52:38 Ken Gracey : Agreed, Peter.
+14:53:25 duztynn eisenga : thanks Nich
+14:55:29 Jon McPhalen : Long term will be able to do program breaks, single-stepping, and variable modification?
+14:55:33 duztynn eisenga : thank you!
+14:56:23 Dennis Gately : Single-step available?
+14:58:29 Roy Eltham : single stepping and variable inspection when stepping, that will be the real debugger
+14:58:37 Roy Eltham : this is just glorified printf debugging
+14:59:39 Dario (dMajo) Majovsky : I disagree. When you are debugging some complex algorithm with several nested loops single stepping comes very friendly
+15:01:06 Jim Granville : For full single step and var view, especially for learning, a simulator is good. So a P2 simulator would allow single step, but proper simulation of the peripherals is where the fish-hooks lie....
+15:01:26 Dario (dMajo) Majovsky : is the debug command transparent in regards on which cog the code runs?
+15:02:05 Peter Jakacki : How does this play with interrupt code itself
+15:03:04 Jim Granville : The AVR simulator uses the Verilog approach - have you tried any of those Verilog_to_exe tools ?
+15:03:40 Jon McPhalen : So... not a simple serial terminal. :)
+15:04:29 Ray Allen : But, can you use it with PST if you want to?
+15:05:48 Jon McPhalen : When will it move from PNut to PT?
+15:06:39 Ray Allen : PST has more options...  And, can copy and paste, etc..
+15:07:29 Ken Gracey : Chip...schedules...."it'll take Jeff a day" go get 'em Jeff! We'll look for this PT integration on Friday!
+15:07:51 Roy Eltham : And Jeff laughs nervously
+15:08:08 Roy Eltham : Friday 2 weeks from now right Jeff :)
+15:08:24 Michael Sommer : can one change the debug port to different pins?                                                                                                                                                                                                             
+15:08:25 duztynn eisenga : im not really grasping the concept myself, but would ya rather use self modifying code to change the debug statement in pasm, or would you just have if statements to control what gets sent to debug()
+15:08:37 Peter Jakacki : So I might have missed this, but can we debug within interrupts?
+15:08:47 duztynn eisenga : can you have a case statement instead of IF
+15:09:51 duztynn eisenga : so you can use the register as a jump table kinda? thanks. or jump to many diff debug statements.. gotcha.  I gotcha thanks.
+15:09:57 Ray Allen : Seems like this could be extended to automatically emit all local variables...  And then, use a special code to relate that back to the variable names...
+15:11:49 James Caska : so there is hardware support (ultimately) to be able to control single stepping and query ram ?
+15:12:50 Jim Granville : "emit all local variables" the limit there is bandwidth, and the EVAL boards are limited to 3MBd, UB3 can increase that, and it can accept ~1536 byte bursts at 6M.8.n.2 above that would need a HS-USB link, but those top-out at 12MBd or maybe 15Mbd
+15:13:22 Ray Allen : Also seems like could be extended to take input in order to change a variable...
+15:13:58 Dario (dMajo) Majovsky : is the spin2_debugger.spin2 actually added to the source and compiled all together or pnut has a binary blob that is added to the download?
+15:16:33 Ray Allen : This is basically a better version of the debugging that I do now...
+15:16:42 Ray Allen : I'd definitely use it.
+15:17:09 Jim Schaefer : I am wondering if fastspin supports this debug yet?
+15:17:20 duztynn eisenga : can you add more than one serial out? or is that best in handled by the user if they wanna add another passive device listening on the tx/rx line?
+15:17:28 Jeff Martin : When I get to really "play" with the P2, I'll use it.
+15:17:59 Jon McPhalen : I'll use it when integrated into Propeller Tool.
+15:18:04 duztynn eisenga : or possibly see the last string debug() sent out, is it stored and return a pointer to that string so we can manually send that to another display for reformatting?
+15:18:34 Ray Allen : Any plans for propellent2 one day?
+15:19:09 Jeff Martin : re: Propellent2 - Yes.  I haven't compiled it and need to adjust a few things, but I've been working with that in mind for my changes in Propeller Tool.
+15:19:09 duztynn eisenga : thank you!
+15:19:13 Nicolas Benezan : My main application is written in C so I can't use it, now. I might use it to test subsystems before adding it to the main app.
+15:19:41 Francis Bauer : Great job, Chip :-)
+15:19:44 Peter Jakacki : I'm trying this in Linux using Wine but are we going to get a multiplatform version?
+15:19:53 Peter Jakacki : :)
+15:20:21 Ray Allen : What baud is debugger at?
+15:20:23 Jim Granville : "can you add more than one serial out?" - that would be a useful debugger build option, but it may not have room in the 16k to allow a serial-port-pin-per-COG choice ?
+15:20:25 Dario (dMajo) Majovsky : what happens to the debug lines that get pushed out of the window? are they lost or can they be seen "ofline"?
+15:21:40 James Caska : If I wanted to write my own hardware debugger 'exec' is there any reference information to accessing the debugger silicon?
+15:21:51 Nicolas Benezan : Yes, some sort of logfile would be useful to handle large data volumes
+15:21:58 Dario (dMajo) Majovsky : I mean: have the debug window any buffer to scroll back even if after the debug is stopped?
+15:24:00 Dennis Gately : Make sure you add "CON _clkfreq = 10_000_000" to the beginning of your program!
+15:24:24 Jeff Martin : Thanks Dennis!
+15:24:28 Jim Granville : "reference information to accessing the debugger silicon " - Chip has the source released. Is that enough 'information' ? ;)
+15:26:09 Nicolas Benezan : There is no special solicon except the debug interrupt and the protected memory. Everything else is software you can modify.
+15:27:23 Eric Smith : Dennis, you could have loadp2 capture the debug messages
+15:27:46 Cluso99 : Can a delay be put into the debugger to slow the initialisation?
+15:27:54 Ken Gracey : https://docs.google.com/document/d/16qVkmA6Co5fUNKJHF6pBfGfDupuRwDtf-wyieh_fbqw
+15:29:48 Ray Allen : delay could just be in Spin
+15:30:14 Ray Allen : but maybe better if an option
+15:30:23 Dario (dMajo) Majovsky : it is possible to add a timestamp (system tick counter) in front of the debug message in the degub window (on windows side) it is possible to debug on pin events eg have debug command into user's pin interrupt
+15:31:25 Ray Allen : Still planning for on chip compiler?
+15:36:09 Ray Allen : Actually, I'm liking that delay option, the more I think about it...
+15:36:51 Ray Allen : Nice to have a delay that's not there with debug off
+15:37:13 Jeff Martin : Good point.
+15:38:05 Dario (dMajo) Majovsky : No need for commands, you can just write the system timer in front of msg. The aim is to make time calculations between messages at later time, offline. eg to trap occasional gliches on some pins
+15:39:05 duztynn eisenga : a sort of waterfall? ticking out at intervals?
+15:42:20 Ray Allen : So, not just for debugging
+15:42:42 duztynn eisenga : somwthing has graphing of values, i dont remember is that in the mu editor?
+15:42:54 Peter Jakacki : You can write to a Linux device even if the port is opened in a terminal. I do this all the time.
+15:42:57 Dario (dMajo) Majovsky : @Cluso99, you can clone a phisical serial port to two virtual ports so each program can open/close it, even together.
+15:43:01 Ken Gracey : Yes, the Mu editor has graphing
+15:43:54 duztynn eisenga : thats what I was getting at with the 7" display, I know we wouldnt have everybody need one, but it would be nice to hVe it be generic stdout like device.
+15:44:53 Peter Jakacki : Just use a 6 pin header for VGA and make your own VGA adapter cable.
+15:45:54 duztynn eisenga : terminal on the 7" thanks ken.
+15:45:58 Ted H : I echo cluso99 recommendation to use an external display for serial /scope display to bypass the various platform problems.
+15:46:12 Peter Jakacki : Imagine if all the tools ran on a dedicated P2 "PC".
+15:48:01 Ray Allen : gotta go, bye.  See ya next time!
+15:48:11 duztynn eisenga : this is all, debug being resident correct. not just an object we add. we get the bonus off/on functionality depending on whether we do run vs. run+debug.
+15:48:18 Peter Jakacki : My new P2LAB motherboard has all the connections for this.
+15:51:21 Peter Jakacki : VGA to HDMI cables are $6.95 on ebay
+15:51:39 James Caska : IMO the best way to process debug information is with another test program so the serial stream seems fine by me. 
+15:52:50 Robert Lawrence : Excellent Chip thanks!!
+15:52:52 Jim Granville : Keep in mind, HDMI is outside the current P2 spec'd MHz, so Parallax need to define a new temperature/vcc for HDMI  
+15:53:11 duztynn eisenga : thank you.
+15:53:12 Stephen Moraco : THank you Chip!

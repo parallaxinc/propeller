@@ -1,0 +1,37 @@
+08:03:37 Whit Stodghill : IN
+08:03:39 Roy Eltham : I will
+08:18:12 Ken Gracey : Direct link to Ray's slides are here http://forums/discussion/download/130128/Display%2C%20GUI%2C%20and%20Multimedia%20options%20with%20P2%20rev.b.pdf
+08:18:36 Whit Stodghill : Luckily, we have lots of pins with the P2. ;-)
+08:18:44 Robert Lawrence : This site can't be reachedforums's server IP address could not be found.
+08:19:28 Whit Stodghill : Nice!
+08:27:18 Whit Stodghill : Cool!
+08:36:16 Ken Gracey : Question from Facebook Live for Ray or Chip from Matteo Borri Is it possible to connect a USB webcam and get frames in, or else to get frames in from a composite video source - like a heads up display for an FPV drone?
+08:43:19 Jon McPhalen : Well done, Ray.
+08:43:20 Whit Stodghill : Great job RAY!
+08:43:33 Jeff Martin : Fantastic job, Ray!
+08:43:35 Robert Lawrence : Excellent Ray Thanks :)
+08:43:37 Peter Jakacki : Good presentation Ray
+08:43:44 Chip Gracey : Matteo, not sure. If the camera could signal using the 12 Mbps full-speed USB that the smart pins support, then you could get data, but only at a low frame rate. I believe USB cameras signal using USB 2.0 or higher.
+08:43:45 Thomas Talbot : I hope this will be posted later since I joined late.  The parts I saw were excellent.
+08:44:24 Mike Green : Thanks, Ray.  Great slides
+08:44:42 Dennis Gately : Great job, Ray!
+08:45:24 Samuel Lourenço : Good job, Ray!
+08:45:33 Chip Gracey : Good job, Ray! I missed the first part, but will review it later. Looks very nice.
+08:46:31 Dennis Gately : Can you recommend minimal video display requirements for your drivers?
+08:46:50 Samuel Lourenço : USB 1.1 is limited to 12Mbps, or about 1.5MBps, which is not enough for video.
+08:49:04 Robert Lawrence : https://4dsystems.com.au/
+         Global leaders in the design and development of intelligent graphic solutions
+08:53:38 Whit Stodghill : Neat!
+08:53:44 Stephen Moraco : Thank you Ray!
+08:56:24 Chris Wardell : Thanks Ray!
+08:56:25 Whit Stodghill : Thanks, thanks, thanks!
+08:56:36 Roy Eltham : Thanks Ray, great stuff
+08:56:37 Garry Jordan : Thanks Ray, it was a very nice presentation!
+08:56:45 Henrique Silva Neto : Thanks Ray!
+08:56:57 Magnus Hauge : Thank you for a great presentation Ray!
+08:57:13 Dennis Gately : Thx, Ray! & Parallax, too!
+08:57:24 david harding : great job ray
+08:57:30 Jeff Martin : Thank you, Ray!
+08:58:29 Whit Stodghill : WE need some southern accents too!
+08:58:30 Thomas Talbot : Thanks Ray
+08:58:35 Robert Lawrence : :)

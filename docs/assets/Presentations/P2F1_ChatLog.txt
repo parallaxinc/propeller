@@ -1,0 +1,141 @@
+﻿19:49:59 peter jakacki (PC) : Hi everyone!!
+19:55:47 Whit Stodghill : Glad to put faces to names!
+19:59:39 peter jakacki (PC) : and what faces are they!
+20:01:04 Lachlan "tubular" : love the background Bob Lawrence! 
+20:03:37 Robert Lawrence : Are we permitted to record?
+20:04:22 Whit Stodghill : Great stuff planned!
+20:05:20 Ken Gracey : Recording is welcome and I'm already grabbing a video for YouTube.
+20:07:42 Chip Gracey : What editor is that you are using, Peter?
+20:07:53 Seairth Jacobs :         VS Code
+20:08:36 Whit Stodghill : What is KJV?
+20:09:05 Ken Gracey : KJV? Anybody?
+20:09:29 Roy : King James Version?
+20:09:34 Dave Jenson : king James version...
+20:09:36 Whit Stodghill : For me, that is King James Version
+20:10:02 Raymond Allen : @whit:  You in church?
+20:10:51 Whit Stodghill : Always ;-)
+20:10:56 Chip Gracey : I designed RCFAST to always run at least 20MHz, so that the loader could always autobaud to 2 Mbaud.
+20:14:01 Ken Gracey : TAQOZ forum thread is here https://forums.parallax.com/discussion/167868/taqoz-tachyon-forth-for-the-p2-boot-rom/p1
+20:14:23 Whit Stodghill : Looks great!
+20:15:37 Seairth Jacobs : What would be the best way to learn the individual commands available in TAQOZ?  For instance, how would we find that "!" is for initialization?
+20:15:56 Raymond Allen : @Whit:  Looks like a great one!
+20:19:45 Whit Stodghill : I can see it.
+20:21:30 Roy : I had to drag the window bigger that it put the screenshare in.  but it's very readable once I made it bigger
+20:22:24 Whit Stodghill : I did the same.
+20:22:43 Raymond Allen : Need to figure that out...
+20:23:21 Whit Stodghill : Great job, Peter!
+20:23:31 Stephen Moraco : I did too.  Just stretched the window to fill the screen.  Unless the window is partially off of the screen you should see everything.
+20:24:42 Raymond Allen : I'm on a chromebook and can't seem to make it bigger...
+20:25:50 Stephen Moraco : ok, that makes sense.
+20:25:57 Jon Ellingson : you can try zoom side by side mode, it doesn't clip lower screen on my laptop.
+20:33:28 Raymond Allen : There is FSRW for the boot flash, BTW
+20:35:55 Jonathan Titus : How do you start those programs in the ROM?
+20:36:40 ^-tubular ^-OzPropDev : after the P2 starts, type > D  (> space D) for one
+20:36:46 ^-tubular ^-OzPropDev : and > ESC for the other.
+20:38:02 ^-tubular ^-OzPropDev : sorry that may be ^D control D
+20:38:33 peter jakacki (PC) : Open a serial terminal and after reset (not too long as it goes to sleep) type the 3 characters > SPACE ESC  and the TAQOZ prompt will appear
+20:39:34 peter jakacki (PC) : or D for deug instead of esc
+20:49:17 peter jakacki (PC) : I've increased the font sizes....
+20:52:12 Whit Stodghill : Nice tool set
+20:58:41 Garry Jordan : Very nice, Ray!
+20:59:11 Roy : Now the text is HUGE :)
+20:59:12 Raymond Allen : I can read it now!  Great@!
+21:04:46 Roy : click the blue â€¦ button on his tile and then click pin video
+21:04:53 Roy : it will make his bigger
+21:05:25 Ken Gracey : Also, drag the slider bar between the two displays to enlarge the VGA.
+21:06:40 Roy : depends on if you are in gallery mode vs speaker mode.  I was in gallery mode
+21:08:56 Jonathan Titus : To see the bottom line go to the top of screen and click on View Options and choose side-by-side view at 50%.
+21:09:22 Chip Gracey : Thanks, Jon.
+21:09:59 Cluso99 : Thanks Jon :)
+21:10:59 Robert Lawrence : Unfortunately it's after 1am here and I have to get up at 6am for work. Thanks to Peter and Ray for the excellent demos. Good night to all. Stay Safe! 
+21:18:47 Raymond Allen : 1AM?  Greenland?
+21:18:52 Raymond Allen : Iceland?
+21:22:36 jurop : have a look here: https://www.forth.com/starting-forth/1-forth-stacks-dictionary/
+21:24:06 Ken Gracey : Brody's book https://www.amazon.com/Starting-Forth-Introduction-Professionals-Prentice-Hall-dp-0138430799/dp/0138430799/ref=mt_other?_encoding=UTF8&me=&qid=
+21:24:08 Michael Park : Earsâ€¦ burningâ€¦
+21:25:00 ErNa : give us the P2D2 ----
+21:25:11 jurop : +1 on that!!!
+21:25:55 MJB : P2D2+dev please
+21:27:48 Raymond Allen : Be nice to light LEDs on P2 Eval Board
+21:28:08 Raymond Allen : They are useful for debugging..
+21:28:27 Jonathan Titus : Download Brodie's book here: https://1scyem2bunjw1ghzsf1cjwwn-wpengine.netdna-ssl.com/wp-content/uploads/2018/01/Starting-FORTH.pdf
+21:29:33 Bart Grantham : I found â€œ60 blinkâ€ in TAQOZ was a great very first thing to do with the P2 Eval
+21:29:50 MJB : LEDs is just pin# HIGH or pin# LOW
+21:30:27 Jacob Jones :  the forth book by leo says you have to forget everything you ever learned about programming and learn forth from the ground up.
+21:30:29 Whit Stodghill : Thanks, Johnathan!
+21:30:41 ErNa : thinking first and acting later is just the more difficult path ;-(
+21:31:09 Jacob Jones : www.forth.com
+21:32:46 Mark Swicegood : Thanks, I need to go.
+21:33:01 ErNa : the world mist a chance when HP introduces UPN at high cost and TI started mass production of conventional calculators...
+21:33:33 jurop : yep, do not underestimate RPN
+21:33:41 Jonathan Titus : These days people--kids in particular--do not read.  They need graphics that show how things work.  To me that would be the way to teach FORTH, not by showing a monitor and how numbers go on a stack.  It won't grab kids' imaginations.  Make it a game.
+21:33:50 Jacob Jones : ok, so now I have to learn SPIN, PASM and FORTH
+21:34:57 MJB : Taqos + PASM will do ;-)
+21:35:02 Stephen Moraco : Possible ?   What about setting up a cog to watch forth stack and display it (so 2nd screen is live view of fourth stack?)
+21:36:24 Jonathan Titus : Informative and educational.  Got to go.  Thanks. --Jon
+21:38:32 Dennis Gately : Thanks Peter!
+21:38:47 Whit Stodghill : Thank you SO much!
+21:39:01 Raymond Allen : Thanks! Bye! late here...
+21:39:07 ErNa : We need unified hardware to avoid frustrating pitfalls.
+21:39:30 Seairth Jacobs : Yes, this has been very informative!
+21:39:42 Larry Viesse : Great presentation Peter!
+21:40:15 Garry Jordan : Very, very well done!
+21:41:31 Jacob Jones : yeah, you can write it in forth
+21:42:50 MJB : like BLOCKLY for procedural  language for FORTH s.th. visual with Stack animation etc ...
+21:43:03 Dennis Gately : Unlike other language libraries, Forth's dictionary is hard to get to the source that you can learn from. That's why asked about 'see' & 'decomp'. I learn best by reviewing other people's code!
+21:44:05 jurop : thanks to everybody need to start my working day
+21:45:01 MJB : I learnt FORTH just by reading Peter's Tachyon Code ...
+21:45:11 Whit Stodghill : The comparison is a very good way to learn!
+21:46:09 MJB : and I learnt PASM on the way as well by reading and understanding the Tachyon  Kernel
+21:46:27 Gerold Gorman : Question about calling FORTH code from C/C++ when available?  I am working on a symbolic debugger written in C, that can already do stack trace, heap inspection, disassemble, etc; but how to access built in functioions an dbe interoperative is a bit mysterious.
+21:47:53 ErNa : Microsoft made computing easy by starting an editor without specifying a file name. What ended up in all files being named "File.txt"
+21:48:26 Dennis Gately : Apple used "Untitled.txt"  :-)
+21:49:20 Jonathan Shook : I like Forth for what it is, but I would not build a large system on top of it, or expect to maintain my sanity managing a project with multiple developers.
+21:49:29 Jonathan Shook : (With Forth)
+21:50:14 Jon Ellingson : Simply listing snippets of Forth code in vertical orientation may help some overcome the visual complexity of native horizontal command line.
+21:50:28 Jonathan Shook : I really like the idea of a cookbook with multiple views by language/tool.
+21:51:14 Francis Bauer : Make a stack of TAQOZ (Tacos)
+21:51:17 Ken Gracey : 110% with you Jonathan - showing the same results in different languages is a great way to learn.
+21:51:27 Jonathan Shook : There are some really nice LED panels which can be used as a visual/tactile type of interface. LEDs seem to capture imagination more than screens.
+21:52:16 Jon Ellingson : I sure there is a Rosetta stone out there for Forth vs other languages.
+21:53:05 Jonathan Shook : Having a machine monitor to accessorize the debugger with will be amazing. The tools are really far along. I'm really impressed with the amount of utility in TAQOZ. 
+21:53:23 Jonathan Shook : Teach kids how to implement line drawing on LED pixels, and build from there.
+21:53:31 Whit Stodghill : That pdf book is GREAT!
+21:53:47 Jason Downing : hydra system
+21:54:22 Gerold Gorman : Anyone intresteein seeing "gdb"?
+21:54:24 ErNa : having energy available at no cost just leads to wasting energy. Having words available at no cost just leads to verbose talking. Forth is like a destillation: it's concentrated and burns your throat ;-)
+21:55:57 Chip Gracey : Yes, Forth is like an empirical concept in computing.
+21:56:04 Whit Stodghill : THANKS all!
+21:56:35 Roy : Thanks for the work and presentation Peter and Ray
+21:56:38 Jonathan Shook : It's great to see such a strong community coming together at this time. I'm excited to do more!
+21:56:40 Francis Bauer : Great work Peter, Ray...
+21:56:55 Whit Stodghill : Download Brodie's book here: https://1scyem2bunjw1ghzsf1cjwwn-wpengine.netdna-ssl.com/wp-content/uploads/2018/01/Starting-FORTH.pdf
+21:57:11 Jacob Jones :  thanks
+21:57:11 Whit Stodghill : Thanks Johnathan!
+21:57:13 Dennis Gately : Thx to Ray & Peter! Thx to Ken & Chip, as well!
+21:57:22 Henrique Silva Neto : Yes, great work from you both. Thanks!
+21:57:44 Chip Gracey : Michael Park, are you the Spin-on-P1 Michael Park?
+21:57:45 MJB : I am without camera right now - but great to see your faces to the familar forum names and thanks Peter
+21:57:50 Jon Ellingson : Really appreciate the man-hours spent developing these tools. Simply fantastic foundation to start from.
+21:58:31 Whit Stodghill : Thanks Chip for giving us something for limitless learning!
+21:59:09 Stephen Moraco : Thank you all excited to see this all, looking forward to next presentationsâ€¦
+21:59:12 Chip Gracey : Everyone on the forum contributed to P2 in many ways.
+21:59:31 rjsm1955 : Thanks very much Peter and Ray - very insightful presentation !
+21:59:39 ^-tubular ^-OzPropDev : can we run Tbreak yet
+22:02:29 Whit Stodghill : I want one too!
+22:03:53 Roy : The first coding I did was on a WANG 2000 minicomputer.  In BASIC.
+22:04:28 Francis Bauer : Great stuff everyone, time for me to go, stay healthy, stay safe...
+22:05:23 Dennis Gately : Goodnight!
+22:06:01 Jonathan Shook : The P2 got me interested enough to learn PCB design. I'm on the upward climb but making progress. I haven't been this excited about a processor ever. We're at the top of a fun hill. It's going to be fun!
+22:06:15 Whit Stodghill : Thanks all!
+22:06:18 Jon McPhalen : Cheers, Peter and Ray!
+22:07:05 Whit Stodghill : Thanks, Parallax!
+22:07:41 Jonathan Shook : Sometimes, it's good to be obsessed about something.
+22:07:50 Jonathan Shook : That's how awesome things happen. See you all next time!
+22:07:59 Whit Stodghill : See you then. Night all.!
+22:08:57 Ken Gracey : https://github.com/parallaxinc/Propeller-Tool/releases
+22:09:17 Seairth Jacobs : @Ken, thanks for getting this going!
+22:09:25 Seairth Jacobs : I'm off.  Goodnight, all.
+22:09:25 peter jakacki (PC) : Thanks everyone - it's been fun
+22:09:56 Chip Gracey : Good to see you all!
+22:10:03 Jon McPhalen : Goodnight, everyone.
