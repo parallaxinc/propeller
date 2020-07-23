@@ -1,4 +1,4 @@
-# Sony IRCS (infrared control system)
+# Sony IRCS Rx (infrared control system receiver)
 
 By: Jon "JonnyMac" McPhalen
 

@@ -6,6 +6,8 @@
 
 [JM Serial](../All/jm_serial)
 
-[JM Sony IRCS (infrared control system)](../All/jm_sircs_rx)
+[JM Sony IRCS Rx (infrared control system receiver)](../All/jm_sircs_rx)
+
+[JM Sony IRCS Tx (infrared control system transmitter)](../All/jm_sircs_tx)
 
 [Park Transformation](../All/ParkTransformation)
