@@ -1,0 +1,59 @@
+﻿13:59:25 Eric Smith : Cool, thanks Roy
+14:01:06 David Betz : Sorry, I have to go visit with family. I just logged in to see everyoneâ€™s faces. Big thanks to Eric for all of his work on P2 (and P1) tools!!!
+14:01:16 Eric Smith : Thanks David, great to see you!
+14:08:26 Ken Gracey : Support Eric's efforts here https://www.patreon.com/totalspectrum
+14:13:06 Ken Gracey : We will post Eric's slides on the forum thread after the presentation.
+14:19:24 Ken Gracey : https://github.com/totalspectrum/flexgui/releases/download/v4.2.3/flexgui.zip
+14:20:15 mike calyer : flexgui written in what language ?
+14:20:54 Bart Grantham : Tcl, I believe
+14:24:16 Peter Jakacki : I'm using screen zoom to see the small details easily. (alt+scrollwheel on Linux)
+14:26:59 Ken Gracey : View Options / Zoom Ratio up top is helpful
+14:30:10 Roy Eltham : Very nice
+14:34:17 Peter Jakacki : Using video capture devices is a good idea. I will grab some usb devices for next pres.
+14:51:48 Roy Eltham : Mostly C, some Spin2
+14:52:18 Tom Bernard : Iâ€™ve used spin1 and c
+14:52:29 Robert Lawrence : Some Forth
+14:52:35 Nicolas : For bigger projects C. Small tests in Spin, also drivers
+14:52:43 Jesse Burt : spin2
+14:52:46 Tom Montemarano : Basic with PASM
+14:52:57 Roy Eltham : I love that I can use everyones Spin2 object from C
+14:53:50 Ken Gracey : The support of Spin2 from C is a big benefit. This means the many Spin2 objects won't need to be re-written, correct?
+14:54:33 Terry Trapp : Very early one, Rev A. P2, I was able to port one of my objects to run on the P2 with FlrxGUI/fastspin. It was nice to take objects I had written for the P1 and just keep going with few changes.
+14:56:17 Roy Eltham : Yes, that's correct Ken
+14:56:21 rainer Nase : have to leave as tomorrow is a new day... Hopefully will soon start to use the P2 in a real application...  And distribute some board in the EU! Good night, ErNa
+14:56:57 Ken Gracey : @Roy, what are the limitations, gotchas, of this ability in short?
+14:59:14 Ken Gracey : https://www.patreon.com/totalspectrum support Eric
+15:00:03 Roy Eltham : The only one I am aware of is if the Spin2 code returns multiple values instead of just one, then the C code will not get all the return values
+15:00:09 Roy Eltham : Eric mentioned that
+15:01:15 Roy Eltham : And, of course, fastspin isn't 100% Spin2 compatible, but Eric is working on that too
+15:02:27 Ken Gracey : Thanks Roy. Can a Spin2 object be written to return one value at a time, allowing the C code to capture them sequentially?
+15:03:13 Roy Eltham : Sure if you code the Spin2 functions to only return 1 value then it's all good
+15:06:32 Roy Eltham : Yeah this would be ideal, what Eric is explaining now
+15:08:06 Roy Eltham : Not sure how can saw me nodding, but I was :)
+15:09:28 Stephen Moraco : Eric great presentation, enjoying the mixed language ability!  Thank you!
+15:09:38 Roy Eltham : can=Ken (sorry)
+15:14:59 Jeff Martin : Thanks Eric!  This was very helpful to see.
+15:16:09 Magnus Hauge : Impressive amount of work put into this, allows for rediscovering basic, using multiple cogs etc, really fast also, thanks Eric.
+15:16:24 Ken Gracey : https://www.patreon.com/totalspectrum
+15:17:03 Tom Bernard : Did I hear correctly? FlexGUI runs on Mac?
+15:17:11 Roy Eltham : yes
+15:17:24 Roy Eltham : windows, mac, Linux, etc.
+15:17:40 Ted Hunter : I really like the hyperlinks feature in FlexGUI.
+15:17:41 Tom Bernard : Thanks, Roy.
+15:18:21 Ken Gracey : https://www.patreon.com/totalspectrum/
+15:18:42 Chris Wardell : This is awesome Eric, thank you!
+15:18:42 Peter Jakacki : Well done, I'm impressed! :)
+15:19:21 Jim Granville : Impressive, and nice to see multi-language support. 
+15:19:51 Francis Bauer : Great job, Eric. :-)
+15:19:53 Tom Bernard : Thank you, Eric, and thank you, Ken for hosting this!
+15:20:07 Roy Eltham : Yes, thank you Eric for FastSpin/FlexGui, great work.
+15:20:08 Jim Granville : Maybe it needs to be named something wider in scope than 'fastspin' ?
+15:20:22 Robert Lawrence : Excellent presentation Eric. Thanks!!
+15:20:49 Henrique Silva Neto : Trully excelente!
+15:21:29 Jim Schaefer : Awesome job , Eric   Thanks
+15:22:21 Garry Jordan : Great presentation. Thanks, Eric!
+15:23:06 Roy Eltham : Yes, that is my goal
+15:23:24 Roy Eltham : Some very simple BlocklyProp programs will run
+15:23:38 Roy Eltham : right now, but there's a lot more to convert.
+15:23:43 Jon McPhalen : Thank you, Eric!
+15:23:44 Chip Gracey : Thanks, Eric! It's looking great.
