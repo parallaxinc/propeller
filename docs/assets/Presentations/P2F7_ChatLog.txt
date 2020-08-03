@@ -1,0 +1,73 @@
+﻿14:50:36 Robert Lawrence : Hi All :)
+14:57:40 Roy Eltham : Hello!
+14:59:39 Pegasus : Where is Peter !  There he is !
+15:01:42 Dario (dMajo) Majovsky : Peter, try to lower the volume of your speakers. It seems a larsen effect
+15:05:55 Roy Eltham : I think it's excellent
+15:06:21 Roy Eltham : I'll get a bunch of those adapters
+15:06:29 Jonathan Titus : Excellent idea, seconded.
+15:06:39 John Rucker : Sounds great
+15:07:52 Robert Lawrence : Mikrobus and Click boards. I used them before with the Pic's. They are great.
+15:11:06 Robert Lawrence : Junk box
+15:20:01 Carroll Moore : Is it possible for me to detect when USB is connected/disconnected with a signal without resetting the P2?
+15:21:45 Jeff Martin : Do you mean on the host (computer) side?
+15:23:24 Jeff Martin : It's different depending on platform.  On Windows your program can register to receive USB arrive/depart events.
+15:24:20 Carroll Moore : Currently I have a loop on the P1 when it detects 5V from USB to starts a new COG to communicate via usb when 5V is removed I stop the COG
+15:24:23 Jim Granville : "Is it possible for me to detect when USB is connected/disconnected with a signal without resetting the P2?
+                         " The p2 has an i2c link and a phantom UART channel into UB3, so it can get system info via that. You want the P2 to know if the USB is present ? Will need to check that .. 
+15:27:31 Jim Granville : When UB3 is USB-plugged and terminal connected, the UB3.TXD line is CMOS, when terminal disconnect is done on OC< the TXD line goes to light pullup (12uA) so that CMOS presence could be sensed by P2, to tell when UB3 is PC connected ? Is that enough ?
+15:27:43 Roy Eltham : Is Jim Granville jmg on the forums?
+15:28:18 Jim Granville : Yes
+15:28:35 Roy Eltham : cool, just clarifying, thanks.
+15:28:43 Jeff Martin : For FTDI chips on Windows, you can disable the serial enumerator, go to Device Manager > (COM & LPT), double-click your Propeller port, select Port Settings > Advanced, and uncheck "Serial Enumerator."  This will prevent the 7 resets that Windows loves to do to the Propeller upon plugging in; Windows is looking for Plug & Play devices.
+15:29:10 Carroll Moore : thx
+15:33:58 Jim Granville : The cursor is there, but only a couple pixels
+15:35:00 Jim Granville : 40K flash : Current UB3 code size is about 12K, but the internal RAM is close to MAX. 
+15:35:45 Lachlan "tubular" : what size serial buffers Jim?
+15:36:57 Joseph Stewart : Did you mention the USB/UART max speed?
+15:37:41 Jim Granville : 256 bytes on UB3.TX side and 1536 bytes on TX. that was skewed as UB3.TX self limits, but UB3.RX needs to be as large as practical so all XDATA is used for serial buffers.
+15:38:29 Jim Granville : "Did you mention the USB/UART max speed?
+                         "  Connect is possible at 8M.8.n.2, 6M.8.n.2 and lower speeds at 4.8M.8.n.1
+15:40:29 Jim Granville : At 8Mbd you do need care with sustained average rates. The USB layer is good for averages of about 4MBd, but the faster rates were pushed to allow things like P2 debug dumps to be as fast as possible.
+15:40:40 Francis Bauer : Do we have some Koala's in the machinary?
+15:40:46 Chip Gracey : So, it can transmit at 8Mbaud continuously to the host?
+15:41:49 ozpropdev : FYI, I have had Windows running 12 megabits a second using FT2232H. So 8M should be fine.
+15:41:59 Jim Granville : "So, it can transmit at 8Mbaud continuously to the host? " Not quite. It can swallow 1536 bytes  from P2, but if you send 20k bytes at 8MBd with no gaps, the USB layer cannot cope.
+15:43:03 Chip Gracey : Thanks, Jim.
+15:43:30 Jonathan Titus : Have you tested the board for EMI and EMC issues?
+15:43:51 Chip Gracey : Brian, does that FT2232H have such limitations? Could it do 12Mbaud to host. continuously?
+15:44:23 Jim Granville : "FYI, I have had Windows running 12 megabits a second using FT2232H. So 8M should be fine.
+                         " Yes, HS-USB parts can do 12MBd or 15Mbd, but the FS-USB limits and the SiLabs libraries are good to about 4MBd - FT2232H is the best for continual high speed UART testing, as it can manage 12MBd full duplex. - but too large and expensive for P2D2.
+15:45:05 Roy Eltham : I like that P2 Wing design on the forums that allow you to hang a breadboard on the side of a P2eval
+15:46:37 Chip Gracey : FT2232H is about $5.
+15:46:42 Jim Granville : ".. does that FT2232H have such limitations? Could it do 12Mbaud to host. continuously?
+                         "  Yes, I've tested FT2232H to12MBd and it can do that full duplex, with windows terminals. EXAR have a HS-USB 15MBd part number, but I've not tested that.. 
+15:46:48 Stephen Moraco : RPi has non-determinitic bit timeings event with kernal extensions… and isolated cores… this is gonna be fun to experiemnt with on RPi!
+16:00:40 Terry Trapp : Don't allow perfect to be the enemy of good :)
+16:00:52 Ken Gracey : Amen Terry.
+16:02:15 Dave Matthews : 1 need 10!
+16:04:37 Jim Schaefer : how much will they cost ??
+16:06:11 Jim Schaefer : $75 is reasonable
+16:07:11 Chip Gracey : Thanks, JMG.
+16:11:21 John Rucker : Thanks Ken for the invite these are great!  Thanks Peter for all the help over the years!!  Great work!!
+16:15:45 Ray Rodrick : the thru hole header should not be soldered which allows the user to solder this
+16:15:46 Carroll Moore : what's the board dimensions of the surface mounted option?
+16:16:40 Jonathan Titus : Thanks, Peter.  Very nice board design.
+16:17:30 Lachlan "tubular" : carroll its around 2.15 x 1.1" 
+16:19:08 Lachlan "tubular" : (with the 40 pin dip headers shaved off, ie surface mount / castellated mode) 
+16:20:05 Carroll Moore : thx
+16:20:16 Francis Bauer : Very good design, looking forward to getting some...
+16:23:45 Jonathan Titus : Got to go...  Thanks for the interesting seminar.
+16:25:33 Jeff Martin : Thank you, Peter!
+16:27:50 Francis Bauer : At HP (when Bill and Dave were still in charge), the R&D design engineer would follow a new design into manfufacturing for up to a year to learn how to improve manufacturability/quality of the new product.  Then the engineer would go back to R&D with new experience on how to create newer designs even better.  This worked very well in product improvement, I don't know if any of the larger companies still do this, HP/Agilent/Keysight don't anymore :-(
+16:28:26 Stephen Moraco : Excellent thank you Peter. I really enjoy what you’ve done with the continued board improvement.  Amazing!
+16:29:33 Ray Rodrick : At NetComm in the early days I used to walk the production line once a week. Just before I left R&D was no longer permitted in the production area :(
+16:30:14 Ray : anybody figure out difference between v and h spi busses on esp32
+16:30:32 Robert Lawrence : Awesome work your doing Peter. I'm looking forward to getting all the boards :) 
+16:31:19 Lachlan "tubular" : ill sent you a link Ray 
+16:31:22 Ray Rodrick : Thanks Peter :)
+16:31:44 Garry Jordan : Thanks Peter and Ken. Another great presentation!
+16:31:59 Henrique Silva Neto : +1 Awesome work, Peter!
+16:33:24 Jeff Martin : Ha! "Chip's Lair"
+16:34:27 Francis Bauer : RTC sounds great!!!!
+16:35:42 Lachlan "tubular" : great Peter, thanks
+16:35:44 Roy Eltham : Thanks Peter!
