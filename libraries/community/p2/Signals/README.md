@@ -1,4 +1,4 @@
-[433 MHz Tx](../All/433Mhz_WirelessTx)
+[433 MHz Tx](../All/433Mhz_WirelessTX)
 
 [JM DMX TX](../All/jm_dmx_tx)
 
