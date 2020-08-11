@@ -1,0 +1,461 @@
+'' =================================================================================================
+''
+''   File....... jm_apa102c.spin2 
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2017-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 08 AUG 2020 
+''
+'' =================================================================================================
+
+'' APA102C docs:
+'' -- https://cdn-shop.adafruit.com/datasheets/APA102.pdf
+
+'' Additional references:
+'' -- https://cpldcpu.com/2014/11/30/understanding-the-apa102-superled/   
+'' -- https://github.com/cpldcpu/light_ws2812/blob/master/light_apa102_AVR/Light_apa102/light_apa102.c
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+
+
+con { rgbx colors }
+
+  ' borrowed from Gavin Garner's TM1804 LED driver
+  ' -- additional colors by Lachlan   
+  ' -- some alterations by JM
+
+  '             RR GG BB XX
+  BLACK      = $00_00_00_00
+  RED        = $FF_00_00_00
+  GREEN      = $00_FF_00_00
+  BLUE       = $00_00_FF_00
+  WHITE      = $FF_FF_FF_00
+  CYAN       = $00_FF_FF_00
+  MAGENTA    = $FF_00_FF_00
+  YELLOW     = $FF_FF_00_00
+  CHARTREUSE = $7F_FF_00_00
+  ORANGE     = $FF_60_00_00
+  AQUAMARINE = $7F_FF_D4_00
+  PINK       = $FF_5F_5F_00
+  TURQUOISE  = $3F_E0_C0_00
+  REALWHITE  = $C8_FF_FF_00
+  INDIGO     = $3F_00_7F_00
+  VIOLET     = $BF_7F_BF_00
+  MAROON     = $32_00_10_00
+  BROWN      = $0E_06_00_00
+  CRIMSON    = $DC_28_3C_00
+  PURPLE     = $8C_00_FF_00
+
+
+obj
+
+  gc : "jm_gamma8"                                              ' gamma correction
+
+
+var
+
+  long  cog
+
+  long  newconnection                                           ' !0 to update cog parameters
+  long  p_pixels                                                ' pointer to active pixel buffer
+  long  npixels                                                 ' number of pixels in buffer
+  long  sdipin                                                  ' data pin
+  long  ckipin                                                  ' clock pin
+  long  cticks                                                  ' clock timing (ticks is 1/2 period)
+
+
+pub null()
+
+'' This is not a top-level object
+
+  
+pub start(p_buf, count, dpin, cpin, khz) : result 
+
+'' Start of APA102C driver
+'' -- p_buf is pointer to long array
+'' -- count is # of elements in the array 
+'' -- dpin and cpin define data and clock pins
+'' -- khz is clock frequency in kilohertz
+
+  stop()                                                        ' stop if already running
+
+  cticks := (clkfreq / (khz * 1000)) >> 1                       ' set clock timing
+  use(p_buf, count, dpin, cpin)                                 ' establish connection
+
+  cog := coginit(COGEXEC_NEW, @pix_driver, @newconnection) + 1  ' start the driver cog 
+
+  if (cog)                                                      ' if it started
+    repeat until (newconnection == 0)                           '  wait until ready
+                                                                     
+  return cog    
+
+
+pub stop()
+
+'' Stops pixel driver cog (if running)
+
+  if (cog)
+    cogstop(cog - 1)
+    cog := 0
+
+  longfill(@newconnection, 0, 6)
+
+
+pub use(p_buf, count, dpin, cpin) 
+
+'' Assigns buffer at p_buf to pixel driver
+'' -- p_buf is pointer to long array
+'' -- count is # of elements in the array 
+'' -- dpin and cpin define data and clock pins
+
+  longmove(@p_pixels, @p_buf, 4)                                ' copy parameters
+
+  newconnection := true                                         ' alert driver cog
+
+
+pub connected() : result
+
+'' Returns true when latest connection details picked up by driver cog
+
+  return (newconnection == 0)
+
+                                                          
+pub color(r, g, b) : result                                         
+                                                                 
+'' Packs r-g-b bytes into long
+                                                                
+  result.byte[3] := r 
+  result.byte[2] := g 
+  result.byte[1] := b 
+  
+
+pub colorx(r, g, b, level) : newcolor
+
+'' Packs r-g-b bytes into long
+'' -- r, g, and b are element levels, 0..255
+'' -- level is brightness, 0..255 (0..100%)
+
+  if (level <= 0)
+    newcolor := $00_00_00_00
+    
+  elseif (level >= 255)
+    newcolor := color(r, g, b)
+    
+  else
+    r := r * level / 255                                        ' apply level to rgb   
+    g := g * level / 255        
+    b := b * level / 255      
+    newcolor := color(r, g, b)
+
+
+pub wheel(pos) : result
+
+'' Creates color from 0 to 255 position input
+'' -- colors transition r->g->b back to r
+
+  pos &= $FF
+
+  if (pos < 85)
+    return color(255-pos*3, pos*3, 0)
+  elseif (pos < 170)
+    pos -= 85
+    return color(0, 255-pos*3, pos*3)
+  else
+    pos -= 170
+    return color(pos*3, 0, 255-pos*3)
+
+
+pub wheelx(pos, level) : result
+
+'' Creates color from 0 to 255 position input
+'' -- colors transition r-g-b back to r
+'' -- level is brightness, 0..255 (0..100%)
+
+  pos &= $FF
+
+  if (pos < 85)
+    return colorx(255-pos*3, pos*3, 0, level)
+  elseif (pos < 170)
+    pos -= 85
+    return colorx(0, 255-pos*3, pos*3, level)
+  else
+    pos -= 170
+    return colorx(pos*3, 0, 255-pos*3, level)
+
+ 
+pub set(ch, rgb)
+
+'' Writes rgb value to channel ch in buffer
+'' -- rgb is packed long in form $RR_GG_BB_00
+
+  if ((ch >= 0) && (ch < npixels))
+    long[p_pixels][ch] := rgb
+
+
+pub setx(ch, rgb, level)
+
+'' Writes scaled rgb value to channel ch in buffer
+'' -- rgb is packed long in form $RR_GG_BB_0
+'' -- level is brightness, 0..255 (0..100%)
+
+  if ((ch >= 0) && (ch < npixels))
+    long[p_pixels][ch] := scale_rgb(rgb, level)
+
+
+pub scale_rgb(rgb, level) : newcolor
+
+'' Scales rgb value to level
+'' -- level is brightness, 0..255 (0..100%)
+
+  if (level <= 0)
+    newcolor := $00_00_00_00
+
+  elseif (level >= 255)
+    newcolor := rgb 
+      
+  else
+    newcolor.byte[3] := rgb.byte[3] * level / 255
+    newcolor.byte[2] := rgb.byte[2] * level / 255 
+    newcolor.byte[1] := rgb.byte[1] * level / 255
+
+
+pub set_rgb(ch, r, g, b)
+
+'' Writes rgb elements to channel ch in buffer
+'' -- r, g, and b are byte values, 0 to 255
+
+  set(ch, color(r, g, b))   
+
+
+pub set_red(ch, level)
+
+'' Sets red led level of selected channel
+'' -- level is brightness, 0..255 (0..100%)
+
+  if ((ch >= 0) && (ch < npixels))                              ' valid?
+    byte[p_pixels + (ch << 2) + 3] := level                     '  set it
+                                                                 
+                                                                 
+pub set_green(ch, level)
+
+'' Sets green led level of selected channel
+'' -- level is brightness, 0..255 (0..100%)
+
+  if ((ch >= 0) && (ch < npixels))                    
+    byte[p_pixels + (ch << 2) + 2] := level  
+
+
+pub set_blue(ch, level)
+
+'' Sets blue led level of selected channel
+'' -- level is brightness, 0..255 (0..100%)
+
+  if ((ch >= 0) && (ch < npixels))                    
+    byte[p_pixels + (ch << 2) + 1] := level
+
+
+pub set_all(rgb)
+
+'' Sets all channels to rgb
+'' -- rgb is packed long in form $RR_GG_BB_00
+
+  longfill(p_pixels, rgb, npixels)  
+
+    
+pub fill(first, last, rgb) | swap
+
+'' Fills first through last channels with rgb
+'' -- rgb is packed long in form $RR_GG_BB_00
+
+  first := 0 #> first <# npixels-1                              ' force good range
+  last  := 0 #> last  <# npixels-1
+
+  if (first > last)
+    first, last := last, first                                  ' swap if order reversed
+  
+  longfill(p_pixels+(first << 2), rgb, last-first+1)
+
+
+pub morph(c1, c2, phase) : newcolor
+
+'' Morph between c1 and c2
+'' -- phase 0 is color1
+'' -- phase 255 is color2
+
+  if (phase <= 0)
+    newcolor := c1
+
+  elseif (phase >= 255)
+    newcolor := c2 
+
+  else
+    c1 := scale_rgb(c1, 255-phase)        
+    c2 := scale_rgb(c2, phase)    
+    newcolor := c1 + c2
+
+
+pub clear()
+
+'' Turns off all LEDs
+
+  longfill(p_pixels, $00_00_00_00, npixels)
+
+
+pub read(ch) : rgb
+
+'' Returns color of channel
+
+  if ((ch >= 0) && (ch < npixels))
+    return long[p_pixels][ch]
+  else
+    return $00_00_00_00
+
+
+pub gamma(idx) : result
+
+'' Adjusts gamma for better midrange colors
+
+  return gc.gamma(0 #> idx <# 255)
+
+
+pub running() : result
+
+'' Returns true if running
+
+  return (cog <> 0)
+
+
+pub address() : result
+
+'' Returns address of assigned pixel array
+
+  return p_pixels
+
+                                                      
+pub num_pixels() : result                                                  
+                                                                 
+'' Returns number of pixels in assiged pixel array                      
+                                                                 
+  return npixels
+
+
+pub last_pixel() : result
+
+'' Returns last legal pixel index for current buffer
+
+  return npixels - 1
+
+
+dat { auto-run driver } 
+
+                org
+
+pix_driver      setq      #6-1                                  ' get 6 longs from hub
+                rdlong    connect, ptra
+
+                mov       ckitix4, ckitix2                      ' copy 1/2 cycle
+                shr       ckitix4, #1                           ' calc 1/4 cycle
+
+                mov       t1, #0
+                wrlong    t1, ptra                              ' tell hub we're connected
+
+rgb_main        rdlong    connect, ptra                 wz      ' check for new connection
+    if_nz       jmp       #pix_driver
+
+run_strip       mov       addr, p_hub                           ' point to rgbbuf[0]
+                mov       npix, pixcount                        ' set # active pixels
+
+                mov       colorbits, #0                         ' start frame
+                call      #shift_out 
+                
+frame_loop      rdlong    colorbits, addr                       ' read a channel
+
+                ' re-align colors for apa102c
+
+                mov       t1, colorbits                         ' = RR_GG_BB_00
+                rol       colorbits, #8                         ' = GG_BB_00_RR
+                shr       t1, #16                               ' = 00_00_RR_GG
+                setbyte   colorbits,   t1, #1                   ' = 00_BB_GG_RR
+                setbyte   colorbits, #$FF, #3                   ' = FF_BB_GG_RR
+                call      #shift_out
+                
+                add       addr, #4                              ' point to next pixel
+                djnz      npix, #frame_loop
+                        
+end_frame       mov       t2, pixcount                          ' send pixcount / 2 zeroes
+                shr       t2, #4
+                fge       t2, #1
+.loop           call      #shift_out
+                djnz      t2, #.loop
+                jmp       #rgb_main
+       
+
+shift_out       mov       t1, #32                               ' global + b + g + r
+.loop           rcl       colorbits, #1                 wc      ' move msb to c
+                drvc      sdi                                   ' c --> sdi
+                waitx     ckitix4                               ' let data settle
+                drvh      cki                                   ' clock it
+                waitx     ckitix2
+                drvl      cki
+                waitx     ckitix4
+                djnz      t1, #.loop                            ' update bit count, do next
+                ret
+
+' --------------------------------------------------------------------------------------------------
+
+connect         res       1                                     ' new connection flag
+p_hub           res       1                                     ' pointer to pixel buffer in use                              
+pixcount        res       1                                     ' # pixels in buffer                                 
+sdi             res       1                                     ' data pin
+cki             res       1                                     ' clock pin                                                               
+ckitix2         res       1                                     ' ticks in 1/2 clock period
+
+ckitix4         res       1                                     ' ticks in 1/4 clock period
+                                                                 
+addr            res       1                                     ' address of current pixel
+npix            res       1                                     ' # of pixels to process
+colorbits       res       1                                     ' rgb for current pixel
+                                                                 
+t1              res       1                                     ' work vars
+t2              res       1                                      
+t3              res       1                                      
+                                                           
+                fit       496                                    
+                                                                 
+                        
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}  
