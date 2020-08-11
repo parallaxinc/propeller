@@ -1,0 +1,115 @@
+Ken Gracey:  02:02 PM https://www.patreon.com/totalspectrum
+Ken Gracey:  02:10 PM Request for all: mute yourself by default.
+Roy Eltham:  02:11 PM a good LLVM backend means a bunch of languages, NOT just C/C++
+Jeff Martin:  02:11 PM I'm excited to see the LLVM effort.
+                       +1 Roy
+David Butler:  02:12 PM Hearing feedback or something from 'Moderator'?
+Roy Eltham:  02:12 PM Publison, can you mute your mic? we are getting random noice from you
+Ken Gracey:  02:12 PM I have no mute control since I've passed Host control. Publison, Brian, Sam, David please mute yourselves.
+Roy Eltham:  02:12 PM noise*
+                      Thanks! :)
+Ken Gracey:  02:13 PM I've got the muting under control again :) Unmute yourself to talk anytime.
+Roy Eltham:  02:14 PM remember you can hold spacebar to unmute, and it will remute you when you release the spacebar
+                      if your zoom window is focused
+Jeff Martin:  02:14 PM Catalina's COMPACT mode... is that running an interpreter of sorts that executes compiled C routines?
+Roy Eltham:  02:28 PM GCC 8.3 is a pretty good optimizing compiler          
+Ken Gracey:  02:28 PM Show appreciation and thanks if you wish here https://www.patreon.com/totalspectrum - just look out for the "auto subscription" check box that renews your donation every 30 days.
+Roy Eltham:  02:28 PM I left that checked :) 
+Ken Gracey:  02:29 PM Parallax too :)
+Jeff Martin:  02:31 PM Thanks for the overview and comparison of each of the C compilers for P2!  That is very helpful.
+Roy Eltham:  02:32 PM if we get LLVM/clang going, then that supports C++14/17/20  which has a bunch of really nice stuff :)
+Michael Sommer:  02:32 PM somehow the slide is stuck at P2ggcc?
+Roy Eltham:  02:33 PM Michael it's not stuck for me
+Jeff Martin:  02:35 PM Not stuck for me either.
+                       Wow, P2gcc makes a smaller binary size and very nice speed on Coremark.
+Roy Eltham:  02:35 PM  I believe fastspin will match or beat p2gcc once he fixes the bugs that prevent -O2
+Jim Schaefer:  02:38 PM Anyone know the size of the FFT?
+Ken Gracey:  02:42 PM  Question from Stephen worth sharing:
+                       Quick question about your commercial products pages: Will you be highlighting the development tools/languages used for the propeller v? parts of the project?  Seems it would be a good way to learn about best tools to use for commercial quality work…  Just a thought…
+
+                       YES. We plan on making these tools visible in a higher manner than presently shown. 
+                       We will ask users to be understand that we don't control (or understand) the code base used in the tools, so we are not able to handle feature requests / improvements directly.
+                       Apologies for the typos - not wearing my glasses.
+                       https://propeller.parallax.com/p2.html <= links to FlexGUI is under IDEs.
+Jeff Martin:  02:47 PM p2gcc and Catalina are there too, just in the next section.  Will add Riscvp2 as well and point out this P2 Live Forum for those looking for a summary view of what's avaialble.
+Whit Stodghill:  02:50 PM One compiler to rule them all...
+Thomas Montemarano:  02:50 PM Is there any effort to convert the P1 C simple libries to one of the P2 C compilers? 
+Roy Eltham:  02:51 PM I am helping with that for fastspin
+                      there are already some of the simpletools.h stuff available
+David Butler:  02:51 PM For LLVM, how well does the VM (virtual machine) align with the P2? This should give some idea of how well a LLVM compiler will work with the P2.
+Jeff Martin:  02:52 PM Roy, what is the biggest challenge getting Simple Libraries working?
+Roy Eltham:  02:52 PM currently, all the P1 CNTR usage
+Jeff Martin:  02:53 PM LLVM is no longer a virtual machine; that name stuck but is a legacy thing.
+Roy Eltham:  02:54 PM having to make P2 smartpin equivalent stuff (and reall y it's mostly just figuring out how some of the modes really work)
+                      also because there is no linker yet, I have to modify the headers to add the special declarations
+Jeff Martin:  02:57 PM David, there's a forum thread (that I haven't read) which may help with your question:  http://forums.parallax.com/discussion/171962/llvm-backend-for-propeller-2/p1
+Roy Eltham:  02:57 PM I've got some more simpletools stuff converted locally, that all works on P1 target, but only some works for P2 because I struggle to understand some of the docs on smartpins.
+Jim Granville:  02:59 PM Everyone struggles to understand the smart pin docs :)  Would getting the Verilog from Chip help you here ? 
+Ken Gracey:  03:01 PM Chip's next task is to work with Jon Titus on the smart pin docs to add clarity, examples, etc.  It's a common request jmg.
+Whit Stodghill:  03:04 PM It is amazing how much there is to develop to make these compilers work and work elegantly.
+David Butler:  03:06 PM The P1 and P2 are not C 'friendly'.
+Jim Granville:  03:07 PM Should 'fastspin' be renamed to make it much clearer it supports more than one language as it includes C's and Basic ?
+Ken Gracey:  03:07 PM I had the same thought, Jim. 
+Roy Eltham:  03:09 PM We have been using Flex* sometimes... so FlexGui uses flastpin to compile FlexC, FlexBasic, and VlexSpin
+                      FlexSpin*
+Whit Stodghill:  03:10 PM That might be why is would be good to pick certain Compilers - to do the best job for the specific C to P2.
+Thomas Montemarano:  03:12 PM Eric, You have been doing a lot of work recently on Spin2.  What are your plans for the next updates of flex C?
+Nicolas Benezan:  03:12 PM What about debugging? Is Catalina the only compiler that supports surce level debugging?
+Bart Grantham:  03:13 PM I think he was asking about Windows, not Linux.
+Roy Eltham:  03:13 PM they all work on windows
+Dennis Gately:  03:13 PM p2gcc runs on macOS!
+Samuel Lourenço:  03:15 PM Sorry, mic is broken.
+Eric Smith:  03:16 PM Did we answer your question, Samuel?
+Samuel Lourenço:  03:17 PM It would leverage P2. That is, C and multi-platform support.
+Samuel Lourenço:  03:18 PM Yes, you answered my question.
+Jim Granville:  03:18 PM Source debug can be done, if you can get a list or table file of PC executed vs source code line. We did a util for the x51 that swallowed any mix of C/Pascal/Modula2/ASM  source files, and prepended hex address to all code-generating lines.
+Michael Green:  03:18 PM Which compilers have common library formats if any?  It would be nice to be able to mix compiled code from several compilers.  That's one way to be able to share libraries among different compilers.
+Samuel Lourenço:  03:20 PM Ok, confirmed that I was referring to the p2gcc and loadp2 bundle. Loaded and compiled with nix under Linux.
+Ken Gracey:  03:21 PM Regarding the LLVM compiler discussion as a possible standardization, is anybody aware of the timing? I see that July 22nd a stable release was made. 
+Eric Smith:  03:23 PM ELF is the standard file format for microprocessor libraries. But to communicate between compilers we would need a standard calling convention, but that doesn't exist for the P2 :(
+As far as LLVM goes, I think there's still a lot of work left to get it working well on P2
+Ken Gracey:  03:25 PM If a standardization were made on a single compiler, would it be LLVM (or is it best to use something that is already working)?
+                      A bird in hand. . .
+Roy Eltham:  03:25 PM I'm not sure we need to standardize on one compiler, but instead standardize how they all do P2 stuff and the libs
+                      so that any of them can work with the same source code
+Ken Gracey:  03:25 PM I see, Roy. Libs that work consistently, you're saying.
+Roy Eltham:  03:26 PM yeah
+Cluso99 RR:  03:28 PM IMHO there is no need to debug multiple cogs at once. A single cog is all that should be required
+Ken Gracey:  03:29 PM In this case, Roy, it seems that some gatekeepers need to set the standard. We'd love to get involved, bringing more visibility to C on P2. Seems to be a matter of us getting together, showing Jeff and I the way. 
+                      I agree with Cluso99; what works perfectly in Spin needn't be the same in Python and C. Being able to explain the differences in the right place, clearly, is important. 
+Jeff Martin:  03:29 PM GDB Remote Serial Protocol:  https://www.google.com/search?q=gdb+remote+serial+protocol&oq=GDB+re&aqs=chrome.1.69i57j0l7.3303j0j7&sourceid=chrome&ie=UTF-8
+Nicolas Benezan:  03:30 PM Yes, debugging a single cog is sufficient, IMHO. Usually, other cogs run things that can't be easily interrupted, anyway, linke VGA or other drivers.
+Roy Eltham:  03:30 PM there is already a bit of this with propeller2.h
+                      (Ken)
+Peter Jakacki:  03:36 PM Thanks Eric & everyone - have to go - cheers!
+Dennis Gately:  03:36 PM Roy should demo to Chip, a debug session in gdb.
+Roy Eltham:  03:37 PM oh, I don't use GDB, I use the Visual Studio Debugger
+Dennis Gately:  03:38 PM OK, same idea though... Just to see how it works
+Jeff Martin:  03:38 PM Maybe Eric and/or Stephen demo GDB debug session to Chip?              
+Whit Stodghill:  03:38 PM Thanks ALL! Great Forum!
+Stephen Moraco:  03:39 PM I'm good at defining and building to protocols and transmission so i'd defer to Eric for GDB demo I can be there tho to learn/see
+Dennis Gately:  03:40 PM Thanks, Eric! Bye
+Eric Smith:  03:40 PM It's been ages since I worked on GDB... not sure if I'm the best choice 
+                      Bye Dennis!
+Chip Gracey:  03:41 PM Thanks for presenting all this, Eric.
+Stephen Moraco:  03:41 PM Eric, thank you! It's exciting to hear about the state of the P2 support in our upcoming language processors and the work you are doing!
+Cluso99 RR:  03:41 PM thanks eric
+Whit Stodghill:  03:41 PM Thanks, Eric!
+Henrique Silva Neto:  03:41 PM Thanks, Eric!
+Eric Smith:  03:42 PM Thanks everyone, we have a great community and I think we can accomplish a lot together!
+Nicolas Benezan:  03:42 PM Thanks Eric & others, great job. I have to go... Bye
+Jeff Martin:  03:43 PM Eric, your presentation really helped me understand the state of things and seems to have sparked even more collaboration.
+Whit Stodghill:  03:46 PM Got go too. Thanks, All!
+Jeff Martin:  03:46 PM Ken, maybe we should have a P2 Live Forum meeting without a topic... just to meet and talk about whatever P2 topic is on people's minds.
+Samuel Lourenço:  03:47 PM I have a suggestion for Eric
+
+                           Implement a open terminal button
+
+Robert Lawrence:  03:48 PM Excellent work Eric. I learned allot . Thanks !! :) 
+Samuel Lourenço:  03:50 PM Ok, tks.
+                           It is 10x faster as well.
+Roy Eltham:  03:50 PM we also need to have a discussion about how to convince PhiPi to join us in P2 land :D
+Robert Lawrence:  03:51 PM yes we do ROy :)
+Michael Sommer:  03:51 PM Just bribe hiom and send hin a P2eval
+Chip Gracey:  03:51 PM A man convinced against his will is of the same opinion, still.
+
