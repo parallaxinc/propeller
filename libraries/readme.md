@@ -7,5 +7,5 @@ The ["p1" (Propeller 1)](https://github.com/parallaxinc/propeller/tree/master/li
 ## Contents and Structure
 As further Propeller 1 objects are created, or as the Propeller 2 is tested and further materials are developed, the "p1" and "p2" folder contents should evolve organically to stay organized- items categorized in subfolders.
 
-Contributors can [create](https://github.com/parallaxinc/propeller/wiki/Contributing) and/or [suggest](mailto\\:developer+github@parallax.com?subject=Propeller+Repository+Suggestion) new or renamed subfolders when the need arises.
+Contributors can [create](https://github.com/parallaxinc/propeller/wiki/Contributing) and/or [suggest](mailto:developer+github@parallax.com?subject=Propeller+Repository+Suggestion) new or renamed subfolders when the need arises.
   
