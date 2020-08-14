@@ -39,7 +39,7 @@ pub startx(rxpin, txpin, mode, baudrate) | bitperiod, bit_mode
 
 pub tx(val)
   wypin(tx_pin, val)
-  txflush
+  txflush()
 
 pub txflush() | z
   repeat
@@ -60,5 +60,5 @@ pub rxcheck() : rxbyte | rxpin, z
 ' receive a byte (waits until one ready)
 pub rx() : v
   repeat
-    v := rxcheck
+    v := rxcheck()
   while v == -1

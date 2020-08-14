@@ -28,7 +28,7 @@ PUB demo()
 
 PRI shownum(x)
   send("Hex: ", fmt.hex(x), " just 4 digits: ", fmt.hexn(x, 4), fmt.nl())
-  send("Dec: ", fmt.dec(x), " unsigned: ", fmt.udec(x), fmt.nl())
+  send("Dec: ", fmt.dec(x), " unsigned: ", fmt.unsdec(x), fmt.nl())
   send("Bin: ", fmt.bin(x), " just 8 digits: ", fmt.binn(x, 8), fmt.nl())
   send(fmt.nl())
 

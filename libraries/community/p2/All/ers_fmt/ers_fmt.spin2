@@ -63,7 +63,7 @@ PUB dec(x)
   signnum(x, 10, -1, 0)
 
 ' send an unsigned decimal number
-PUB udec(x)
+PUB unsdec(x)
   unsnum(x, 10, -1)
 
 ' send an (unsigned) hex number
