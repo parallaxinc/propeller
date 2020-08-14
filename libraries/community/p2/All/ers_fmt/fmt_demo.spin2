@@ -1,0 +1,40 @@
+''
+'' format demo
+'' uses SmartSerial to transmit numbers
+'' in a variety of formats
+''
+
+CON
+  _clkfreq = 180_000_000
+  
+OBJ
+  ser: "SmartSerial"
+  fmt: "ers_fmt"
+
+DAT
+
+startmsg
+   byte "Number format demo", 0
+   
+PUB demo()
+  ' start up the serial object at 230_400 baud
+  ser.start(230_400)
+  
+  ' default to sending with the serial tx method
+  send := @ser.tx
+
+  ' print the start message and then a newline
+  send(fmt.str(@startmsg), 13, 10)
+
+  ' now show various numbers
+  shownum(0)
+  shownum($123)
+  shownum(-2)
+  shownum($87654321)
+
+PRI shownum(x)
+  send("Hex: ", fmt.hex(x), " just 4 digits: ", fmt.hexn(x, 4), fmt.nl())
+  send("Dec: ", fmt.dec(x), " unsigned: ", fmt.unsdec(x), fmt.nl())
+  send("Bin: ", fmt.bin(x), " just 8 digits: ", fmt.binn(x, 8), fmt.nl())
+  send(fmt.nl())
+
