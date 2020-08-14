@@ -3,6 +3,24 @@
 ' simple smart pin serial object for P2 eval board
 ' implements a subset of FullDuplexSerial functionality
 '
+' Written by Eric R. Smith
+' Copyright 2020 Total Spectrum Software Inc.
+' Distributed under the MIT License (See LICENSE.md)
+'
+' methods:
+' start(baud):
+'   start serial on pins 63 and 62 at given baud rate
+' startx(rxpin, txpin, flags, baud):
+'   start on pins rxpin,txpin and given baud rate; `flags` is ignored
+' tx(c)
+'   send character `c` (must call start or startx first)
+' rxcheck()
+'   see if a character is available; returns -1 if no character, otherwise
+'   returns the character
+' rx()
+'   waits for a character to become available, then returns it
+'
+
 con
   _txmode       = %0000_0000_000_0000000000000_01_11110_0 'async tx mode, output enabled for smart output
   _rxmode       = %0000_0000_000_0000000000000_00_11111_0 'async rx mode, input  enabled for smart input
@@ -13,7 +31,11 @@ var
 ' start with default settings
 pub start(baud)
   startx(63, 62, 0, baud)
-  
+
+'
+' start up on a specific set of pins
+' `mode` is for compatibility with FullDuplexSerial and is ignored
+'
 pub startx(rxpin, txpin, mode, baudrate) | bitperiod, bit_mode
   bitperiod := (clkfreq / baudrate)
 
@@ -37,11 +59,8 @@ pub startx(rxpin, txpin, mode, baudrate) | bitperiod, bit_mode
   pinl(rxpin)  ' turn smartpin on
 
 
-pub tx(val)
+pub tx(val) | z
   wypin(tx_pin, val)
-  txflush()
-
-pub txflush() | z
   repeat
     z := pinr(tx_pin)
   while z == 0
