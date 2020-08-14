@@ -1,0 +1,64 @@
+'
+' SmartSerial.spin2
+' simple smart pin serial object for P2 eval board
+' implements a subset of FullDuplexSerial functionality
+'
+con
+  _txmode       = %0000_0000_000_0000000000000_01_11110_0 'async tx mode, output enabled for smart output
+  _rxmode       = %0000_0000_000_0000000000000_00_11111_0 'async rx mode, input  enabled for smart input
+
+var
+  long rx_pin, tx_pin
+
+' start with default settings
+pub start(baud)
+  startx(63, 62, 0, baud)
+  
+pub startx(rxpin, txpin, mode, baudrate) | bitperiod, bit_mode
+  bitperiod := (clkfreq / baudrate)
+
+  ' save parameters in the object
+  rx_pin := rxpin
+  tx_pin := txpin
+
+  ' calculate smartpin mode for 8 bits per character
+  bit_mode := 7 + (bitperiod << 16)
+
+  ' set up the transmit pin
+  pinf(txpin)
+  wrpin(txpin, _txmode)
+  wxpin(txpin, bit_mode)
+  pinl(txpin)	' turn smartpin on by making the pin an output
+
+  ' set up the receive pin
+  pinf(rxpin)
+  wrpin(rxpin, _rxmode)
+  wxpin(rxpin, bit_mode)
+  pinl(rxpin)  ' turn smartpin on
+
+
+pub tx(val)
+  wypin(tx_pin, val)
+  txflush
+
+pub txflush() | z
+  repeat
+    z := pinr(tx_pin)
+  while z == 0
+  
+' check if byte received (never waits)
+' returns -1 if no byte, otherwise byte
+
+pub rxcheck() : rxbyte | rxpin, z
+  rxbyte := -1
+  rxpin := rx_pin
+  z := pinr(rxpin)
+  if z
+    rxbyte := rdpin(rxpin)>>24
+    
+
+' receive a byte (waits until one ready)
+pub rx() : v
+  repeat
+    v := rxcheck
+  while v == -1
