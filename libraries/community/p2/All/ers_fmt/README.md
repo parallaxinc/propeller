@@ -1,12 +1,18 @@
-Simple formatted text routines
 
-These are routines intended to be used with the Spin2 SEND function to transmit formatted numbers or text. General usage is:
-```
-OBJ f: "ers_fmt"
-...
-x := -1
-SEND := @my_serial_tx  ' set up how to transmit one character
-SEND("hello, here is the number x as unsigned: ", f.unsdec(x), " or as signed: ", f.dec(x), f.nl())
+# Simple formatted text routines
+
+By: Eric R. Smith
+
+Language: Spin2
+
+Created: 14-AUG-2020
+
+Category:
+
+Description:
+
+These are routines intended to be used with the Spin2 SEND function to transmit formatted numbers or text. Set the SEND pointer to a function to transmit any single character, and then you can do things like:
+  SEND("hello, here is the number x as unsigned: ", fmt.unsdec(x), " or as signed: ", fmt.dec(x), fmt.nl())
 ```
 
 The routines available are:
@@ -25,3 +31,4 @@ The routines available are:
 
 Note that the `*n` versions will only print the exact number of digits requested, even if the number is larger; thus `hexn($123, 2)` prints `23`. This is useful for doing things like printing bytes or words, but be aware that if numbers overflow there is no indication.
 
+License: MIT
