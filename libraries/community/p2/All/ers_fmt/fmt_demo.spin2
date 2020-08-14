@@ -10,7 +10,12 @@ CON
 OBJ
   ser: "SmartSerial"
   fmt: "ers_fmt"
-  
+
+DAT
+
+startmsg
+   byte "Number format demo", 0
+   
 PUB demo()
   ' start up the serial object at 230_400 baud
   ser.start(230_400)
@@ -18,9 +23,10 @@ PUB demo()
   ' default to sending with the serial tx method
   send := @ser.tx
 
-  ' now do the demo
-  send("Number format demo", 13, 10)
-  
+  ' print the start message and then a newline
+  send(fmt.str(@startmsg), 13, 10)
+
+  ' now show various numbers
   shownum(0)
   shownum($123)
   shownum(-2)

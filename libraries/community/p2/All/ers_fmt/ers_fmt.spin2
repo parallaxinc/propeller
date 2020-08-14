@@ -1,6 +1,34 @@
-''
-'' Numeric formatting routines
-''
+{{
+   Numeric formatting routines
+
+   Written by Eric R. Smith, Total Spectrum Software Inc.
+   Distributed under the MIT license, see LICENSE.md for details
+
+   Provides routines like dec(x), hex(y), and so forth that
+   use the Spin2 SEND routine to transmit formatted numbers
+   Before using any of these routines, set SEND to the address of the
+   transmit routine, e.g. SEND := @serial.tx. Then call these functions
+   and they will use SEND to transmit the characters.
+   
+   str(x):     print memory pointed to by `x` as a string
+   dec(x):     print `x` as a signed integer in the minimal number of decimal digits
+   unsdec(x):  print `x` as an unsigned integer in the minimal number of decimal digits
+   hex(x):     print `x` as an (unsigned) hex number
+   bin(x):     print `x` as an (unsigned) binary number
+
+   decn(x, n): print `x` as a signed decimal using exactly n digits
+   unsdecn(x, n): print `x` as an unsigned decimal using exactly n digits
+   hexn(x, n): print `x` as a hex number using exactly n digits
+   binn(x, n): print `x` as a binary number using exactly n digits
+   nl():       print a newline
+
+   At the base all of these call "unsnum" to do the work. That has
+   signature:
+   
+   unsnum(x, base, digitsNeeded)
+
+   which prints `x` in base `base` with the requested number of digits (set `digitsNeeded` to -1 to print just as many digits as required)
+}}
 
 ''
 '' print an number "val" with a given base
@@ -29,6 +57,10 @@ pub signnum(val, base, digitsNeeded, signflag)
      send(signflag)
   unsnum(val, base, digitsNeeded)
 
+''
+'' Print an unsigned number `val` in base `base`. `digitsNeeded` is
+'' the number of digits to print, or -1 to print as many as required
+''
 pub unsnum(val, base, digitsNeeded) | i, digit, r1, q1
 
   ' a request for 0 digits means to output nothing
@@ -58,7 +90,8 @@ pub unsnum(val, base, digitsNeeded) | i, digit, r1, q1
   send(digit)
 
 '
-' send a signed decimal number
+' send a signed decimal number with as many digits as required
+'
 PUB dec(x)
   signnum(x, 10, -1, 0)
 
@@ -75,6 +108,8 @@ PUB bin(x)
   unsnum(x, 2, -1)
 
 ' send a decimal number with a specific number of digits
+' note that for positive numbers put a space in front of the digits
+' so that they occupy the same width as negative numbers
 PUB decn(x, n)
   signnum(x, 10, n, " ")
   
@@ -90,3 +125,9 @@ PUB binn(x, n)
 PUB nl()
   send(13)
   send(10)
+
+' send a string
+PUB str(x) | c
+  repeat while (c := byte[x++]) <> 0
+    send(c)
+
