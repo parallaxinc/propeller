@@ -1,0 +1,63 @@
+{{
+  This file contains various constants and utilities for
+  setting up VGA for 800x600
+}}
+
+CON
+  pixel_clock_freq = 40_000_000
+  PIXEL_WIDTH = 800
+  PIXEL_HEIGHT = 600
+
+{{
+   set up VGA parameters in a parameter block
+   p points to the parameter block, which will be
+   set to contain:
+   p[0]: pixel clock scaling value
+   p[1]: horizontal front porch (in pixels)
+   p[2]: hsync pulse (in pixels)
+   p[3]: horizontal back porch (in pixels)
+   p[4]: vertical front porch (in lines)
+   p[5]: vertical sync lines
+   p[6]: vertical back porch (in lines)
+   p[7]: vertical/horizonal polarity
+}}
+
+PUB gettiming(p) | pclkscale, pclk, sysclk
+  ' calculate clock frequency
+  pclk := pixel_clock_freq
+  sysclk := clkfreq  ' system clock
+  ' calculate scale := $8000_0000 * pclk / sysclk
+  pclkscale := calcscale(pclk, sysclk)
+
+  long[p][0] := pclkscale      ' pixel clock scaling value
+  long[p][1] := 40             ' horizontal front porch
+  long[p][2] := 128            ' hsync pulse
+  long[p][3] := 88             ' horizontal back porch
+  long[p][4] := 1              ' vertical front porch
+  long[p][5] := 4              ' vertical sync lines
+  long[p][6] := 23             ' vertical back porch
+  long[p][7] := %00            ' vertical/horizontal polarity
+
+'
+' calcscale(a, b)
+'   calculate ($8000_0000 * a) / (b)
+'   we want to do this carefully so as to be as accurate as
+'   possible, so this code is a bit complicated
+'
+CON PIXSHIFT = 31
+
+PRI calcscale(a, b) : shiftcnt
+  shiftcnt := PIXSHIFT
+  ' remove factors of 5 (will be pretty common)
+  repeat while 0 == (a // 5) and 0 == (b // 5)
+    a := a / 5
+    b := b / 5
+
+  ' scale a up as much as we can
+  repeat while ((a & $4000_0000) == 0) and shiftcnt > 0
+    a := a << 1
+    shiftcnt--
+  repeat while ((b & 1) == 0) and shiftcnt > 0
+    b := b>>1
+    shiftcnt--
+  shiftcnt := (a / b) << shiftcnt

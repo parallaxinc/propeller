@@ -1,0 +1,778 @@
+{{
+   ANSI VGA terminal driver
+   Copyright 2020 Total Spectrum Software Inc.
+   MIT Licensed (see end of file for terms of use)
+
+   This object uses the vga_tile_driver to implement text based VGA terminal output.
+   To configure, go to the CONFIGURATION SECTION below and select CELL_SIZE, resolution,
+   and font.
+   
+   To use it, output ASCII characters. The driver understands standard ANSI terminal escape
+   sequences for cursor control and color setting; see https://en.wikipedia.org/wiki/ANSI_escape_code
+   for a full list, but for some interesting ones:
+      ESC [A         - cursor up (similarly B, C, D for down, forward, back)
+      ESC [1;1H      - cursor to home position (or use other decimal coordinates)
+      ESC [0m        - all attributes off
+      ESC [4m        - underline on
+      ESC [38;r;g;bm - replace "r", "g", "b" with decimal color values for foreground color
+      
+   Methods provided:
+   start(pin): cogid
+      start the VGA driver with "pin" as the base pin of the A/V board. Returns the cog id + 1
+      of the rendering COG, or 0 if it failed
+   stop()
+      stops the VGA driver
+   tx(c)
+      transmits character c
+   dec(n)
+      transmits signed decimal number n
+   decuns(n)
+      transmits unsigned decimal number n
+   hex(n, d)
+      transmits d digits of hex number n
+   set_position(x, y)
+      sets the cursor position to x,y (could also be done via H escape code)
+   nl()
+      transmits a new line
+}}
+
+CON
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'' CONFIGURATION SECTION
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+'' select the cell size (bytes needed per character)
+'' NOTE:
+''   not all cell sizes work with all resolutions, because the cell size
+''   determines how complicated the rendering is; see the table below
+
+'  CELL_SIZE = 8  ' full color (24 bpp foreground and background, all effects)
+  CELL_SIZE = 4  ' 8bpp fg/bg, all effects
+'  CELL_SIZE = 2  ' 4bpp fg/3bpp bg, blink effect
+'  CELL_SIZE = 1  ' monochrome only, blink effect
+
+OBJ
+'' select the desired resolution by uncommenting the appropriate timing below
+'' note that for the system clock frequency should be (at least) a multiple of the
+'' pixel clock frequency, as follows:
+''
+''    CELL_SIZE = 1:  2 * pixel clock (1 * pixel clock for 16x32 font)
+''    CELL_SIZE = 2:  4 * pixel clock (2 * pixel clock for 16x32 font)
+''    CELL_SIZE = 4:  4 * pixel clock (2 * pixel clock for 16x32 font)
+''    CELL_SIZE = 8:  3 * pixel clock (1.5 * pixel clock for 16x32 font)
+'' 
+'' this means that for high resolution (1024x768 or 1280xN) you may need
+'' to overclock the P2
+
+'  vt: "timing640x480"
+'  vt: "timing800x600"
+'  vt: "timing1024x768"  ' note: some CELL_SIZEs require high frequency
+'  vt: "timing1280x800"  ' note: high frequency: best to use 16x32 font
+  vt: "timing1280x960"  ' note: high frequency: best to use 16x32 font
+
+'' next, select the font to use
+'' note that 16x32 fonts have lesser timing requirements for high resolution
+'   fnt: "unscii-8"   ' 8x8 font
+'   fnt: "unscii-16"  ' 8x16 font
+   fnt: "p1font"     ' 16x32 font
+
+CON
+
+  pixel_clock_freq = vt.pixel_clock_freq
+  FONT_WIDTH = fnt.FONT_WIDTH
+  FONT_HEIGHT = ( (vt.PIXEL_HEIGHT//fnt.FONT_WIDTH) <> 0) ? fnt.FONT_HEIGHT-1 : fnt.FONT_HEIGHT
+  
+  COLS = vt.PIXEL_WIDTH / FONT_WIDTH
+  ROWS = vt.PIXEL_HEIGHT / FONT_HEIGHT
+
+VAR
+    long params[40]
+    byte screen_buffer[COLS*ROWS*CELL_SIZE]
+
+OBJ
+    vga: "vga_tile_driver"
+
+PUB start(pinbase) : x | fontptr, fontheight
+  fontptr := fnt.getfont()
+  if FONT_HEIGHT == 15
+    fontptr += 256 * FONT_WIDTH / 8  ' skip a row
+
+  params[00] := pinbase
+  params[01] := @screen_buffer	' screen buffer
+  params[02] := COLS           ' screen columns
+  params[03] := ROWS           ' screen rows
+  params[04] := fontptr	' font data: skip first row
+  params[05] := FONT_WIDTH	' font width
+  params[06] := FONT_HEIGHT    ' font height
+  vt.gettiming(@params + 7*4)
+  params[15] := CELL_SIZE
+  x := vga.start(@params)
+  init_terminal()
+  return x
+
+PUB stop()
+  vga.stop()
+  
+'#include "vga_text_routines.spinh"
+'#include "std_text_routines.spinh"
+'
+' utility routines for VGA text
+'
+' CELL_SIZE is the size of each character cell in bytes, and
+' may be 8, 4, 2, or 1:
+' if 8, then each character has 2 longs:
+'   first long is $RRGGBBcc, where RRGGBB is the fgcolor, cc is the character
+'   second long is $RRGGBBxx, where RRGGBB is the bgcolor, xx is the effect mask
+'
+' if 4, then each character has 4 bytes:
+'   first is foreground color (1 byte index into ANSI LUT)
+'   second is background color (1 byte index into ANSI LUT)
+'   third is character
+'   fourth is effect mask
+'
+' if 2, then each character has 2 bytes
+'   first is character
+'   second is: 1 bit effect, 3 bit bg color, 4 bit fg color
+'
+' if 1, then we have monochrome 7 bit characters; the high bit is for blinking
+
+CON
+  STATE_NORMAL = 0
+  STATE_ESCAPE = 1
+  STATE_START_CSI = 2
+  STATE_IN_CSI = 3
+  STATE_IN_PRIV = 4
+  MAX_ESC_ARGS = 8
+
+  CHAR_HIDDEN =     $01
+  CHAR_UNDERLINE =  $02
+  CHAR_STRIKETHRU = $04
+  CHAR_BLINK_HIDDEN = $10
+  CHAR_BLINK_UNDERLINE = $20
+  CHAR_BLINK_STRIKETHRU = $40
+  CHAR_BLINK_BG = $80
+  
+  CHAR_INVERSE = $0100
+  CHAR_BOLD = $0200
+  DEFAULT_FG_COLOR = $FFFFFF00
+  DEFAULT_BG_COLOR = 0
+  
+VAR
+  long curx, cury       ' cursor position
+  long savex, savey
+  long bgcolor, fgcolor ' current color
+  long state
+  long screenptr
+  long args[MAX_ESC_ARGS]
+  long argidx
+  long char_effects
+  long scroll_first, scroll_last
+  byte cursor_visible
+  byte cursor_enabled
+  byte cursor_effect
+  byte saved_cursor_data
+  byte cursor_mask
+  
+PRI init_terminal()
+  reset_graphics_state()
+  cls()
+  cursor_visible := 0
+  cursor_enabled := 1
+  if CELL_SIZE >= 4
+    cursor_effect := $10  ' blinking mask; use $20 for blinking underline
+    cursor_mask := $7f    ' bg color blink disabled for cursor
+  else
+    cursor_effect := $80  ' for 2 byte and 1 byte, only effect is in high bit
+    cursor_mask := $ff
+  curx := cury := 0
+  state := STATE_NORMAL
+  scroll_first := 0
+  scroll_last:= ROWS-1
+
+PRI reset_graphics_state()
+  bgcolor := 0
+  fgcolor := (CELL_SIZE == 8) ? $FFFFFF00 : 7
+  char_effects := 0
+
+PRI copy_line(dest, src) | linelen
+  linelen := CELL_SIZE*COLS
+  dest := @screen_buffer + dest*linelen
+  src := @screen_buffer + src*linelen
+  bytemove(dest, src, linelen)
+  
+PRI scroll_up() | last, i
+  i := scroll_first
+  last := scroll_last
+  repeat while i < last
+    copy_line(i, i+1)
+    i := i+1
+  clear(COLS*last, COLS*(last+1) - 1)
+  
+PRI scroll_down() | first, i
+  i := scroll_last
+  first := scroll_first
+  repeat while i > first
+    copy_line(i, i-1)
+    i := i-1
+  clear(COLS*first, COLS*(first+1)-1)
+
+PRI BOUND(low, x, high) : r
+  return (low #> x) <# high
+  
+PUB set_position(x, y)
+  curx := BOUND(0, x, COLS-1)
+  cury := BOUND(0, y, ROWS-1)
+  
+PUB tx(c) : r | fg, bg
+   concealCursor()
+   if (state == STATE_NORMAL)
+      if (c == 8) ' backspace
+         set_position(curx-1, cury)
+      elseif (c == 10) ' line feed
+         if cury == scroll_last
+	   scroll_up()
+	 else
+           cury++
+      elseif (c == 13) ' carriage return
+         curx := 0
+      elseif (c == 20) ' tab
+         set_position((curx + 8) & !7, cury)
+      elseif (c == 27)
+         state := STATE_ESCAPE
+      else
+         fg := fgcolor
+         bg := bgcolor
+         if char_effects & CHAR_INVERSE
+           fg,bg := bg,fg  ' swap
+         glyphat(curx, cury, c, fg, bg, char_effects & $FF)
+         curx++
+	 if curx == COLS
+	   curx := 0
+	   if cury == scroll_last
+	     scroll_up()
+	   else
+	     cury++
+   elseif (state == STATE_ESCAPE)
+      handle_esc(c)
+   elseif (state == STATE_START_CSI)
+      handle_csi_start(c)
+   elseif (state == STATE_IN_CSI)
+      handle_csi(c)
+   elseif (state == STATE_IN_PRIV)
+      handle_priv(c)
+   revealCursor()
+   return 1
+   
+PRI handle_esc(c) | i
+  if (c == "[")
+    repeat i from 0 to MAX_ESC_ARGS-1
+      args[i] := 0
+    argidx := 0
+    state := STATE_START_CSI
+  elseif (c == "D")
+    if cury == scroll_last
+      scroll_up()
+    else
+      cury++
+  elseif (c == "M")
+    if cury == scroll_first
+      scroll_down()
+    else
+      --cury
+  elseif (c == "c")
+    init_terminal()
+  else
+    state := STATE_NORMAL
+
+PRI defaultval(arg, v) : r
+  r := (arg) ? arg : v
+
+' first character of control sequence
+' if it is '?' it's a private control sequence
+PRI handle_csi_start(c)
+  if c == "?"
+    state := STATE_IN_PRIV
+  else
+    state := STATE_IN_CSI
+    handle_csi(c)
+    
+' handle ANSI control sequences
+PRI handle_csi(c)
+    if (c >= "0" and c <= "9")
+      args[argidx] := 10*args[argidx] + (c - "0")
+      return
+    argidx++
+    if argidx == MAX_ESC_ARGS
+      --argidx
+    if (c == ";")
+      return
+    
+    if (c == "A")
+      cury -= defaultval(args[0], 1)
+    elseif (c == "B")
+      cury += defaultval(args[0], 1)
+    elseif (c == "C")
+      curx += defaultval(args[0], 1)
+    elseif (c == "D")
+      curx -= defaultval(args[0], 1)
+    elseif (c == "E")
+      cury += defaultval(args[0], 1)
+      curx := 0
+    elseif (c == "F")
+      cury -= defaultval(args[0], 1)
+      curx := 0
+    elseif (c == "G")
+      curx := defaultval(args[0], 1) - 1
+    elseif (c == "H")
+      cury := defaultval(args[0], 1) - 1
+      curx := defaultval(args[1], 1) - 1
+    elseif (c == "J")
+      clear_in_display(defaultval(args[0], 0))
+    elseif (c == "K")
+      clear_in_line(defaultval(args[0], 0))      
+    elseif (c == "m")
+      set_graphic_rendition(0)
+    elseif (c == "r")
+      scroll_first := defaultval(args[0], 1) - 1
+      scroll_last := defaultval(args[1], ROWS) - 1
+      scroll_first := BOUND(0, scroll_first, ROWS-1)
+      scroll_last := BOUND(scroll_first, scroll_last, ROWS-1)
+      curx := cury := 0
+    elseif (c == "s")
+      savex := curx
+      savey := cury
+    elseif (c == "u")
+      curx := savex
+      cury := savey
+    set_position(curx, cury) ' sanity check
+    state := STATE_NORMAL
+
+' handle private escape sequence
+PRI handle_priv(c) | a
+    if (c >= "0" and c <= "9")
+      args[argidx] := 10*args[argidx] + (c - "0")
+      return
+    argidx++
+    if argidx == MAX_ESC_ARGS
+      --argidx
+    if (c == ";")
+      return
+    if (c == "h")
+      a := defaultval(args[0], 1)
+      if a == 25
+        cursor_enabled := 1
+    elseif (c == "l")
+      a := defaultval(args[0], 1)
+      if a == 25
+        cursor_enabled := 0
+    state := STATE_NORMAL
+
+'  
+' possible effects:
+' $01 = solid mask
+' $02 = underline
+' $04 = strikethrough
+' $08 = reserved
+' $10 = blinking mask
+' $20 = blinking underline
+' $40 = blinking strikethrough
+' $80 = reserved
+' these are stored in the lower 8 bits of the char_effects variable
+'
+PUB glyphat(x, y, ch, fgcol, bgcol, effect) | bufptr
+  bufptr := @screen_buffer
+  bufptr += (y*COLS + x) * CELL_SIZE
+  if CELL_SIZE == 8
+    fgcol |= (ch & $FF)
+    bgcol |= (effect & $FF)
+    long[bufptr] := fgcol
+    bufptr += 4
+    long[bufptr] := bgcol
+  elseif CELL_SIZE == 4
+    fgcol := (fgcol) | (bgcol<<8) | ((ch & $FF)<<16) | ((effect&$FF)<<24)
+    long[bufptr] := fgcol
+  elseif CELL_SIZE == 2
+     fgcol := (ch & $FF) | ((bgcol & $7)<<12) | ((fgcol & $F)<<8)
+     word[bufptr] := fgcol
+  else
+     byte[bufptr] := ch & $ff
+     
+PRI setCursorVisible(yesno) : oldstate | bufptr, x, y
+  if cursor_visible == yesno
+    return yesno
+
+  ' if asking to turn on the cursor, but it is
+  ' disabled, ignore the request
+  if yesno and not cursor_enabled
+    return 0
+    
+  ' change cursor state
+  cursor_visible := yesno
+  
+  bufptr := @screen_buffer
+  ' restrict x to be between 0 and COLS-1
+  x := curx
+  y := cury
+  x := 0 #> x <# (COLS-1)
+  y := 0 #> y <# (ROWS-1)
+  
+  bufptr += ((y * COLS) + x) * CELL_SIZE
+  if CELL_SIZE == 8
+    bufptr += 4
+  elseif CELL_SIZE == 4
+    bufptr += 3
+  else
+    bufptr += (CELL_SIZE-1)
+  x := byte[bufptr]
+  if cursor_visible
+    saved_cursor_data := x
+    x |= cursor_effect
+    x &= cursor_mask  ' turn off bg color blink
+  else
+    x := saved_cursor_data
+  byte[bufptr] := x
+
+  ' return old cursor state
+  return (yesno) ? 0 : 1
+
+PRI concealCursor()
+  setCursorVisible(0)
+
+PRI revealCursor()
+  setCursorVisible(cursor_enabled)
+  
+'' globals: force cursor on or off
+PUB showCursor()
+  cursor_enabled := 1
+  setCursorVisible(cursor_enabled)
+  
+PUB hideCursor()
+  cursor_enabled := 0
+  setCursorVisible(0)
+
+PUB cls()
+   clear(0, COLS*ROWS-1)
+
+' clear from position a to position b (inclusive)
+' a and b are in character offsets (so they have to be scaled appropriately)
+
+PRI clear(a, b) | ptr, cntr, temp
+  ptr := @screen_buffer + CELL_SIZE*a
+  cntr := b-a
+  if (CELL_SIZE == 1)
+    repeat while cntr >= 0
+      byte[ptr] := 0
+      ptr += 1
+      --cntr
+  elseif (CELL_SIZE == 2)
+    temp := ((fgcolor&$f) | ((bgcolor&$7) << 4))<<8
+    repeat while cntr >= 0
+      word[ptr] := temp
+      ptr += 2
+      --cntr
+  elseif (CELL_SIZE == 4)
+    temp := fgcolor | (bgcolor << 8)
+    repeat while cntr >= 0
+      long[ptr] := temp
+      ptr += 4
+      --cntr
+  else
+    repeat while cntr >= 0
+      long[ptr] := fgcolor
+      ptr += 4
+      long[ptr] := bgcolor
+      ptr += 4
+      --cntr
+
+' clear from cursor to end of display (if n==0) or from start of screen to cursor (n == 1)
+' n==2 clears whole display and resets cursor to top
+PRI clear_in_display(n) | startpix, endpix
+  if n==2
+    curx := cury := 0
+    n:=0
+  if n==1
+    startpix := 0
+    endpix := COLS*cury + curx
+  else
+    startpix := COLS*cury + curx
+    endpix := COLS*ROWS - 1
+  clear(startpix, endpix)
+
+PRI clear_in_line(n) | startpix, endpix
+  if n==2
+    curx := 0
+    n:=0
+  if n==1
+    startpix := COLS*cury
+    endpix := COLS*cury + curx
+  else
+    startpix := COLS*cury + curx
+    endpix := COLS*(cury+1) - 1
+  clear(startpix, endpix)
+
+' get an argument that's already been set up, return -1 if not valid
+PRI fetcharg(i) : n
+  if i >= argidx
+    return -1
+  return args[i]
+
+' debug routine
+PRI hexdig(i) : n
+   if i <= 10
+     return i + "0"
+   return (i-10) + "A"
+
+PRI set_graphic_rendition(i) | code
+  if i > argidx
+    return
+  code := fetcharg(i++)
+
+{{  
+  a := hexdig(code & $F)
+  b := hexdig((code >> 4) & $F)
+  glyphat(41, 10, b, $ffffff00, $00202000)
+  glyphat(42, 10, a, $ffffff00, $00202000)
+  pausems(1000)
+}}
+  case code
+    0:
+      reset_graphics_state()
+    1:
+      char_effects |= CHAR_BOLD
+    4:
+      char_effects |= CHAR_UNDERLINE
+    5:
+      char_effects |= CHAR_BLINK_HIDDEN|CHAR_BLINK_BG
+    7:
+      char_effects |= CHAR_INVERSE
+    8:
+      char_effects |= CHAR_HIDDEN
+    9:
+      char_effects |= CHAR_STRIKETHRU
+    21:
+      char_effects &= !CHAR_BOLD
+    22:
+      char_effects &= !CHAR_BOLD
+    24:
+      char_effects &= !CHAR_UNDERLINE    
+    27:
+      char_effects &= !CHAR_INVERSE
+    28:
+      char_effects &= !CHAR_HIDDEN
+    29:
+      char_effects &= !CHAR_STRIKETHRU
+    30..37:
+      fgcolor := AnsiColor(code - 30)
+    38:
+      fgcolor,i := GetArgColor(i)
+    39:
+      fgcolor := DEFAULT_FG_COLOR
+    40..47:
+      bgcolor := AnsiColor(code - 40)
+    48:
+      bgcolor,i := GetArgColor(i)
+    49:
+      bgcolor := DEFAULT_BG_COLOR
+  set_graphic_rendition(i)
+  
+DAT
+colortab
+  long $00000000, $7F000000, $007F0000, $7F7F0000
+  long $00007F00, $7F007F00, $007F7F00, $C0C0C000
+  long $7F7F7F00, $FF000000, $00FF0000, $FFFF0000
+  long $0000FF00, $FF00FF00, $00FFFF00, $FFFFFF00
+
+' look up an ANSI color from the color table
+PRI AnsiColor(n) : retval | ptr
+  if char_effects & CHAR_BOLD
+    n |= 8
+  if CELL_SIZE <= 4
+    return n
+  ptr := @colortab
+  return long[ptr + 4*n]
+
+' calculate an RGB color from a 6,6,6 encoded 8 bit color
+PRI SixColor(x) : retval | r, g, b
+  b := x // 6
+  x := x / 6
+  g := x // 6
+  r := x / 6
+  r := (255 * r)/6
+  g := (255 * g)/6
+  b := (255 * b)/6
+  return (r<<24) | (g<<16) | b
+
+' calculate a color value from an r,g,b triple
+PUB getrgbcolor(r, g, b) : color
+  if CELL_SIZE <= 4
+      color := 16 + 36*(r/51) + 6*(g/51) + (b/51)
+  else
+      color := (r<<24 | g<<16 | b<<8)
+  return color
+   
+' get a color out of arguments
+PRI GetArgColor(i) : col, newi | r, g, b, code
+  code := fetcharg(i++)
+  if code == 0
+    return 0, i
+  if code == 2
+     r := fetcharg(i++) & $FF
+     g := fetcharg(i++) & $FF
+     b := fetcharg(i++) & $FF
+     r := getrgbcolor(r, g, b)
+     return r,i
+  if code == 5
+    r := fetcharg(i++) & $FF
+    if CELL_SIZE <= 4
+      return r,i
+    elseif (r <= 15)
+      r := colortab[r]
+    elseif (r >= 232) 
+      r := 10 * (r - 232)
+      r += 8
+      return (r<<24 | r<<16 | r<<8), i
+    else
+      r := SixColor(r)
+      return r, i
+  return 0, i  ' punt for now
+
+'' utility function for calculating pixel clock
+
+'
+' calculate ($8000_0000 * a) / (b)
+'
+CON PIXSHIFT = 31
+
+PRI calcscale(a, b) : scale | shiftcnt
+  shiftcnt := PIXSHIFT
+  ' remove factors of 5 (will be pretty common)
+  repeat while 0 == (a // 5) and 0 == (b // 5)
+    a := a / 5
+    b := b / 5
+
+  ' scale a up as much as we can
+  repeat while ((a & $4000_0000) == 0) and shiftcnt > 0
+    a := a << 1
+    shiftcnt--
+  repeat while ((b & 1) == 0) and shiftcnt > 0
+    b := b>>1
+    shiftcnt--
+  return (a / b) << shiftcnt
+      
+PUB str(s) | c
+  REPEAT WHILE ((c := byte[s++]) <> 0)
+    tx(c)
+
+
+''
+'' print an number with a given base
+'' we do this by finding the remainder repeatedly
+'' this gives us the digits in reverse order
+'' so we store them in a buffer; the worst case
+'' buffer size needed is 32 (for base 2)
+''
+''
+'' signflag indicates how to handle the sign of the
+'' number:
+''   0 == treat number as unsigned
+''   1 == print nothing before positive numbers
+''   anything else: print before positive numbers
+'' for signed negative numbers we always print a "-"
+''
+'' we will print at least prec digits
+''
+VAR
+  byte buf[32]
+
+PUB Num(val, base, signflag, digitsNeeded) | i, digit, r1, q1
+
+  '' if signflag is nonzero, it indicates we should treat
+  '' val as signed; if it is > 1, it is a character we should
+  '' print for positive numbers (typically "+")
+  
+  if (signflag)
+      if (val < 0)
+        signflag := "-"
+	val := -val
+	
+  '' make sure we will not overflow our buffer
+  if (digitsNeeded > 32)
+    digitsNeeded := 32
+
+  '' accumulate the digits
+  i := 0
+  repeat
+    if (val < 0)
+      ' synthesize unsigned division from signed
+      ' basically shift val right by 2 to make it positive
+      ' then adjust the result afterwards by the bit we
+      ' shifted out
+      r1 := val&1  ' capture low bit
+      q1 := val>>1 ' divide val by 2
+      digit := r1 + 2*(q1 // base)
+      val := 2*(q1 / base)
+      if (digit >= base)
+        val++
+	digit -= base
+    else
+      digit := val // base
+      val := val / base
+
+    if (digit >= 0 and digit <= 9)
+       digit += "0"
+    else
+       digit := (digit - 10) + "A"
+    buf[i++] := digit
+    --digitsNeeded
+  while (val <> 0 or digitsNeeded > 0) and (i < 32)
+  if (signflag > 1)
+    tx(signflag)
+    
+  '' now print the digits in reverse order
+  repeat while (i > 0)
+    tx(buf[--i])
+
+'' print a signed decimal number
+PUB dec(val)
+  num(val, 10, 1, 0)
+
+'' print an unsigned decimal number with the specified
+'' number of digits; 0 means just use as many as we need
+PUB decuns(val, digits)
+  num(val, 10, 0, digits)
+
+'' print a hex number with the specified number
+'' of digits; 0 means just use as many as we need
+PUB hex(val, digits) | mask
+  num(val, 16, 0, digits)
+
+'' print a newline
+PUB nl()
+  tx(13)
+  tx(10)
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License 
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}

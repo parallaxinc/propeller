@@ -1,0 +1,109 @@
+''
+'' clock frequency settings
+'' for 640x480 we use a 25 MHz pixel clock
+'' for 800x600 we use a 40 MHz pixel clock
+'' for 1024x768 we use a 65 MHz pixel clock
+'' for 1280x800 we use an 83.46 MHz pixel clock
+'' for 1280x1024 we use a 108.0 MHz pixel clock
+''
+'' for best results the system clock should be a multiple of
+'' the pixel clock
+''
+'' 200 MHz is a convenient one for many purposes, and
+'' is only a slight overclocking
+''
+'' however, for 1024x768 and 1280x800 we need a higher clock speed
+'' in order to accomplish color modes
+''
+CON
+  PINBASE = 48
+
+  ' for low resolutions (640x480 and 800x600) normal 160 MHz operation works fine
+  '_clkfreq = 180_000_000
+
+  ' for high resolutions there is a dependency on CELL_SIZE and font size
+  ' for 8x16 fonts:
+  '
+  ' if CELL_SIZE=1 (monochrome) we need to run at 2 * pixel clock
+  ' if CELL_SIZE=2 or 4 (low color) we need to run at 4 * pixel clock
+  ' if CELL_SIZE=8 (full color) we need to run at 3 * pixel clock
+  '
+  ' for 16x32 fonts these requirements are cut in half
+  '
+  '_clkfreq = 195_000_000  ' for 1024 with 8x16 font and CELL_SIZE=8
+  _clkfreq = 250_000_000  ' for 1024 with 8x16 font and any CELL_SIZE
+  '_clkfreq = 216_000_000  ' for 1280 wide resolutions with 16x32 font
+
+  
+DAT
+
+democolors
+    long $FF000000, $FFFF0000, $00FF0000, $00FFFF00
+    long $0000FF00, $FF00FF00, $FFFFFF00, $00000000
+    long $7F000000, $007F7F00, $007F0000
+
+
+OBJ
+   scrn: "ansi"
+   
+PUB demo() | x, y, fgcol, bgcol, ch, grey, col1, col2, idx
+
+    DEBUG("VGA text demo", 13, 10)
+
+    ' start up the VGA driver
+    scrn.start(PINBASE)
+    DEBUG("screen started", 13, 10)
+    DEBUG("clock frequency: ", udec(CLKFREQ), 13, 10)
+    
+    ch := 0
+
+    repeat y from 0 to scrn.ROWS-1
+        grey := y<<3
+        bgcol := (grey<<24) | (grey<<16) | (grey<<8)
+        repeat x from 0 to scrn.COLS-1
+          grey := (x & 15)
+	  idx := x / 16
+          col1 := long[@democolors][idx]
+	  col2 := long[@democolors][idx+1]
+	  fgcol := colorblend(col1, col2, (grey<<4) + grey)
+          scrn.glyphat(x, y, ch++, fixupcol(fgcol), fixupcol(bgcol), $20)
+    repeat 10
+      DEBUG("pause... ")
+      waitms(2000)
+      
+    runtext()
+
+PUB colorblend(a, b, mix) : r
+  r := a
+  org
+    setpiv mix
+    blnpix r, b
+  end
+  return r
+
+PUB fixupcol(a) : x | r, g, b
+  b := (a>>8) & $FF
+  g := (a>>16) & $FF
+  r := a>>24
+  x := scrn.getrgbcolor(r, g, b)
+  return x
+  
+PUB runtext() | n
+  scrn.str(string(27, "[1;1H"))
+  scrn.str(string(27, "[0J"))
+
+  n := 0
+  repeat
+    scrn.nl()
+    scrn.str(string("Hello! ", 27, "[BCursor down"))
+    scrn.str(string(27, "[31mRed text "))
+    scrn.str(string(27, "[1;31mBright Red text"))
+    scrn.str(string(27, "[7mInverse "))
+    scrn.str(string(27, "[22;31mBold off "))
+    scrn.str(string(27, "[4mUnderline", 27, "[24m"))
+    scrn.str(string(27, "[9mStrikethru"))
+    scrn.str(string(27, "[0mEffects off "))
+    scrn.dec(n)
+    n++
+    waitms(1000)
+    

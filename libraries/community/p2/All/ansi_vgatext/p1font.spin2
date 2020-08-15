@@ -1,0 +1,17 @@
+{{
+  definitions for P1 ROM font for use with ansi.spin2
+  This is a 16x32 font as found in the P1 ROM
+}}
+
+CON
+  FONT_WIDTH = 16
+  FONT_HEIGHT = 32
+
+DAT
+
+fontdata
+  file "P1FONT.fnt"
+
+PUB getfont() : r
+  r := @fontdata
+
