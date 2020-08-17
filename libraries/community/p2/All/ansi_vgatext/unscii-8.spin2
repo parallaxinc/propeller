@@ -1,0 +1,17 @@
+{{
+  definitions for unscii-8 font for use with ansi.spin2
+  Unscii is a font with various sizes in the public domain, as
+  found at http://pelulamu.net/unscii/
+}}
+
+CON
+  FONT_WIDTH = 8
+  FONT_HEIGHT = 8
+
+DAT
+
+fontdata
+  file "unscii-8.fnt"
+
+PUB getfont() : r
+  r := @fontdata

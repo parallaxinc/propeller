@@ -1,0 +1,17 @@
+{{
+  definitions for unscii-16 font for use with ansi.spin2
+  Unscii is an 8x16 font in the public domain, as
+  found at http://pelulamu.net/unscii/
+}}
+
+CON
+  FONT_WIDTH = 8
+  FONT_HEIGHT = 16
+
+DAT
+
+fontdata
+  file "unscii-16.fnt"
+
+PUB getfont() : r
+  r := @fontdata
