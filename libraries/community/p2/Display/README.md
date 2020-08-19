@@ -1,3 +1,5 @@
+[ANSI VGA Text](../All/ansi_vgatext)
+
 [JM APA102C Smart Pixel Driver](../All/jm_apa102C_smart_pixel)
 
 [JM EZ MAX7219](../All/jm_ez_max7219)
