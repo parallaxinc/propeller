@@ -1,0 +1,180 @@
+'' =================================================================================================
+''
+''   File....... jm_formatted_strings_test.spin2
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 19 AUG 2020
+''
+'' =================================================================================================
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1     = 63  { I }                                           ' programming / debug
+  TX1     = 62  { O }
+
+  FS_CS   = 61  { O }                                           ' flash storage
+  FS_SCLK = 60  { O }
+  FS_MOSI = 59  { O }
+  FS_MISO = 58  { I }
+
+  SD_SCLK = 61  { O }                                           ' usd card storage
+  SD_CS   = 60  { O }
+  SD_MOSI = 59  { O }
+  SD_MISO = 58  { I }
+
+  SDA1    = 57  { IO }                                          ' i2c (optional)
+  SCL1    = 56  { IO }
+
+
+con
+
+  BUF_SIZE = 32
+    
+
+obj
+
+' main                                                          ' * master Spin cog
+  term : "jm_fullduplexserial"                                  ' * serial IO for terminal    
+
+
+var
+
+  byte  buffer[BUF_SIZE]
+    
+
+dat
+
+  Device        byte    "P2X8C4M64P", 0
+
+
+pub main() | x, y
+
+  setup()
+  
+  wait_for_terminal(true)
+
+  term.fstr1(string("%s Formatted Strings Demo\r"), @Device)
+  term.fstr1(string("%033c\r\r"), "-")
+
+  term.fstr0(string("Please enter your name: "))
+  get_str(BUF_SIZE-2)
+  term.fstr1(string("\r\rHello, %s, let me show you some \rformatted strings...\r\r"), @buffer)
+  waitms(1000)  
+
+  ' use \nnn for arbitrary character
+  ' -- \176 is the degrees symbol in PST
+
+  x := 23
+  term.fstr2(string("%d\176C --> %d\176F\r\r"), x, x * 9 / 5 + 32)
+
+  ' negative width fields are left justified
+  ' positive width fields are right justified
+
+  x := 123
+  repeat 6
+    term.fstr2(string("%-10d %13.3f\r"), x, x)
+    x *= 10
+    waitms(5)
+
+  term.txn(13, 2)
+
+  ' fixed field widths with leading spaces
+
+  term.fstr0(string("DEC    HEX    OCT    QRT     BIN\r"))
+  term.fstr0(string("---    ---    ---    ---    ----\r"))
+
+  repeat x from 0 to 15
+    term.fstr5(string("%3d    %3x    %3o    %3q    %4b\r"), x, x, x, x, x)
+    waitms(5)
+
+  term.txn(13, 2)
+
+  ' fixed field width with leading 0s
+
+  term.fstr0(string("DEC    HEX    OCT    QRT     BIN\r"))
+  term.fstr0(string("---    ---    ---    ---    ----\r"))
+
+  repeat x from 0 to 15
+    term.fstr5(string("%0.3d    %0.3x    %0.3o    %0.3q    %0.4b\r"), x, x, x, x, x)
+    waitms(5)
+
+  repeat
+    waitct(0)
+
+
+pub get_str(maxlen) : len | k
+
+  bytefill(@buffer, 0, BUF_SIZE)                                ' clear input buffer
+
+  term.rxflush()                                                ' clear trash from terminal 
+
+  repeat
+    k := term.rx()                                              ' wait for a character
+    case k
+      31..127 :                                                 ' if valid 
+        if (len < maxlen)                                       '  and room
+          buffer[len++] := k                                    '   add to buffer
+
+      term.BKSP :
+        if (len > 0)                                            ' if character(s) in buffer
+          buffer[--len] := 0                                    '  backup and erase last
+
+      term.CR :
+        buffer[len] := 0                                        ' terminate string
+        return                                                  '  and return to caller
+
+
+pub wait_for_terminal(clear)
+
+  term.rxflush()
+  term.rx()                                                     ' wait for keypress
+  if (clear)
+    term.tx(term.CLS)
+
+
+pub setup()
+
+  term.start(RX1, TX1, %0000, BR_TERM)                          ' start terminal serial
+
+
+con { license }
+
+{{
+
+  MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}
