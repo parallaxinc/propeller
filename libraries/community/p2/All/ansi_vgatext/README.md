@@ -19,6 +19,6 @@ demo.spin2 is a simple demo using the VGA tile driver directly as well as using 
 
 basdemo.bas is a demo in BASIC
 
-See [Notes.md](../Notes.md) for more information.
+See [Notes.md](./Notes.md) for more information.
 
 License: MIT
