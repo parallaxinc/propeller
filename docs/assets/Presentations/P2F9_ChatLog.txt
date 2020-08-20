@@ -1,0 +1,74 @@
+﻿15:14:56 Jim Granville : The text says topvalue bottomvalue, but the examples show -128 128 - is one of those backwards ? Seems -128 is bottomvalue ? + 128 is topvalue ?
+15:21:05 Francis Bauer : Can you display the data with persistance?
+15:21:45 Stephen Moraco : Iâ€™m thinking logic analyzer display would be funâ€¦
+15:23:05 Francis Bauer : Cool
+15:23:07 Ken Gracey : For those who joined late, the Pnut is here http://forums.parallax.com/discussion/171196/pnut-spin2-latest-version-v34v-graphical-debugger/p1
+15:25:33 Jim Kenney : Pnut worked on WIN 7 and Win10  without Virus detection!
+15:26:01 Ken Gracey : Somehow, 30 mins before this meeting, Chip seems to have overcome the virus blockers. I also installed successfully. 
+15:27:29 Francis Bauer : Polar coordinates
+15:29:13 Jim Kenney : I'm sure Jeff had a lot to do with it.
+15:30:41 Jeff Martin : re: virus - I did a lot of praying. :-)
+15:31:07 Jim Granville : Can the terminal have a title string ?
+15:32:28 Eric Smith : Instead of debug() commands, could you not equally well use send() with a serial transmit method to get these plots?
+15:32:53 Ken Gracey : Seems we could use this with P1 too.
+15:34:34 Ken Gracey : "special thing" YES! 
+15:35:42 Jon McPhalen : I often use a spare Spin cog in the P1 to send data to a terminal, so it would be really nice to have this for the P1.
+15:36:11 Ken Gracey : I'm wondering if it could also be stand-alone, like PST, for use with C/Python/Forth/etc
+15:36:23 Francis Bauer : Way cool, these features are more than just for debugging
+15:37:03 Jeff Martin : Right!  It could potentially be used for normal runtime application usage.
+15:37:05 Jon McPhalen : Would be nice if this was open sourced so that developers could create clones for other operating systems.
+15:38:12 Carroll Moore : Why in Delphi?
+15:38:33 Eric Smith : If the compiler is doing the parser, then how can we do this on P1?
+15:38:44 Jim Granville : Embarcadero claim to have delphis for MAC and Linux, but I've not tried using them ?
+15:39:20 Jeff Martin : They work.  I've tried them.  Android and iOS too.
+15:40:13 Stephen Moraco : Chip looks very easy to use. Good work!
+15:40:28 Jim Granville : "They work.  I've tried them.  Android and iOS too.' - sounds like you volumterred to do a iOS version ? ;)
+15:41:28 Ken Gracey : Do we need this as a stand-alone application for use with Mu, Flexgui?
+15:50:11 Ken Gracey : I'd like to get accurate tone recognition from Bb clarinet. 
+15:50:50 Jim Granville : Chip said the PC side struggles to keep up, so faster comms is going to be no magic bullet. FS USB limits you to a few MBd (3-6-8Mbd) and HS USB UARTS liimit to 12-15MBd, to go above that you need to jump from UARTS to something else.. It would be nice to find a 50+MBd HS-USB bridge, but no one does that ?
+15:51:02 Robert Lawrence : Yes ken Pitch detection can open many windows :)
+15:52:11 Ken Gracey : Helping Chip move from Delphi by porting his code to other tools => A+ we really appreciate it Gerold.
+15:54:26 Eric Smith : A good start to porting this would be to convert the debug() statements to just jm_serial str() method calls... that would show what's parser dependent
+15:56:57 Jim Granville : Display options: multimeters added a bar graph to the digital display > a decade ago, so a terminal mode that included a simple bar-graph above or below the larger text would be a nice extension. Multiple 'multimeters' can then be placed on a PC. 
+15:58:46 Stephen Moraco : Wild thoughtâ€¦ p2d2 as RPi hat with RPi doing hi res display?  we need to investigate data xfer speeds from P2D2 to RPi...
+15:58:58 Jeff Martin : re: "I'm wondering if it could also be stand-alone, like PST, for use with C/Python/Forth/etc
+         " - It could be.  Catching the start of the debug stream when/if the port is being shared, is the biggest issue, but with the DEBUG_DELAY feature Chip already put it, it makes it much more practical as a stand-alone.
+15:59:05 Peter Jakacki : P2LAB is a standalone dev system with extra P2D2 or custom proto P2 option.
+16:03:37 Jim Granville : Re "we need to investigate data xfer speeds from P2D2 to RPi..." - there are HW ans SW issues here, this from a Pi froum : "we need to investigate data xfer speeds from P2D2 to RPi..."
+16:04:10 Jim Granville : oops.."Pi forum: "The UART itself has no throughput limitations in fact it can run up to 32 Mega baud. But doing so requires
+         significant CPU involvement as it has shallow FIFOs and no DMA support."
+16:06:23 Stephen Moraco : I have working LKMs (loadable kernal modules) on RPi so having better speeds can be achievedâ€¦ with the various forms of IO
+16:06:47 Stephen Moraco : I can even dedicate one of the cores to the LKM...
+16:07:41 Stephen Moraco : All while running unmodified RPi OSâ€¦ these are just runtime add-ins.
+16:08:02 Eric Smith : Getting everything in Delphi (or at least out of the x86 parser) would really help
+16:08:07 Robert Lawrence : yes 
+16:10:56 Stephen Moraco : Basically, Peter, I canâ€™t wait to playâ€¦   ;-)
+16:11:04 Robert Lawrence : CHiip, I just downloaded Pnut and ran it and it
+16:11:15 Robert Lawrence : it's working great
+16:11:26 Jeff Martin : Thanks Robert.
+16:11:33 Robert Lawrence : :)
+16:12:30 Jim Kenney : PNUT ran great. Thanks Jeff and Chip!
+16:13:22 Robert Lawrence : Chip It can be converted to Javsscript also with Quartex the Pascal compiler and can be run the web browser :)
+16:13:35 Jim Granville : How much x86 is there ?
+16:13:35 Robert Lawrence : yes
+16:18:43 Chip Gracey : There is about 500 lines, total, of x86 code.
+16:23:36 Robert Lawrence : In a few months or so we can have a meeting to see what everyone converted Pnut to :)
+16:24:35 Carroll Moore : I used something like that for robot control 
+16:25:02 Robert Lawrence : yes
+16:25:05 Francis Bauer : yes
+16:25:25 Carroll Moore : x axis was rotation direction and speed
+16:25:40 Carroll Moore : y axis was forward / backward and speed
+16:25:49 Jim Granville : Yes, a function generator and capturing that should work nicely with the graphical debg too...
+16:26:11 Jonathan Titus : Thanks Chip and Ken.  More good information for us. --Jon
+16:26:34 Peter Jakacki : Thanks Chip, thanks everyone
+16:26:37 Stephen Moraco : Excellent Chip, thank you!
+16:26:43 Eric Smith : Thanks, Chip!
+16:26:43 Jeff Martin : Thanks Chip!
+16:26:49 Jim Kenney : Great zoom!
+16:27:05 Robert Lawrence : Excellent CHip , Wow!! cool stuff :)
+16:30:10 Stephen Moraco : Chip MSO Scope?  4 analog, 16 digital?
+16:31:13 Ken Gracey : https://www.mouser.com/ProductDetail/Analog-Devices/ADALM-PLUTO?qs=xbccQsLEe0ffoUoi%2FjfIWA%3D%3D&gclid=EAIaIQobChMIjMyFnumW6wIVtvzjBx3wygDrEAQYASABEgJAJPD_BwE
+16:32:44 Stephen Moraco : My favorite cheap analyzer comes from here (open source) https://www.ikalogic.com/
+16:32:52 Chris Wardell : The PLUTO is an SDR device
+16:33:10 Chris Wardell : Thanks Chip
+16:33:14 Jim Kenney : Thanks Chip!
