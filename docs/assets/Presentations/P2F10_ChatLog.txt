@@ -1,0 +1,233 @@
+﻿14:02:05 Ken Gracey : https://us02web.zoom.us/j/5487371888
+14:02:30 Stephen Moraco : Have link to Etsy site? (enclosure)
+14:03:27 Chip Gracey : Somebody needs to mute. There is some background talking.
+14:03:41 Samuel LourenÃ§o : Nice!
+14:04:30 Stephen Moraco : Iâ€m digging into P2D2 as RPi hatâ€¦ Anyone else looking into this?  Iâ€™ll be putting not up on Forum, too
+14:05:05 Stephen Moraco : (um, not -> note)
+14:05:44 Roy Eltham : link to etsy for enclosures: https://www.etsy.com/listing/664289867/p2-eval-rev-c-board-enclosure?ref=yr_purchases
+14:05:48 Jeff Martin : Excellent way to describe the point, Chip!
+14:06:23 Ken Gracey : In case you missed the earlier chat, the draft docs are here https://docs.google.com/document/d/1iTA4dwbntgaUVnpt0-9pDcFCVSsvCUnU/edit
+14:08:25 Jim Granville : @StephenMoraco P2D2 has 3 40 pin headers 1 of which is Pi compatible. I've  run a parallel fork I call P2D2Pi, that ha 2 40 pin connectors, both are Pi exact and either side can be Pi connected. I've given Peter this pin-mapping, which I believe covers both bases nicely. There are many displays now available for Pi-40pin
+14:15:21 Thomas Montemarano : Why would someone want semi random or other dither added to a DAC value?
+14:16:00 Jeff Martin : @Jon Titus - the documentation looks great; I'm excited to read through it.
+14:16:15 Marcelo Simoes : What is the max PWM frequency that we can have on those smart outputs ? For a 3-phase inverter is it possible to also incorporate dead-time ?
+14:18:44 Jim Granville : PWM granularity is the SysCLK, the PWM freq is usually /100 /256 /1024 from that depending on how many steps you need.
+14:18:48 Ken Gracey : Jan's book https://www.thriftbooks.com/w/usb-complete-everything-you-need-to-develop-custom-usb-peripherals-complete-guides-series_jan-axelson/396718/item/32561457/?mkwid=%7cdc&pcrid=448918537671&pkw=&pmt=&slid=&plc=&pgrid=107461511234&ptaid=pla-926306231749&gclid=EAIaIQobChMI6OaO05io6wIVlxatBh0OkwGjEAQYASABEgJ_R_D_BwE#isbn=0965081958&idiq=32561457
+14:20:49 Jim Granville : "Why would someone want semi random or other dither added to a DAC value?
+         "  That' useful for testing and sweep cases, where you may want t interpolate in average between available DAC steps, A good DAC will have steps that are 'evenly spaced'  and you can get a bit extra with. 
+14:21:07 Nicolas Benezan : Dead time is not supported directly but you could use 6 PWM pins, synchronize them and provide offset values between L and H pins.
+14:21:10 Marcelo Simoes : and what is the max frequency for the PWM ?
+14:21:38 Jim Granville : Dead time is hand-over between phases, and that would need to be manually set in P2. Many gate drivers have dead-time included in the gate- bufer
+14:22:06 Marcelo Simoes : thanks I will follow up later
+14:22:29 Lachlan "tubular" : The PSU smartpin mode needs to get described some time.  Chip wrote a hand drawn circuit diagram of how he envisaged it working, using 2 adjacent smart pins, its in the forum somewhere but hard to find
+14:23:39 Marcelo Simoes : It would be nice to have a routine that makes a SPWM (sinusoidal pulse width modulation) for a 3 phase IGBT inverter operating at 20 kHz, 6 pulses for 6 transistors
+14:25:11 Robert Lawrence : Another good USB that I have is this one:
+         USB Design by Example: A Practical Guide to Building I/O Devices Paperback
+14:25:40 Robert Lawrence : https://www.amazon.ca/USB-Design-Example-Practical-Building/dp/0471370487
+14:27:50 Samuel LourenÃ§o : Microchip has a USB stack that compiles to 32KB without optimization. An interesting tidbit that showsbUSB is feasible.
+14:29:21 Carroll Moore : what logic analyzer is he using?
+14:30:08 Jeff Martin : I think his logic analyzer is from Saleae.
+14:32:06 Thomas Montemarano : Where is John's document located?
+14:32:38 Ken Gracey : https://docs.google.com/document/d/1iTA4dwbntgaUVnpt0-9pDcFCVSsvCUnU/edit for Thomas
+14:32:49 Jonathan Titus : Correct.  It is the "Logic" that has eight digital inputs and may analyzers that parse data into binary, ASCII, etc.   But at $399 (US) for the new basic unit it seems too expensive.
+14:33:08 Duane Degn : Can the quadrature encoder smartpin be used to read a three channel encoder like the ones used on brushless motors?
+14:33:54 Samuel LourenÃ§o : Are there any plans to have a logic diagram for each smart pin, o. the documentation?
+14:35:15 Nicolas Benezan : Duane, you mean quadrature A/B with additional index channel?
+14:38:01 Duane Degn : The brushless encoders are 120 out of phase. They're called A, B and a third letter (I think U). All  three are used in brushless with sensors.
+14:38:55 Nicolas Benezan : You actually need 5 channels to get commutation info, A/B quadrature + UVW phase info.
+14:40:07 Jim Granville : "The brushless encoders are 120 out of phase." That would work in 2 pin mode, but if you needed speed info, you would need another smart pin capturing the time between edges
+14:41:03 Nicolas Benezan : I tried to implement this but I gave up because there is no "time capture" mode.
+14:41:39 Duane Degn : Jim G. Agree about quadrature but it loses a bit of precision at very low speed.
+14:42:12 Jon McPhalen : drum synth!
+14:43:33 Nicolas Benezan : Let's start a thread in the forum about encoders, tomorrow. I can talk a bit about that topic, but not now.
+14:43:53 Lachlan "tubular" : @NB did you look at using two smartpins, eg one doing AB and one doing AU, and launching them in sync? 
+14:44:04 Duane Degn : I don't have a mic hooked up.
+14:44:13 Jonathan Titus : Some pins might benefit from a block diagram.  Chip is the best person to create such figures.  I'll look into the possibility. --Jon 
+14:45:54 Duane Degn : A cog will be fine. I've done similar with P1 and quadrature.
+14:46:10 Robert Lawrence : Can you make a smart pin sample for audio pitch detection?
+14:47:03 Jon McPhalen : Reminder: In Spin2, the PINSTART() instruction is used to configure a smartpin.
+14:47:51 Robert Lawrence : Thanks Chip :)
+14:47:56 Lachlan "tubular" : Chips "glottal pulse" demo should show that 
+14:48:30 Robert Lawrence : We can also make pitch to midi converters :)
+14:48:43 Jim Granville : "@Nicolas Benezan ..there is no "time capture" mode" - the pins can capture time, but it's not called that, maybe better names are needed on some of the modes... ?
+14:49:07 Nicolas Benezan : About encoders: check this http://forums.parallax.com/discussion/171136/smartpin-questions-was-how-to-capture-time-on-pin-change
+14:50:27 Nicolas Benezan : Jim, yes, there are relative measurements between edges but they time out when there is no edge inside a measurement period. It's easier with events and timestamps
+14:51:25 Gerold Gorman : I downloaded the Debug Display code that was posted last week, and have already ported it to C++ in visual Studio 205.  It is up and running, but is currently being debugged.    As of now I am doing CPU detection,, and getting the C++ LoadHarware function up and running -- lots more to do.
+14:51:37 Jon McPhalen : I am building MIDI interface boards to connect to my P2 this weekend!
+14:52:13 Nicolas Benezan : @Gerold: 8) thumbs up!
+14:52:49 Duane Degn : Add a reminder for people to use "view" mode on google docs. Otherwise you get unwanted suggestions.
+14:53:11 Ken Gracey : GEROLD! Way to go! Was hoping to see such an outcome, even though you have lots to do.
+14:54:28 Jon McPhalen : Maybe worth a sticky thead
+14:55:07 Samuel LourenÃ§o : Very important: despite seeing many and great improvements under the "Pin Descriptions" section of the manual, I think the important VIO_xxxx supply pins should be described as required, and what for.
+14:55:32 Samuel LourenÃ§o : Important addition to the doc.
+14:56:03 Kenneth Vanslette : I want a 4x4 touch keypad - one Smart pin for each of the 16 keys. Do I use a Goertzel function? or something else.
+14:56:04 Duane Degn : Is the code you're looking for? https://forums.parallax.com/discussion/171994/graphical-debug-source-code
+14:57:54 Bart Grantham : The filesystem protocol idea is already half-implemented by Eric R. Smith using the â€œ9Pâ€ protocol from Plan 9.  Itâ€™s a super cool concept and has a lot of potential.
+14:59:19 Robert Lawrence : http://forums.parallax.com/discussion/171994/graphical-debug-source-code#latest
+15:01:47 Lachlan "tubular" : Yes, my suggestion was just to do "minimum viable' extension of Chip's existing debug stream to log data to disk on the PC side.  You could specify the filename from the P2 end, and it would just have access to one directory (no slashes etc in the filename) 
+15:02:25 Gerold Gorman : Its a bit early to post source cod - but I could share a screen shot on the forums or maybe here, but as I said - the Delphi to VS C++ is done and its just integration and debugging, since the multi window capability is inherent in Document view architecture - and since the code is C++ - it will actually port to FlexGui at some pont - when GUi integration is available on that platform, i.e., for two P2's, with X11 like GUI on P2
+15:04:20 Jim Granville : This simple capture mode looks great for Smart Pin docs. Can you capture that screen image top pane easily ? 
+15:06:01 Jeff Martin : @Jim Granville - there's a bitmap save option for the DEBUG commands.
+15:07:09 Lachlan "tubular" : @jim Chip recently posted a mp4 vid showing like you're seeing now
+15:07:17 Francis Bauer : Looks good
+15:07:48 Jon McPhalen : Would it be possible to look at the SCK and MOSI signals of SPI pins with the logic debug panel?
+15:08:28 Jim Granville : @jeff Martin - great that is now in there. Can the background be changed ? as in the DOCs pasted black backgrounds will jar more ? 
+15:10:58 Jim Granville : Very nice, is there a defaults file for these ?
+15:11:37 Samuel LourenÃ§o : Impressive! I was not aware the PNut could define windows like Matlab or Octave.
+15:12:08 Lachlan "tubular" : CHip can you talk about how you captured the MP4 video you posted the other day showing moving data
+15:12:35 Roy Eltham : Samuel, this is a new feature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+15:12:41 Chip Gracey :      FlashBack Pro 5
+15:12:45 Ken Gracey : snagit is good too
+15:13:08 Jeff Martin : @Samuel See the Graphical Debug with Spin2 from a previous Live Forum: https://youtu.be/H8LGoRGUleU?list=PLt_MJJ1F_EXa25_TWa4Sdi77daQaxA_ZU&t=14                                                                                                                                 
+15:13:41 Francis Bauer : There's Flashback Express also, which is the free version...
+15:13:42 Ken Gracey : This new Goertzel board will be available on it's own, not part of the P2 Eval Board Accessory Kit.
+15:14:37 Robert Lawrence : From DebugDisplayUnit
+
+  	 clLime                = $00FF00;
+  	 clRed                 = $0000FF;
+  	 clBlue                = $FF3F00;
+  	 clYellow              = $00FFFF;
+  	 clMagenta             = $FF00FF;
+  	 clAqua                = $FFFF00;
+  	 clOrange              = $007FFF;
+  	 clOlive               = $007F7F;
+  	 clWhite               = $FFFFFF;
+  	 clBlack               = $000000;
+  	 clGrey                = $404040;
+  	 DefaultBackColor      = clBlack;
+  	 DefaultGridColor      = clGrey;
+  	 DefaultLineColor      = clAqua;
+  	 DefaultFillColor      = clBlue;
+  	 DefaultTextColor      = clYellow;
+  	 DefaultColor          = clAqua;
+  	 
+15:17:39 Samuel LourenÃ§o : I think the proto board could be supplied as a separate, as well. Already used mine as a LED based debugger.
+15:18:17 Jonathan Titus : Thanks, Jim.  All comments and suggest welcome and helpful. --Jon
+15:20:04 Jim Granville : Roy, is that maybe a edge-slew rate problem ? Do you have a Schmitt driver ?
+15:23:13 Jim Granville : Roy,Chip - if this sometimes works, ad sometimes fails, this sounds less like a mode-problem, and  more of a HW issue ?
+15:25:59 Robert Lawrence : From P1
+
+		 Measuring RC Decay with a Positive Detector Mode
+		 Resistor-Capacitor (RC) decay is useful for a variety of sensor measurements. Some examples include:
+		 ‚·
+		 Dial or joystick position with one or more potentiometers
+		 ‚·
+		 Ambient light levels with either a light-dependent resistor or a photodiode
+		 ‚·
+		 Surface infrared reflectivity with an infrared LED and phototransistor
+		 ‚·
+		 Pressure with capacitor plates and a compressible dielectric
+		 ‚·
+		 Liquid salinity with metal probes
+		 RC Decay Circuit
+		 RC decay measurements are typically performed by charging a capacitor (C) and then monitoring the time it takes the capacitor to discharge through a resistor (R). In most RC decay circuits, one of the values is fixed, and the other varies with an environmental variable. For example, the circuit in Figure 7-1 is used to measure a potentiometer knobâ€™s position. The value of C is fixed at 0.01 Î¼F, and the value of R varies with the position of the potentiometerâ€™s adjusting knob (the environmental variable).
+		
+15:27:15 Robert Lawrence : Measuring RC Decay
+         Before taking the RC decay time measurement, the Propeller chip needs to set the I/O pin connected to the circuit to output-high. This charges the capacitor up to 3.3 V as shown on the left side of Figure 7-2. Then, the Propeller chip starts the RC decay measurement by setting the I/O pin to input, as shown on the right side of Figure 7-2. When the I/O pin changes to input, the charge built up in the capacitor drains through the variable resistor. The time it takes the capacitor to discharge from 3.3 V down to the I/O pinâ€™s 1.65 V threshold is:
+		 Î”t = 0.693 Ã— C Ã— (R + 100 Î©)
+		 Since 0.693, C and 100 Î© are all constants, the time Î”t it takes for the circuit to decay is directly proportional to R, the variable resistorâ€™s resistance.
+		 Figure 7-2: RC Charge and Decay Circuits and Voltages
+		 Charge Circuit Decay Circuit
+		 (I/O pin = output-high) (I/O pin = input)
+		 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+		 3.3 V
+		 ï€— Vc Vc
+		 â”‚i â”€â”€ï‚» â”‚ â”‚
+		 â””â”€â”€â”€â”€â”€â”€â”€â”³â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â” I/O Pin ï‚ºâ”€â”€â”€â”€â”€â”€â”€â”³â”€â”€â”€â”€â”€â”´â”€â”€
+		 
+15:33:55 Jeff Martin : Here's Jon's PWM object:  https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_pwm
+15:36:53 Lachlan "tubular" : Yes try what Chip says, plus use a second adjacent unconnected pin as your reference, so both are affected by temperature and VIO together
+15:39:25 Ken Gracey : Roy, you must be translating from this example https://learn.parallax.com/tutorials/language/propeller-c/propeller-c-simple-circuits/sense-light
+15:45:54 Robert Lawrence : Excellent Jon thanks
+15:49:12 Stephen Moraco : FYI- On Jon Tâ€™s google doc i still canâ€™t print a draft to PDF.  (is printing disabled?)
+15:50:12 Henrique Silva Neto : Export of the file is disabled. I'm not sure why it is that way....
+15:50:34 Robert Lawrence : It does say that printing is disabled
+15:52:27 Jim Granville :  On the DOC, in my display the bitmaps obscure the line above - does everyone see that same effect (eg page 3 or 4 ) ?
+15:55:58 Jeff Martin : I had to step away for a moment.  Are we still working on solving the RC Time (single slope measurement) issue with a Smart Pin?
+15:56:25 Thomas Montemarano : It would be useful to be able to pdf and print the document.
+15:56:49 Stephen Moraco : Yes, Iâ€™m seeing same image overlaps text issue here...
+15:57:42 Henrique Silva Neto : Perhaps this is some config setup that should be made, as to enable exporting and printing of the document, by readers and commenters.
+15:58:37 Francis Bauer : Chip is trying to demonstrate using a smart pin to measure the frequency of a pin that is in schmitt mode with a capacitor connected
+15:58:54 Jeff Martin : re: document - Should be able to do it via: File > Download > format_you_want.
+15:59:29 Thomas Montemarano : Download is greyed out
+16:01:02 Henrique Silva Neto : At least to me, too... Every export options are disabled (greyed out). I've tryed closiand re-opening the linked file. No avail....
+16:01:24 Henrique Silva Neto : closing AND RE-OPPENING
+16:01:45 Jeff Martin : I'm not having the bitmap obscuring issue.  On mine, when I clicked on the link I select Google's Open With > Google Docs option.
+16:02:07 Lachlan "tubular" : always interesting to see how other people work
+16:03:19 Jeff Martin : I see the problem with the Doc... the original is a Docx file, but you have to Sign In to Google Docs (from a Google account) to be able to use the Open With > Google Docs option.
+16:03:48 Jim Granville : Peg 15 also has partial bitmap obscure effect but page 13 seems ok ?
+16:03:57 Jim Granville : peg -> page
+16:04:07 Jeff Martin : Please try this link to see if it makes it any better for you:  https://drive.google.com/file/d/1iTA4dwbntgaUVnpt0-9pDcFCVSsvCUnU/view?usp=sharing
+16:05:39 Jeff Martin : I just found and set the "Viewers and commenters can download, print, and copy" option.
+16:06:21 Jeff Martin : Let me know if it does or doesn't work for you.  You may have to refresh your page.
+16:07:29 Stephen Moraco : Negative, still canâ€™t printâ€¦
+16:07:54 Stephen Moraco : Did referesh, no joy...
+16:08:43 Robert Lawrence : No printing is still diabled
+16:08:43 Francis Bauer :     Way cool                                                     
+16:09:02 Henrique Silva Neto : To Jeff Martin: I even tryed logging to my gmail account,. Print still appears greyed-out.
+16:09:04 Robert Lawrence : I can export a page at a time to PDF but it's too much work LOL
+16:09:05 Jeff Martin : Okay, try again... that silly setting cleared again somehow.
+16:09:06 Francis Bauer : I need to go, but congrats on getting that demo working...
+16:09:09 Jeff Martin : I've re-checked it.
+16:10:04 Robert Lawrence : Just put your courser over the print icon and you can see that it's disabled
+16:11:06 Stephen Moraco : still disabled for me toâ€¦ â€œexport options disabledâ€
+16:11:09 Jeff Martin : Not sure what's happening... the option is set, I've verified, then a few moments later, it's cleared.  I see a message that a new version has been uploaded... maybe the doc is being replaced somehow?
+16:11:27 Jim Granville : Some of chips readings there are MAX ? but the display seems to simply clip them to display limit ? Maybe the debug needs a clip-indicator, that uses a MAX type unexpected value in a different colour ? (but still clips the same)
+16:12:23 Jim Granville : @Jeff: I'm adding comments, maybe that is confusing things ?
+16:12:23 Jeff Martin : Ah... is says Commenters and Viewers can't download, copy, or print files in our shared drive.  We may need to configure something else or move the doc to a different drive location.
+16:13:02 Henrique Silva Neto : Perhaps that behaviour has to to with more than a "ownner" of the docuent. And the other ownners had disabled that option. don't know for sure...
+16:13:02 Jim Granville : @ Jeff : maybe you just need to send google $$  ;)
+16:13:04 Jeff Martin : @Jim Granville... maybe... but not it won't let me set the option at all.
+16:13:22 Jeff Martin : Oh yes, they don't have enough $. :-\
+16:14:22 Henrique Silva Neto : Anti vÃ­rus are pedging for scams. Now Google too. Mein Gott In Himmel!
+16:14:34 Henrique Silva Neto : pledging
+16:18:13 Robert Lawrence : Spectrum analyser
+16:21:56 Jeff Martin : Can you try this link for the Smart Pins doc?  This is an experiment.  https://drive.google.com/file/d/1IvCNA9plVnHFashY-m9820WKPQpQDr_4/view?usp=sharing
+16:23:07 Henrique Silva Neto : Fantastic Jeff Martin!!! It did the trick! Thanks
+16:25:09 Jeff Martin : Okay, now that's a different location (still Google Doc), but not the corporate Shared Drive feature.  It seems that non-members are not allowed to print or download from a Shared Drive link.
+16:25:17 Jim Granville : @ Jeff - does that mean we need a new link ? 
+16:26:40 Henrique Silva Neto : Please, make that downloadable/printable link available as a sticky thing on P2 fÃ³rum threads...
+16:26:50 Jeff Martin : Yes, unless there's a setting I'm not aware of to fix the first.  
+16:27:22 Jeff Martin : Any updates make to the first one (that everybody tried to use) will not show up in that second experimental one.
+16:28:03 Jeff Martin : Need to confer with Ken, Jon Titus, and Stephanie before we move it over there officially.
+16:28:11 Henrique Silva Neto : IMHO, it's better to keep a protected copy somewhere, as to ensure it is ever available for identifyed commenters. Only a thought...
+16:37:53 Jeff Martin : https://drive.google.com/file/d/1iTA4dwbntgaUVnpt0-9pDcFCVSsvCUnU/view?usp=sharing
+16:38:57 Robert Lawrence :                      @ Jeff still no printing
+16:39:53 Henrique Silva Neto : Nop Jeff, this version doesn't allow printing or exporting as the former.
+16:39:58 Henrique Silva Neto : do
+16:40:16 Henrique Silva Neto : Nope
+16:40:36 Jeff Martin : Are you logged in with your Google account?  Someone reported that it worked for them.
+16:41:17 Jeff Martin : I think you have to be logged in to your Google account, then Choosed the Open With > Google Docs option that appears at the top of the web page once you're logged in.
+16:41:34 Robert Lawrence : It says that I'm logged in under my name
+16:41:57 Henrique Silva Neto : I'm logged to mine. Its showing at rightmost top as logged, in blue....
+16:43:40 Jeff Martin : Maybe this link?  https://drive.google.com/file/d/1IvCNA9plVnHFashY-m9820WKPQpQDr_4/view?usp=sharing
+16:43:49 Cluso99 Ray : having mic problems on iPad. unmute shows but doesnâ€™t enable :(
+16:45:27 Jim Granville : This link from above https://drive.google.com/file/d/1IvCNA9plVnHFashY-m9820WKPQpQDr_4/view?usp=sharing
+		 allows me to print and download, but the print preview still has the same text-obscure effect on some bitmaps.
+16:46:02 Henrique Silva Neto : Hi Jeff, that last one did the trick again, even when I'm not logged to my Googl account. Thanks. This one is better to be linked to the forums, IMHO....
+16:47:20 Jeff Martin : Great!  Somehow my copy/paste didn't work and pasted another (older link).  Sorry for the confusion (I certainly was confused!)
+16:48:03 Henrique Silva Neto : No problems att all. It's the vÃ­rus: perhaps a sequell... :lol: 
+16:48:40 Henrique Silva Neto : I'm feeling confused too, most of the time.... :lol: 
+16:53:05 Henrique Silva Neto : Comodo's Valkyrie did complainned about a compiler date, at previous version. Didn't tryed it again, with the new one....
+16:54:35 Henrique Silva Neto : https://valkyrie.comodo.com/
+16:55:39 Henrique Silva Neto : Perhaps the outcomes that Valkyrie shows can easy a bit, as finding what are the anti-virus complainning at all...
+16:56:35 Jim Granville : Virus problem may have also been triggered by web chatter, if they find a name and virus comments, they apply the bin gateway.. ? 
+17:01:34 Robert Lawrence :  I was able to download the doc :)
+17:03:13 Robert Lawrence : Go to linux
+17:09:35 Lachlan "tubular" : https://www.youtube.com/watch?v=fsF7enQY8uI
+17:10:12 Jeff Martin : Ha, that's funny!
+17:11:14 Henrique Silva Neto : Thanks Lachlan! Really funny!!!!
+17:16:15 Gerold Gorman : Hello - I'm back ...
+17:22:32 Jeff Martin : Welcome back, Gerold.
+17:39:00 Henrique Silva Neto : Thanks Jeff!
+17:45:20 Robert Lawrence : https://pypi.org/project/PySDL2/
+17:48:00 Gerold Gorman : I think I have a microphone that will work now â€¦.
+17:51:50 Robert Lawrence : Change view options
+17:53:49 Bart Grantham : Gotta go, it was fascinating and educational, as always.  Have a great evening/morning everyone.
+17:54:16 Lachlan "tubular" : you too Bart
+18:06:09 Robert Lawrence :  V2_OS is written in 100% pure 32 bit assembler.
+18:35:49 Robert Lawrence : excellent chip . thanks
+18:36:33 Henrique Silva Neto : Very nice stuff! Thanks for sharing!
+18:38:32 Robert Lawrence : Real cool!  Gerold thanks!!
+18:39:01 Chip Gracey : Thanks, Everyone!!
+18:39:34 Robert Lawrence : thanks guys
