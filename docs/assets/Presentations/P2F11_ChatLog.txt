@@ -1,0 +1,130 @@
+﻿14:03:19 Ken Gracey : http://www.jonmcphalen.com/payment.html
+14:04:06 Ken Gracey : https://cyber.org/technologygrant
+14:05:41 Chip Gracey : 128Mbit = 16Mbyte
+14:05:48 Colin Fox : Cost?
+14:06:24 Chip Gracey : No parts on the backside, all on top.
+14:06:27 Colin Fox : Timeline?
+14:07:11 Ken Gracey : https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2
+14:07:24 RD Clarke : Hi everyone-
+14:10:47 Rocco Valenti : JonnyMac is a living legend!
+14:10:58 Jonathan Titus : For the Microbit board, how about a board with a socket that includes the USB connections for programming?  Small-lot manufacturers and larger OEMs will need a programmer.
+14:11:22 Chip Gracey : Good idea, Jon Titus.
+14:11:51 Ken Gracey : http://www.jonmcphalen.com/payment.html
+14:12:53 Ken Gracey : Questions welcome on chat, or unmute yourself. Interruptions are okay. 
+14:14:13 Duane Degn : I've asked "What would JonnyMac do" many times.
+14:14:33 Ken Gracey : WWJMD <= great acronym!
+14:19:53 Ken Gracey : https://www.engadget.com/2006-11-20-paintball-minigun-in-development-paintball-bfg-still-on-drawing.html is the paintball gun.
+14:21:40 Roy Eltham : Annie summons TIbers as her ultimate spell in the game
+14:22:03 Roy Eltham : I still play League of Legends almost daily.  Played Annie just the other night.
+14:22:26 Roy Eltham : I saw this live at PAX a few years back.
+14:22:51 Roy Eltham : it's even more impressive standing looking up at the bear
+14:23:41 Jeff Martin : Are the Tibers smoke effects Propeller controlled also?
+14:26:09 Greg Clare : Awesome background story. Thanks!
+14:29:54 Duane Degn : I'll need to watch the rest on YouTube. Thank you Jon and Parallax!
+14:34:15 Jim Schaefer : there are 10 types of people in the world ...
+14:34:31 Jim Schaefer : those who understand binary and thouse who don't
+14:35:15 Chip Gracey : twin bits = twit
+14:35:26 duztynn eisenga : %10 not %%10 ;)
+14:36:12 Michael Park : Only two rs in quaternary.
+14:37:06 Greg Clare : Hex is where the magic is. :)
+14:37:32 Chip Gracey : Old PIC tools used octal, since 4 digits = 12 bits (instruction size). In the Propeller, nothing is a multiple of 3 bits.
+14:38:16 Roy Eltham : source/dest fields are 9 bits, so 3 octal digits
+14:38:18 duztynn eisenga : 9 bit literals? xyz
+14:38:44 Chip Gracey : Ah, I totally forgot. That's right.
+14:38:44 duztynn eisenga : I have no desire to use octal in prop world anyway
+14:40:42 Dennis Gately : I can see it!
+14:40:54 Chuck Oravec : We can see it
+14:41:41 Ken Gracey : JonnyMac's contributions are very valuable to all of us with projects. Take a minute and say thanks this way http://www.jonmcphalen.com/payment.html
+14:42:47 Benjamin Branch : Will this talk be posted somewhere after the fact?
+14:43:02 Jeff Martin : Yes, on the Parallax YouTube channel.
+14:43:10 duztynn eisenga : the only place i might see an octal prefix coming into play, is some pixel data maybe, if each pixel on some strange driver or device was 3 bits, hand crafting pixel data in a dat section etc
+14:43:11 Ken Gracey : Yes, we post on Parallax's YouTube channel, Playlist "Propeller 2 Early Adopter Series"
+14:43:46 Jeff Martin : Here's a link to the playlist where this video will appear later this week:  https://www.youtube.com/playlist?list=PLt_MJJ1F_EXa25_TWa4Sdi77daQaxA_ZU
+14:44:08 Benjamin Branch : Awesome! I'll be sure to watch what I missed.
+14:44:32 Jim Granville : In ADA and others there is a based literal, so 2#1111_1111#  16#FF# 
+14:45:56 Jim Granville : are valid, and also valid is 6#12345, and I have written one project that used base-6, and scripts generated tables of these base-6. arrays (Was that for Captain Hook, as Jonny mentioned ? )
+14:47:10 Dave Jenson : Truth logic?
+14:47:13 Colin Fox : Boolean logic
+14:47:13 Roy Eltham :                         Boolean logic
+14:47:16 William Chapple : logical AND
+14:57:37 duztynn eisenga : offset window access?
+14:58:52 duztynn eisenga : you'd almost want a picture of 8 hub cylinders stacked, with wipers from each. each one being a diff offset of ram? idk
+15:00:38 RD Clarke : Cross platform for the win
+15:03:33 RD Clarke : Hi Ken
+15:04:37 Jeff Martin : Jon is the one who suggested the template feature to me! :-)
+15:04:44 Roy Eltham : I often do the empty methods technique
+15:05:15 duztynn eisenga : just dont start with an empty method as the first method, and scratch your head wondering why nothing is working.
+15:05:36 Colin Fox : “Test Driven Development” for the win!
+15:08:05 Dave Jenson : correct "user" to "use"
+15:08:15 Jeff Martin : You can add your own template to the Propeller Tool via Preferences > Files and Folders > New P1 (or P2) File Template.  After that, Ctrl + Alt + 1 (or 2) creates a new editor with that template.
+15:08:42 Ken Gracey : Thanks Jeff - can we also incorporate Jon's template into Prop Tool library distribution?
+15:09:09 Jeff Martin : Sure!
+15:09:43 Greg Clare : +1 for 2 space indenting!
+15:10:06 Roy Eltham : I'm in the 4 space TAB camp.. I use it everywhere
+15:11:18 Cluso99 Ray : For me, 2 for spin, 4 for python. pasm is a problem as I’m not consistent :(
+15:11:28 Francis Bauer : Cobol style, very wordy...
+15:11:54 Roy Eltham : OpenSpin can do symbols up to 254 characters
+15:14:49 duztynn eisenga : pub/pri more of indicating, your cog runs this, my cog runs that?
+15:16:18 Jeff Martin : pub/pri is indicating, these methods are accessible to you, these others are accessible only to me (you and me being different objects)... totally independent of cogs.
+15:17:09 Chip Gracey : PUB/PRI select if a method is available to a parent object, or internal to the child object.
+15:17:29 Jonathan Titus : Good comment about don't get too complicated.  IMHO we see too much of this sort of thing that will make no sense to newcomers:  setse1 #%001<<6 + XYZ.  Just give the complete 32-bit value in hex or binary.  A comment should explain what the 32-bit value does.
+15:18:22 Joshua W : Great wisdom Jon 
+15:19:33 duztynn eisenga : ah I see. Ive seen it as a clear line between public methods called by parent objects, setting data, and private methods tend to copy that data and do their magic on the working copy. using priv to protect your copy.
+15:21:50 Jeff Martin : REPEAT is one of my favorite "inventions" of Chip's... all loop variations are supported in one command.
+15:23:25 duztynn eisenga : kinda goes with templates, if you dont specify a clock frequency in the top object, does spin have the correct clkfreq? kinda up there with counter talk.
+15:24:06 Cluso99 Ray : The CNT can also be used to synchronise cogs
+15:27:28 Chip Gracey : Uh, that was GETSECS().
+15:29:42 Jeff Martin : re: "does spin have the correct clkfreq?" - it has a default clkfreq value, but that may not be the value the developer intended.
+15:29:59 Greg Clare : Does ++millis update the MILS_001 reference?
+15:30:26 Jonathan Titus : Is there a document that explains new SPIN instructions for the P2?
+15:30:52 Cluso99 Ray : CNT is actually a 64 bit counter in P2.
+15:30:56 Michael Green : Thank you Jon.  Nice intro talk.
+15:30:57 Jeff Martin : ++millis only updates the millis variable
+15:32:16 Greg Clare : Thanks Jeff, I was trying to understand what updates the waitct() reference (within the loop)
+15:32:34 duztynn eisenga : thanks jeff, I assumed as much, Ran a blinking led like demo, and waiting by clkfreq was not waiting for one second, so definitely need that clock definitionnin top object
+15:35:50 Jeff Martin : @Greg: the t += MILS_001 is what does it... The '+=' operator updated t as well... so the waitct() waits for the value of t + MILS_001, but it simultaneously updates t to be t + MILS_001, so that next time it's as if it is t + t + MILS_001
+15:36:43 Jeff Martin : Sorry, I meant ... as if it is t + MILS_001 + MILS_001
+15:36:54 Greg Clare : Thanks Jeff. Understood. :)
+15:40:12 Jeff Martin : I think by "jm ez pwm" Jon means this object:  https://github.com/parallaxinc/propeller/tree/master/libraries/community/p2/All/jm_pwm
+15:46:07 duztynn eisenga : if a smart pin is in pwm mode, can you change pwm period on the fly?
+15:47:47 Roy Eltham : using inline asm won't cause problems with your programs, it just means you might not be able to switch from FlexC to Calatina C without adjusting your inline asm, since they use slightly different syntax
+15:48:27 Roy Eltham : FlexSpin does inline asm just fine that is compatible with pnut's
+15:49:03 Roy Eltham : it also does more "non-standard" things giving you more control.
+15:49:14 Jim Granville : Q:"if a smart pin is in pwm mode, can you change pwm period on the fly? " - I think yes, but you may need care to check when that updates. With all PWMs the ideal is to update the set-values at the end of a period, to avoid blind spots. I'm not sure if the P2 updates the period value at the end of a period ?  
+15:49:27 Roy Eltham : like targeting COG or LUT memory instead of HUBEXEC
+15:51:09 Roy Eltham : jmg, for most smartpin mode, it takes up the new value when it finishes with the previous "cycle".  So when it "completes" and raises the IN signal, it will then read the new value
+15:51:41 Jonathan Titus : Nice presentation and very helpful, Jon.  Thank you. -- Jon T.
+15:52:57 duztynn eisenga : thanks jim/roy
+15:53:02 Greg Clare : Yes, great presentation. Thanks. I look forward to the day I finally have a P2 to play with. :) 
+15:54:42 Chip Gracey : Smart pin PWM values are double-buffered, so you have a whole PWM frame period in which to update your PWM output values.
+15:55:45 duztynn eisenga : I would not be playing with my p2 without jon responding with a whole spin object to the charlie plex board.
+15:55:48 Roy Eltham : we have some "interesting" new members around lately
+15:56:28 Francis Bauer : Very good presentation, johnnymac and thank you for all of your help/code over the years...
+15:57:57 Roy Eltham : for C/C++ there is also p2gcc and the new llvm project that is starting to be usable.
+15:59:15 Greg Clare : How far away was the microbit style board & breakout. Looks like a good low budget starter board? Maybe?
+15:59:33 Jeff Martin : Great presentation, Jon!  Very nice foundation discussion too.  Loved your thoughts on why do this or that as well!
+16:00:00 duztynn eisenga : anybody look at the indices of methods inside the method pointer? the top 12 bits, I noticed my methods started at 2. whats method index 0? and method index 1? not important or object data?
+16:00:01 Francesco Santandrea : Thanks Jon McPhalen you were EPIC today
+16:00:01 Emlyne Forren : Thanks Jon! That was great!
+16:00:05 Colin Fox : Thanks Jon!
+16:00:17 Steve Koci : Great job!  Thank you.
+16:00:19 Jeff Martin : Don't worry about the time!  Most everyone is still here all the way through with you!
+16:00:19 Lewis Whitacre : Outstanding Jon!
+16:00:22 Stephen Moraco : Fantastic Jon!  Great recap and summary of P2…
+16:00:26 Greg Clare : Thank you Jon! Great presentation!
+16:00:26 Dennis Gately : Thanks Jon! Always useful info from you!
+16:00:38 Chris Sanders : Wonderful presentation Jon!
+16:00:38 Joshua W : thank you Jon great job 
+16:00:45 Ken Franklin : Thanks Jon. Good to see your face again.
+16:00:50 Henrique Silva Neto : Really good, Jon! Thanks very much!
+16:00:59 Roy Eltham : sometimes for nasty projects, it can be 99% / 1%
+16:01:15 Chris Sanders : Thanks Ken and Chip ...!
+16:01:28 Chip Gracey : The Microbit-looking board should be ready by November.
+16:01:53 Greg Clare : Thanks Chip.
+16:02:03 Ken Gracey : Take a minute and get Jon a coffee or some Japanese food, which he really likes http://www.jonmcphalen.com/payment.html
+16:02:22 Roy Eltham : will there be a PPDB made that has a socket for the P2 module? :)
+16:02:44 Ken Gracey : Not planned (yet) Roy - it's a possibility once we've got the P2 Edge.
+16:03:48 Ken Gracey : Our rate of productivity on board design/manufacturing can grow with the P2's success. I want one, too. Roy.
+16:04:23 Jesse Burt : Thanks a lot, Jon! Great presentation...sorry but have to run..cheers
+16:04:28 Roy Eltham : I still use my multiple PPDB board all the time (weekly).
+16:04:47 Roy Eltham : boards*
