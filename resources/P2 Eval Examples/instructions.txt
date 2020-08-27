@@ -1,0 +1,637 @@
+------------------
+instruction timing
+------------------
+
+clk
+_________------------____________------------____________------------____________------------____________------------____________------------____________-
+    
+         |                       |                       |                       |                       |                       |                       |
+rdRAM Ib |-------+               |              rdRAM Ic |-------+               |              rdRAM Id |-------+               |              rdRAM Ie |
+         |       |               |                       |       |               |                       |       |               |                       |
+latch Da |---+   +----> rdRAM Db |------------> latch Db |---+   +----> rdRAM Dc |------------> latch Dc |---+   +----> rdRAM Dd |------------> latch Dd |
+latch Sa |---+   +----> rdRAM Sb |------------> latch Sb |---+   +----> rdRAM Sc |------------> latch Sc |---+   +----> rdRAM Sd |------------> latch Sd |
+latch Ia |---+   +----> latch Ib |------------> latch Ib |---+   +----> latch Ic |------------> latch Ic |---+   +----> latch Id |------------> latch Id |
+         |   |                   |                       |   |                   |                       |   |                   |                       |
+         |   +------------------ALU-----------> wrRAM Ra |   +------------------ALU-----------> wrRAM Rb |   +------------------ALU-----------> wrRAM Rc |
+         |                       |                       |                       |                       |                       |                       |
+         |                       |  stall/done = 'gox'   |                       |  stall/done = 'gox'   |                       |  stall/done = 'gox'   |
+         |         'get'         |        done = 'go'    |         'get'         |        done = 'go'    |         'get'         |        done = 'go'    |
+
+
+------------
+instructions
+------------
+
+EEEE 0000000 CZI DDDDDDDDD SSSSSSSSS        ROR     D,S/#       {WC/WZ/WCZ}
+EEEE 0000001 CZI DDDDDDDDD SSSSSSSSS        ROL     D,S/#       {WC/WZ/WCZ}
+EEEE 0000010 CZI DDDDDDDDD SSSSSSSSS        SHR     D,S/#       {WC/WZ/WCZ}
+EEEE 0000011 CZI DDDDDDDDD SSSSSSSSS        SHL     D,S/#       {WC/WZ/WCZ}
+EEEE 0000100 CZI DDDDDDDDD SSSSSSSSS        RCR     D,S/#       {WC/WZ/WCZ}
+EEEE 0000101 CZI DDDDDDDDD SSSSSSSSS        RCL     D,S/#       {WC/WZ/WCZ}
+EEEE 0000110 CZI DDDDDDDDD SSSSSSSSS        SAR     D,S/#       {WC/WZ/WCZ}
+EEEE 0000111 CZI DDDDDDDDD SSSSSSSSS        SAL     D,S/#       {WC/WZ/WCZ}
+
+EEEE 0001000 CZI DDDDDDDDD SSSSSSSSS        ADD     D,S/#       {WC/WZ/WCZ}
+EEEE 0001001 CZI DDDDDDDDD SSSSSSSSS        ADDX    D,S/#       {WC/WZ/WCZ}
+EEEE 0001010 CZI DDDDDDDDD SSSSSSSSS        ADDS    D,S/#       {WC/WZ/WCZ}
+EEEE 0001011 CZI DDDDDDDDD SSSSSSSSS        ADDSX   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0001100 CZI DDDDDDDDD SSSSSSSSS        SUB     D,S/#       {WC/WZ/WCZ}
+EEEE 0001101 CZI DDDDDDDDD SSSSSSSSS        SUBX    D,S/#       {WC/WZ/WCZ}
+EEEE 0001110 CZI DDDDDDDDD SSSSSSSSS        SUBS    D,S/#       {WC/WZ/WCZ}
+EEEE 0001111 CZI DDDDDDDDD SSSSSSSSS        SUBSX   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0010000 CZI DDDDDDDDD SSSSSSSSS        CMP     D,S/#       {WC/WZ/WCZ}
+EEEE 0010001 CZI DDDDDDDDD SSSSSSSSS        CMPX    D,S/#       {WC/WZ/WCZ}
+EEEE 0010010 CZI DDDDDDDDD SSSSSSSSS        CMPS    D,S/#       {WC/WZ/WCZ}
+EEEE 0010011 CZI DDDDDDDDD SSSSSSSSS        CMPSX   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0010100 CZI DDDDDDDDD SSSSSSSSS        CMPR    D,S/#       {WC/WZ/WCZ}
+EEEE 0010101 CZI DDDDDDDDD SSSSSSSSS        CMPM    D,S/#       {WC/WZ/WCZ}
+EEEE 0010110 CZI DDDDDDDDD SSSSSSSSS        SUBR    D,S/#       {WC/WZ/WCZ}
+EEEE 0010111 CZI DDDDDDDDD SSSSSSSSS        CMPSUB  D,S/#       {WC/WZ/WCZ}
+
+EEEE 0011000 CZI DDDDDDDDD SSSSSSSSS        FGE     D,S/#       {WC/WZ/WCZ}
+EEEE 0011001 CZI DDDDDDDDD SSSSSSSSS        FLE     D,S/#       {WC/WZ/WCZ}
+EEEE 0011010 CZI DDDDDDDDD SSSSSSSSS        FGES    D,S/#       {WC/WZ/WCZ}
+EEEE 0011011 CZI DDDDDDDDD SSSSSSSSS        FLES    D,S/#       {WC/WZ/WCZ}
+
+EEEE 0011100 CZI DDDDDDDDD SSSSSSSSS        SUMC    D,S/#       {WC/WZ/WCZ}
+EEEE 0011101 CZI DDDDDDDDD SSSSSSSSS        SUMNC   D,S/#       {WC/WZ/WCZ}
+EEEE 0011110 CZI DDDDDDDDD SSSSSSSSS        SUMZ    D,S/#       {WC/WZ/WCZ}
+EEEE 0011111 CZI DDDDDDDDD SSSSSSSSS        SUMNZ   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0100000 CZI DDDDDDDDD SSSSSSSSS        TESTB   D,S/#       WC/WZ
+EEEE 0100001 CZI DDDDDDDDD SSSSSSSSS        TESTBN  D,S/#       WC/WZ
+EEEE 0100010 CZI DDDDDDDDD SSSSSSSSS        TESTB   D,S/#       ANDC/ANDZ
+EEEE 0100011 CZI DDDDDDDDD SSSSSSSSS        TESTBN  D,S/#       ANDC/ANDZ
+EEEE 0100100 CZI DDDDDDDDD SSSSSSSSS        TESTB   D,S/#       ORC/ORZ
+EEEE 0100101 CZI DDDDDDDDD SSSSSSSSS        TESTBN  D,S/#       ORC/ORZ
+EEEE 0100110 CZI DDDDDDDDD SSSSSSSSS        TESTB   D,S/#       XORC/XORZ
+EEEE 0100111 CZI DDDDDDDDD SSSSSSSSS        TESTBN  D,S/#       XORC/XORZ
+
+EEEE 0100000 CZI DDDDDDDDD SSSSSSSSS        BITL    D,S/#       {WCZ}
+EEEE 0100001 CZI DDDDDDDDD SSSSSSSSS        BITH    D,S/#       {WCZ}
+EEEE 0100010 CZI DDDDDDDDD SSSSSSSSS        BITC    D,S/#       {WCZ}
+EEEE 0100011 CZI DDDDDDDDD SSSSSSSSS        BITNC   D,S/#       {WCZ}
+EEEE 0100100 CZI DDDDDDDDD SSSSSSSSS        BITZ    D,S/#       {WCZ}
+EEEE 0100101 CZI DDDDDDDDD SSSSSSSSS        BITNZ   D,S/#       {WCZ}
+EEEE 0100110 CZI DDDDDDDDD SSSSSSSSS        BITRND  D,S/#       {WCZ}
+EEEE 0100111 CZI DDDDDDDDD SSSSSSSSS        BITNOT  D,S/#       {WCZ}
+
+EEEE 0101000 CZI DDDDDDDDD SSSSSSSSS        AND     D,S/#       {WC/WZ/WCZ}
+EEEE 0101001 CZI DDDDDDDDD SSSSSSSSS        ANDN    D,S/#       {WC/WZ/WCZ}
+EEEE 0101010 CZI DDDDDDDDD SSSSSSSSS        OR      D,S/#       {WC/WZ/WCZ}
+EEEE 0101011 CZI DDDDDDDDD SSSSSSSSS        XOR     D,S/#       {WC/WZ/WCZ}
+
+EEEE 0101100 CZI DDDDDDDDD SSSSSSSSS        MUXC    D,S/#       {WC/WZ/WCZ}
+EEEE 0101101 CZI DDDDDDDDD SSSSSSSSS        MUXNC   D,S/#       {WC/WZ/WCZ}
+EEEE 0101110 CZI DDDDDDDDD SSSSSSSSS        MUXZ    D,S/#       {WC/WZ/WCZ}
+EEEE 0101111 CZI DDDDDDDDD SSSSSSSSS        MUXNZ   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0110000 CZI DDDDDDDDD SSSSSSSSS        MOV     D,S/#       {WC/WZ/WCZ}
+EEEE 0110001 CZI DDDDDDDDD SSSSSSSSS        NOT     D,S/#       {WC/WZ/WCZ}
+EEEE 0110010 CZI DDDDDDDDD SSSSSSSSS        ABS     D,S/#       {WC/WZ/WCZ}
+EEEE 0110011 CZI DDDDDDDDD SSSSSSSSS        NEG     D,S/#       {WC/WZ/WCZ}
+
+EEEE 0110100 CZI DDDDDDDDD SSSSSSSSS        NEGC    D,S/#       {WC/WZ/WCZ}
+EEEE 0110101 CZI DDDDDDDDD SSSSSSSSS        NEGNC   D,S/#       {WC/WZ/WCZ}
+EEEE 0110110 CZI DDDDDDDDD SSSSSSSSS        NEGZ    D,S/#       {WC/WZ/WCZ}
+EEEE 0110111 CZI DDDDDDDDD SSSSSSSSS        NEGNZ   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0111000 CZI DDDDDDDDD SSSSSSSSS        INCMOD  D,S/#       {WC/WZ/WCZ}
+EEEE 0111001 CZI DDDDDDDDD SSSSSSSSS        DECMOD  D,S/#       {WC/WZ/WCZ}
+EEEE 0111010 CZI DDDDDDDDD SSSSSSSSS        ZEROX   D,S/#       {WC/WZ/WCZ}
+EEEE 0111011 CZI DDDDDDDDD SSSSSSSSS        SIGNX   D,S/#       {WC/WZ/WCZ}
+
+EEEE 0111100 CZI DDDDDDDDD SSSSSSSSS        ENCOD   D,S/#       {WC/WZ/WCZ}
+EEEE 0111101 CZI DDDDDDDDD SSSSSSSSS        ONES    D,S/#       {WC/WZ/WCZ}
+EEEE 0111110 CZI DDDDDDDDD SSSSSSSSS        TEST    D,S/#       {WC/WZ/WCZ}
+EEEE 0111111 CZI DDDDDDDDD SSSSSSSSS        TESTN   D,S/#       {WC/WZ/WCZ}
+
+EEEE 100000N NNI DDDDDDDDD SSSSSSSSS        SETNIB  D,S/#,#N
+EEEE 100001N NNI DDDDDDDDD SSSSSSSSS        GETNIB  D,S/#,#N
+EEEE 100010N NNI DDDDDDDDD SSSSSSSSS        ROLNIB  D,S/#,#N
+EEEE 1000110 NNI DDDDDDDDD SSSSSSSSS        SETBYTE D,S/#,#N
+EEEE 1000111 NNI DDDDDDDDD SSSSSSSSS        GETBYTE D,S/#,#N
+EEEE 1001000 NNI DDDDDDDDD SSSSSSSSS        ROLBYTE D,S/#,#N
+EEEE 1001001 0NI DDDDDDDDD SSSSSSSSS        SETWORD D,S/#,#N
+EEEE 1001001 1NI DDDDDDDDD SSSSSSSSS        GETWORD D,S/#,#N
+EEEE 1001010 0NI DDDDDDDDD SSSSSSSSS        ROLWORD D,S/#,#N
+EEEE 1001010 10I DDDDDDDDD SSSSSSSSS        ALTSN   D,S/#
+EEEE 1001010 11I DDDDDDDDD SSSSSSSSS        ALTGN   D,S/#
+EEEE 1001011 00I DDDDDDDDD SSSSSSSSS        ALTSB   D,S/#
+EEEE 1001011 01I DDDDDDDDD SSSSSSSSS        ALTGB   D,S/#
+EEEE 1001011 10I DDDDDDDDD SSSSSSSSS        ALTSW   D,S/#
+EEEE 1001011 11I DDDDDDDDD SSSSSSSSS        ALTGW   D,S/#
+EEEE 1001100 00I DDDDDDDDD SSSSSSSSS        ALTR    D,S/#
+EEEE 1001100 01I DDDDDDDDD SSSSSSSSS        ALTD    D,S/#
+EEEE 1001100 10I DDDDDDDDD SSSSSSSSS        ALTS    D,S/#
+EEEE 1001100 11I DDDDDDDDD SSSSSSSSS        ALTB    D,S/#
+EEEE 1001101 00I DDDDDDDDD SSSSSSSSS        ALTI    D,S/#
+EEEE 1001101 01I DDDDDDDDD SSSSSSSSS        SETR    D,S/#
+EEEE 1001101 10I DDDDDDDDD SSSSSSSSS        SETD    D,S/#
+EEEE 1001101 11I DDDDDDDDD SSSSSSSSS        SETS    D,S/#
+EEEE 1001110 00I DDDDDDDDD SSSSSSSSS        DECOD   D,S/#
+EEEE 1001110 01I DDDDDDDDD SSSSSSSSS        BMASK   D,S/#
+EEEE 1001110 10I DDDDDDDDD SSSSSSSSS        CRCBIT  D,S/#
+EEEE 1001110 11I DDDDDDDDD SSSSSSSSS        CRCNIB  D,S/#
+EEEE 1001111 00I DDDDDDDDD SSSSSSSSS        MUXNITS D,S/#
+EEEE 1001111 01I DDDDDDDDD SSSSSSSSS        MUXNIBS D,S/#
+EEEE 1001111 10I DDDDDDDDD SSSSSSSSS        MUXQ    D,S/#
+EEEE 1001111 11I DDDDDDDDD SSSSSSSSS        MOVBYTS D,S/#
+
+EEEE 1010000 0ZI DDDDDDDDD SSSSSSSSS        MUL     D,S/#       {WZ}
+EEEE 1010000 1ZI DDDDDDDDD SSSSSSSSS        MULS    D,S/#       {WZ}
+EEEE 1010001 0ZI DDDDDDDDD SSSSSSSSS        SCA     D,S/#       {WZ}
+EEEE 1010001 1ZI DDDDDDDDD SSSSSSSSS        SCAS    D,S/#       {WZ}
+
+EEEE 1010010 00I DDDDDDDDD SSSSSSSSS        ADDPIX  D,S/#
+EEEE 1010010 01I DDDDDDDDD SSSSSSSSS        MULPIX  D,S/#
+EEEE 1010010 10I DDDDDDDDD SSSSSSSSS        BLNPIX  D,S/#
+EEEE 1010010 11I DDDDDDDDD SSSSSSSSS        MIXPIX  D,S/#
+
+EEEE 1010011 00I DDDDDDDDD SSSSSSSSS        ADDCT1  D,S/#
+EEEE 1010011 01I DDDDDDDDD SSSSSSSSS        ADDCT2  D,S/#
+EEEE 1010011 10I DDDDDDDDD SSSSSSSSS        ADDCT3  D,S/#
+EEEE 1010011 11I DDDDDDDDD SSSSSSSSS        WMLONG  D,S/#/PTRx
+
+EEEE 1010100 C0I DDDDDDDDD SSSSSSSSS        RQPIN   D,S/#       {WC}
+EEEE 1010100 C1I DDDDDDDDD SSSSSSSSS        RDPIN   D,S/#       {WC}
+EEEE 1010101 CZI DDDDDDDDD SSSSSSSSS        RDLUT   D,S/#/PTRx  {WC/WZ/WCZ}
+
+EEEE 1010110 CZI DDDDDDDDD SSSSSSSSS        RDBYTE  D,S/#/PTRx  {WC/WZ/WCZ}
+EEEE 1010111 CZI DDDDDDDDD SSSSSSSSS        RDWORD  D,S/#/PTRx  {WC/WZ/WCZ}
+EEEE 1011000 CZI DDDDDDDDD SSSSSSSSS        RDLONG  D,S/#/PTRx  {WC/WZ/WCZ}
+
+EEEE 1011001 CZI DDDDDDDDD SSSSSSSSS        CALLD   D,S/#rel9   {WC/WZ/WCZ}
+
+EEEE 1011010 0LI DDDDDDDDD SSSSSSSSS        CALLPA  D/#,S/#rel9
+EEEE 1011010 1LI DDDDDDDDD SSSSSSSSS        CALLPB  D/#,S/#rel9
+
+EEEE 1011011 00I DDDDDDDDD SSSSSSSSS        DJZ     D,S/#rel9
+EEEE 1011011 01I DDDDDDDDD SSSSSSSSS        DJNZ    D,S/#rel9
+EEEE 1011011 10I DDDDDDDDD SSSSSSSSS        DJF     D,S/#rel9
+EEEE 1011011 11I DDDDDDDDD SSSSSSSSS        DJNF    D,S/#rel9
+
+EEEE 1011100 00I DDDDDDDDD SSSSSSSSS        IJZ     D,S/#rel9
+EEEE 1011100 01I DDDDDDDDD SSSSSSSSS        IJNZ    D,S/#rel9
+
+EEEE 1011100 10I DDDDDDDDD SSSSSSSSS        TJZ     D,S/#rel9
+EEEE 1011100 11I DDDDDDDDD SSSSSSSSS        TJNZ    D,S/#rel9
+EEEE 1011101 00I DDDDDDDDD SSSSSSSSS        TJF     D,S/#rel9
+EEEE 1011101 01I DDDDDDDDD SSSSSSSSS        TJNF    D,S/#rel9
+EEEE 1011101 10I DDDDDDDDD SSSSSSSSS        TJS     D,S/#rel9
+EEEE 1011101 11I DDDDDDDDD SSSSSSSSS        TJNS    D,S/#rel9
+EEEE 1011110 00I DDDDDDDDD SSSSSSSSS        TJV     D,S/#rel9
+
+EEEE 1011110 01I 000000000 SSSSSSSSS        JINT    S/#rel9
+EEEE 1011110 01I 000000001 SSSSSSSSS        JCT1    S/#rel9
+EEEE 1011110 01I 000000010 SSSSSSSSS        JCT2    S/#rel9
+EEEE 1011110 01I 000000011 SSSSSSSSS        JCT3    S/#rel9
+EEEE 1011110 01I 000000100 SSSSSSSSS        JSE1    S/#rel9
+EEEE 1011110 01I 000000101 SSSSSSSSS        JSE2    S/#rel9
+EEEE 1011110 01I 000000110 SSSSSSSSS        JSE3    S/#rel9
+EEEE 1011110 01I 000000111 SSSSSSSSS        JSE4    S/#rel9
+EEEE 1011110 01I 000001000 SSSSSSSSS        JPAT    S/#rel9
+EEEE 1011110 01I 000001001 SSSSSSSSS        JFBW    S/#rel9
+EEEE 1011110 01I 000001010 SSSSSSSSS        JXMT    S/#rel9
+EEEE 1011110 01I 000001011 SSSSSSSSS        JXFI    S/#rel9
+EEEE 1011110 01I 000001100 SSSSSSSSS        JXRO    S/#rel9
+EEEE 1011110 01I 000001101 SSSSSSSSS        JXRL    S/#rel9
+EEEE 1011110 01I 000001110 SSSSSSSSS        JATN    S/#rel9
+EEEE 1011110 01I 000001111 SSSSSSSSS        JQMT    S/#rel9
+
+EEEE 1011110 01I 000010000 SSSSSSSSS        JNINT   S/#rel9
+EEEE 1011110 01I 000010001 SSSSSSSSS        JNCT1   S/#rel9
+EEEE 1011110 01I 000010010 SSSSSSSSS        JNCT2   S/#rel9
+EEEE 1011110 01I 000010011 SSSSSSSSS        JNCT3   S/#rel9
+EEEE 1011110 01I 000010100 SSSSSSSSS        JNSE1   S/#rel9
+EEEE 1011110 01I 000010101 SSSSSSSSS        JNSE2   S/#rel9
+EEEE 1011110 01I 000010110 SSSSSSSSS        JNSE3   S/#rel9
+EEEE 1011110 01I 000010111 SSSSSSSSS        JNSE4   S/#rel9
+EEEE 1011110 01I 000011000 SSSSSSSSS        JNPAT   S/#rel9
+EEEE 1011110 01I 000011001 SSSSSSSSS        JNFBW   S/#rel9
+EEEE 1011110 01I 000011010 SSSSSSSSS        JNXMT   S/#rel9
+EEEE 1011110 01I 000011011 SSSSSSSSS        JNXFI   S/#rel9
+EEEE 1011110 01I 000011100 SSSSSSSSS        JNXRO   S/#rel9
+EEEE 1011110 01I 000011101 SSSSSSSSS        JNXRL   S/#rel9
+EEEE 1011110 01I 000011110 SSSSSSSSS        JNATN   S/#rel9
+EEEE 1011110 01I 000011111 SSSSSSSSS        JNQMT   S/#rel9
+
+EEEE 1011110 1LI DDDDDDDDD SSSSSSSSS        <empty> D/#,S/#
+EEEE 1011111 0LI DDDDDDDDD SSSSSSSSS        <empty> D/#,S/#
+
+EEEE 1011111 1LI DDDDDDDDD SSSSSSSSS        SETPAT  D/#,S/#
+
+EEEE 1100000 0LI DDDDDDDDD SSSSSSSSS        WRPIN   D/#,S/#
+EEEE 1100000 1LI DDDDDDDDD SSSSSSSSS        WXPIN   D/#,S/#
+EEEE 1100001 0LI DDDDDDDDD SSSSSSSSS        WYPIN   D/#,S/#
+EEEE 1100001 1LI DDDDDDDDD SSSSSSSSS        WRLUT   D/#,S/#/PTRx
+
+EEEE 1100010 0LI DDDDDDDDD SSSSSSSSS        WRBYTE  D/#,S/#/PTRx
+EEEE 1100010 1LI DDDDDDDDD SSSSSSSSS        WRWORD  D/#,S/#/PTRx
+EEEE 1100011 0LI DDDDDDDDD SSSSSSSSS        WRLONG  D/#,S/#/PTRx
+
+EEEE 1100011 1LI DDDDDDDDD SSSSSSSSS        RDFAST  D/#,S/#
+EEEE 1100100 0LI DDDDDDDDD SSSSSSSSS        WRFAST  D/#,S/#
+EEEE 1100100 1LI DDDDDDDDD SSSSSSSSS        FBLOCK  D/#,S/#
+
+EEEE 1100101 0LI DDDDDDDDD SSSSSSSSS        XINIT   D/#,S/#
+EEEE 1100101 1LI DDDDDDDDD SSSSSSSSS        XZERO   D/#,S/#
+EEEE 1100110 0LI DDDDDDDDD SSSSSSSSS        XCONT   D/#,S/#
+
+EEEE 1100110 1LI DDDDDDDDD SSSSSSSSS        REP     D/#,S/#
+
+EEEE 1100111 CLI DDDDDDDDD SSSSSSSSS        COGINIT D/#,S/#     {WC}
+EEEE 1101000 0LI DDDDDDDDD SSSSSSSSS        QMUL    D/#,S/#
+EEEE 1101000 1LI DDDDDDDDD SSSSSSSSS        QDIV    D/#,S/#
+EEEE 1101001 0LI DDDDDDDDD SSSSSSSSS        QFRAC   D/#,S/#
+EEEE 1101001 1LI DDDDDDDDD SSSSSSSSS        QSQRT   D/#,S/#
+EEEE 1101010 0LI DDDDDDDDD SSSSSSSSS        QROTATE D/#,S/#
+EEEE 1101010 1LI DDDDDDDDD SSSSSSSSS        QVECTOR D/#,S/#
+
+EEEE 1101011 00L DDDDDDDDD 000000000        HUBSET  D/#
+EEEE 1101011 C0L DDDDDDDDD 000000001        COGID   D/#         {WC}
+EEEE 1101011 00L DDDDDDDDD 000000011        COGSTOP D/#
+EEEE 1101011 C00 DDDDDDDDD 000000100        LOCKNEW D           {WC}
+EEEE 1101011 00L DDDDDDDDD 000000101        LOCKRET D/#
+EEEE 1101011 C0L DDDDDDDDD 000000110        LOCKTRY D/#         {WC}
+EEEE 1101011 00L DDDDDDDDD 000000111        LOCKREL D/#         {WC}
+EEEE 1101011 00L DDDDDDDDD 000001110        QLOG    D/#
+EEEE 1101011 00L DDDDDDDDD 000001111        QEXP    D/#
+
+EEEE 1101011 CZ0 DDDDDDDDD 000010000        RFBYTE  D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000010001        RFWORD  D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000010010        RFLONG  D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000010011        RFVAR   D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000010100        RFVARS  D           {WC/WZ/WCZ}
+
+EEEE 1101011 00L DDDDDDDDD 000010101        WFBYTE  D/#
+EEEE 1101011 00L DDDDDDDDD 000010110        WFWORD  D/#
+EEEE 1101011 00L DDDDDDDDD 000010111        WFLONG  D/#
+
+EEEE 1101011 CZ0 DDDDDDDDD 000011000        GETQX   D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000011001        GETQY   D           {WC/WZ/WCZ}
+
+EEEE 1101011 C00 DDDDDDDDD 000011010        GETCT   D           {WC}
+EEEE 1101011 CZL DDDDDDDDD 000011011        GETRND  {D}         {WC/WZ/WCZ}
+
+EEEE 1101011 00L DDDDDDDDD 000011100        SETDACS D/#
+EEEE 1101011 00L DDDDDDDDD 000011101        SETXFRQ D/#
+EEEE 1101011 000 DDDDDDDDD 000011110        GETXACC D
+EEEE 1101011 CZL DDDDDDDDD 000011111        WAITX   D/#         {WC/WZ/WCZ}
+
+EEEE 1101011 00L DDDDDDDDD 000100000        SETSE1  D/#
+EEEE 1101011 00L DDDDDDDDD 000100001        SETSE2  D/#
+EEEE 1101011 00L DDDDDDDDD 000100010        SETSE3  D/#
+EEEE 1101011 00L DDDDDDDDD 000100011        SETSE4  D/#
+
+EEEE 1101011 CZ0 000000000 000100100        POLLINT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000001 000100100        POLLCT1             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000010 000100100        POLLCT2             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000011 000100100        POLLCT3             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000100 000100100        POLLSE1             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000101 000100100        POLLSE2             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000110 000100100        POLLSE3             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000000111 000100100        POLLSE4             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001000 000100100        POLLPAT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001001 000100100        POLLFBW             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001010 000100100        POLLXMT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001011 000100100        POLLXFI             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001100 000100100        POLLXRO             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001101 000100100        POLLXRL             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001110 000100100        POLLATN             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000001111 000100100        POLLQMT             {WC/WZ/WCZ}
+
+EEEE 1101011 CZ0 000010000 000100100        WAITINT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010001 000100100        WAITCT1             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010010 000100100        WAITCT2             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010011 000100100        WAITCT3             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010100 000100100        WAITSE1             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010101 000100100        WAITSE2             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010110 000100100        WAITSE3             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000010111 000100100        WAITSE4             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011000 000100100        WAITPAT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011001 000100100        WAITFBW             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011010 000100100        WAITXMT             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011011 000100100        WAITXFI             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011100 000100100        WAITXRO             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011101 000100100        WAITXRL             {WC/WZ/WCZ}
+EEEE 1101011 CZ0 000011110 000100100        WAITATN             {WC/WZ/WCZ}
+
+EEEE 1101011 000 000100000 000100100        ALLOWI
+EEEE 1101011 000 000100001 000100100        STALLI
+
+EEEE 1101011 000 000100010 000100100        TRGINT1
+EEEE 1101011 000 000100011 000100100        TRGINT2
+EEEE 1101011 000 000100100 000100100        TRGINT3
+
+EEEE 1101011 000 000100101 000100100        NIXINT1
+EEEE 1101011 000 000100110 000100100        NIXINT2
+EEEE 1101011 000 000100111 000100100        NIXINT3
+
+EEEE 1101011 00L DDDDDDDDD 000100101        SETINT1 D/#
+EEEE 1101011 00L DDDDDDDDD 000100110        SETINT2 D/#
+EEEE 1101011 00L DDDDDDDDD 000100111        SETINT3 D/#
+
+EEEE 1101011 00L DDDDDDDDD 000101000        SETQ    D/#
+EEEE 1101011 00L DDDDDDDDD 000101001        SETQ2   D/#
+
+EEEE 1101011 00L DDDDDDDDD 000101010        PUSH    D/#
+EEEE 1101011 CZ0 DDDDDDDDD 000101011        POP     D           {WC/WZ/WCZ}
+
+EEEE 1101011 CZ0 DDDDDDDDD 000101100        JMP     D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000101101        CALL    D           {WC/WZ/WCZ}
+EEEE 1101011 CZ1 000000000 000101101        RET                 {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000101110        CALLA   D           {WC/WZ/WCZ}
+EEEE 1101011 CZ1 000000000 000101110        RETA                {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 000101111        CALLB   D           {WC/WZ/WCZ}
+EEEE 1101011 CZ1 000000000 000101111        RETB                {WC/WZ/WCZ}
+
+EEEE 1101011 00L DDDDDDDDD 000110000        JMPREL  D/#
+EEEE 1101011 00L DDDDDDDDD 000110001        SKIP    D/#
+EEEE 1101011 00L DDDDDDDDD 000110010        SKIPF   D/#
+EEEE 1101011 00L DDDDDDDDD 000110011        EXECF   D/#
+
+EEEE 1101011 000 DDDDDDDDD 000110100        GETPTR  D
+EEEE 1101011 CZ0 DDDDDDDDD 000110101        GETBRK  D           WC/WZ/WCZ
+EEEE 1101011 00L DDDDDDDDD 000110101        COGBRK  D
+EEEE 1101011 00L DDDDDDDDD 000110110        BRK     D/#
+EEEE 1101011 00L DDDDDDDDD 000110111        SETLUTS D/#
+
+EEEE 1101011 00L DDDDDDDDD 000111000        SETCY   D/#
+EEEE 1101011 00L DDDDDDDDD 000111001        SETCI   D/#
+EEEE 1101011 00L DDDDDDDDD 000111010        SETCQ   D/#
+EEEE 1101011 00L DDDDDDDDD 000111011        SETCFRQ D/#
+EEEE 1101011 00L DDDDDDDDD 000111100        SETCMOD D/#
+
+EEEE 1101011 00L DDDDDDDDD 000111101        SETPIV  D/#
+EEEE 1101011 00L DDDDDDDDD 000111110        SETPIX  D/#
+
+EEEE 1101011 00L DDDDDDDDD 000111111        COGATN  D/#
+
+EEEE 1101011 CZL DDDDDDDDD 001000000        TESTP   D/#         WC/WZ
+EEEE 1101011 CZL DDDDDDDDD 001000001        TESTPN  D/#         WC/WZ
+EEEE 1101011 CZL DDDDDDDDD 001000010        TESTP   D/#         ANDC/ANDZ
+EEEE 1101011 CZL DDDDDDDDD 001000011        TESTPN  D/#         ANDC/ANDZ
+EEEE 1101011 CZL DDDDDDDDD 001000100        TESTP   D/#         ORC/ORZ
+EEEE 1101011 CZL DDDDDDDDD 001000101        TESTPN  D/#         ORC/ORZ
+EEEE 1101011 CZL DDDDDDDDD 001000110        TESTP   D/#         XORC/XORZ
+EEEE 1101011 CZL DDDDDDDDD 001000111        TESTPN  D/#         XORC/XORZ
+
+EEEE 1101011 CZL DDDDDDDDD 001000000        DIRL    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000001        DIRH    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000010        DIRC    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000011        DIRNC   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000100        DIRZ    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000101        DIRNZ   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000110        DIRRND  D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001000111        DIRNOT  D/#         {WCZ}
+
+EEEE 1101011 CZL DDDDDDDDD 001001000        OUTL    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001001        OUTH    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001010        OUTC    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001011        OUTNC   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001100        OUTZ    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001101        OUTNZ   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001110        OUTRND  D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001001111        OUTNOT  D/#         {WCZ}
+
+EEEE 1101011 CZL DDDDDDDDD 001010000        FLTL    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010001        FLTH    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010010        FLTC    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010011        FLTNC   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010100        FLTZ    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010101        FLTNZ   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010110        FLTRND  D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001010111        FLTNOT  D/#         {WCZ}
+
+EEEE 1101011 CZL DDDDDDDDD 001011000        DRVL    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011001        DRVH    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011010        DRVC    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011011        DRVNC   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011100        DRVZ    D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011101        DRVNZ   D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011110        DRVRND  D/#         {WCZ}
+EEEE 1101011 CZL DDDDDDDDD 001011111        DRVNOT  D/#         {WCZ}
+
+EEEE 1101011 000 DDDDDDDDD 001100000        SPLITB  D
+EEEE 1101011 000 DDDDDDDDD 001100001        MERGEB  D
+EEEE 1101011 000 DDDDDDDDD 001100010        SPLITW  D
+EEEE 1101011 000 DDDDDDDDD 001100011        MERGEW  D
+EEEE 1101011 000 DDDDDDDDD 001100100        SEUSSF  D
+EEEE 1101011 000 DDDDDDDDD 001100101        SEUSSR  D
+EEEE 1101011 000 DDDDDDDDD 001100110        RGBSQZ  D
+EEEE 1101011 000 DDDDDDDDD 001100111        RGBEXP  D
+EEEE 1101011 000 DDDDDDDDD 001101000        XORO32  D
+EEEE 1101011 000 DDDDDDDDD 001101001        REV     D
+EEEE 1101011 CZ0 DDDDDDDDD 001101010        RCZR    D           {WC/WZ/WCZ}
+EEEE 1101011 CZ0 DDDDDDDDD 001101011        RCZL    D           {WC/WZ/WCZ}
+EEEE 1101011 000 DDDDDDDDD 001101100        WRC     D
+EEEE 1101011 000 DDDDDDDDD 001101101        WRNC    D
+EEEE 1101011 000 DDDDDDDDD 001101110        WRZ     D
+EEEE 1101011 000 DDDDDDDDD 001101111        WRNZ    D
+EEEE 1101011 CZ1 0cccczzzz 001101111        MODCZ   c,z         {WC/WZ/WCZ}
+
+EEEE 1101011 00L DDDDDDDDD 001110000        SETSCP  D/#
+EEEE 1101011 000 DDDDDDDDD 001110001        GETSCP  D
+
+EEEE 1101100 RAA AAAAAAAAA AAAAAAAAA        JMP     #{\}A
+EEEE 1101101 RAA AAAAAAAAA AAAAAAAAA        CALL    #{\}A
+EEEE 1101110 RAA AAAAAAAAA AAAAAAAAA        CALLA   #{\}A
+EEEE 1101111 RAA AAAAAAAAA AAAAAAAAA        CALLB   #{\}A
+
+EEEE 11100WW RAA AAAAAAAAA AAAAAAAAA        CALLD   reg,#{\}A
+EEEE 11101WW RAA AAAAAAAAA AAAAAAAAA        LOC     reg,#{\}A
+
+EEEE 11110NN NNN NNNNNNNNN NNNNNNNNN        AUGS    #N
+EEEE 11111NN NNN NNNNNNNNN NNNNNNNNN        AUGD    #N
+
+
+-------------------
+instruction aliases
+-------------------
+
+NOP                     =       $00000000
+
+NOT     reg             =       NOT     reg,reg
+ABS     reg             =       ABS     reg,reg
+NEG     reg             =       NEG     reg,reg
+NEGC    reg             =       NEGC    reg,reg
+NEGNC   reg             =       NEGNC   reg,reg
+NEGZ    reg             =       NEGZ    reg,reg
+NEGNZ   reg             =       NEGNZ   reg,reg
+ENCOD   reg             =       ENCOD   reg,reg
+ONES    reg             =       ONES    reg,reg
+TEST    reg             =       TEST    reg,reg
+
+SETNIB  reg/#           =       SETNIB  0,reg/#,#0      (use after ALTSN)
+GETNIB  reg             =       GETNIB  reg,0,#0        (use after ALTGN)
+ROLNIB  reg             =       ROLNIB  reg,0,#0        (use after ALTGN)
+
+SETBYTE reg/#           =       SETBYTE 0,reg/#,#0      (use after ALTSB)
+GETBYTE reg             =       GETBYTE reg,0,#0        (use after ALTGB)
+ROLBYTE reg             =       ROLBYTE reg,0,#0        (use after ALTGB)
+
+SETWORD reg/#           =       SETWORD 0,reg/#,#0      (use after ALTSW)
+GETWORD reg             =       GETWORD reg,0,#0        (use after ALTGW)
+ROLWORD reg             =       ROLWORD reg,0,#0        (use after ALTGW)
+
+ALTSN   reg             =       ALTSN   reg,#0
+ALTGN   reg             =       ALTGN   reg,#0
+ALTSB   reg             =       ALTSB   reg,#0
+ALTGB   reg             =       ALTGB   reg,#0
+ALTSW   reg             =       ALTSW   reg,#0
+ALTGW   reg             =       ALTGW   reg,#0
+ALTR    reg             =       ALTR    reg,#0
+ALTD    reg             =       ALTD    reg,#0
+ALTS    reg             =       ALTS    reg,#0
+ALTB    reg             =       ALTB    reg,#0
+ALTI    reg             =       ALTI    reg,#%101_100_100 (substitute reg for next instruction)
+
+DECOD   reg             =       DECOD   reg,reg
+BMASK   reg             =       BMASK   reg,reg
+
+POPA    reg             =       RDLONG  reg,--PTRA
+POPB    reg             =       RDLONG  reg,--PTRB
+
+RESI3                   =       CALLD   $1F0,$1F1   WCZ
+RESI2                   =       CALLD   $1F2,$1F3   WCZ
+RESI1                   =       CALLD   $1F4,$1F5   WCZ
+RESI0                   =       CALLD   INA,INB     WCZ
+
+RETI3                   =       CALLD   INB,$1F1    WCZ
+RETI2                   =       CALLD   INB,$1F3    WCZ
+RETI1                   =       CALLD   INB,$1F5    WCZ
+RETI0                   =       CALLD   INB,INB     WCZ
+
+AKPIN   reg/#           =       WRPIN   #1,reg/#
+
+PUSHA   reg/#           =       WRLONG  reg/#,PTRA++
+PUSHB   reg/#           =       WRLONG  reg/#,PTRB++
+
+XSTOP                   =       XINIT   #0,#0
+
+MODC    c               =       MODCZ   c,0         {WC}
+MODZ    z               =       MODCZ   0,z         {WZ}
+
+
+---------------
+MODCZ constants
+---------------
+
+_CLR                    =       %0000
+_NC_AND_NZ              =       %0001
+_NZ_AND_NC              =       %0001
+_GT                     =       %0001
+_NC_AND_Z               =       %0010
+_Z_AND_NC               =       %0010
+_NC                     =       %0011
+_GE                     =       %0011
+_C_AND_NZ               =       %0100
+_NZ_AND_C               =       %0100
+_NZ                     =       %0101
+_NE                     =       %0101
+_C_NE_Z                 =       %0110
+_Z_NE_C                 =       %0110
+_NC_OR_NZ               =       %0111
+_NZ_OR_NC               =       %0111
+_C_AND_Z                =       %1000
+_Z_AND_C                =       %1000
+_C_EQ_Z                 =       %1001
+_Z_EQ_C                 =       %1001
+_Z                      =       %1010
+_E                      =       %1010
+_NC_OR_Z                =       %1011
+_Z_OR_NC                =       %1011
+_C                      =       %1100
+_LT                     =       %1100
+_C_OR_NZ                =       %1101
+_NZ_OR_C                =       %1101
+_C_OR_Z                 =       %1110
+_Z_OR_C                 =       %1110
+_LE                     =       %1110
+_SET                    =       %1111
+
+
+Examples:
+
+MODCZ   _CLR, _Z_OR_C   WCZ     'C = 0, Z |= C
+MODCZ   _NZ,0           WC      'C = !Z
+MODCZ   0,_SET          WZ      'Z = 1
+
+MODC    _NZ_AND_C       WC      'C = !Z & C
+MODZ    _Z_NE_C         WZ      'Z = Z ^ C
+
+
+-----
+notes
+-----
+
+A symbol declared under ORGH will return its hub address when referenced.
+
+A symbol declared under ORG will return its cog address when referenced,
+but can return its hub address, instead, if preceded by '@':
+
+    COGINIT #0,#@newcode
+
+
+For immediate-branch and LOC address operands, "#" is used before the
+address. In cases where there is an option between absolute and relative
+addressing, the assembler will choose absolute addressing when the branch
+crosses between cog and hub domains, or relative addressing when the
+branch stays in the same domain. Absolute addressing can be forced by
+following "#" with "\".
+
+    CALLPA/CALLPB/DJZ..JNXRL/JNATN/JNQMT   - rel_imm9/ind_reg20
+    JMP/CALL/CALLA/CALLB/CALLD             - abs_imm20/rel_imm20/ind_reg20
+    LOC                                    - abs_imm20/rel_imm20
+
+
+If a constant larger than 9 bits is desired in an instruction, use "##",
+instead of "#" to invoke AUGS/AUGD:
+
+    AND     address,##$FFFFF
+    DJNZ    reg,##far_away
+
+
+The following assembler directives exist:
+
+    ORGH    {hub_address}
+
+    Set hub mode and an optional address to fill to with $00 bytes.
+
+
+    ORG     {cog_address {,cog_address_limit}}
+
+    Set cog mode with optional cog address and limit. Defaults to $000,$200.
+    If $200..$3FF used for cog address, LUT range selected. Doesn't generate
+    any data.
+
+
+    ORGF    cog_address
+
+    Fill to cog_address with $00 bytes. Must be in cog mode.
+
+
+    RES     cog_registers
+
+    Reserve cog registers. Doesn't generate any data. Must be in cog mode.
+
+
+    FIT     cog_or_hub_address
+
+    Make sure cog code fits within cog or hub address.
+
+
+    ALIGNW/ALIGNL
+
+    Align to next word/long in hub.
+
+
+    BYTE    data{[count]}{,data{[count]}...}
+    WORD    data{[count]}{,data{[count]}...}
+    LONG    data{[count]}{,data{[count]}...}
+
+    Generate byte/word/long data with optional repeat count.

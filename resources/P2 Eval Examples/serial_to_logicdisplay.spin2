@@ -1,0 +1,35 @@
+' Output serial on P25 and capture IN bits P25 and P24, you must jumper P24 and P25 for TX reading
+
+CON _clkfreq	= 200_000_000
+    txpin	= 25
+
+VAR byte buff[200]
+
+PUB go() | i, j, buffaddr
+
+  debug("`logic ser samples 200 spacing 2 textsize 20 'TX' 'IN'")
+
+  buffaddr := @buff
+
+	org
+
+	wrpin	#%01_11110_0,#txpin	'set async tx mode for txpin
+	wxpin	##2<<16 + 8-1,#txpin	'set baud rate to sysclock/2 and word size to 8 bits
+	dirh	#txpin
+
+	wrfast	#0,buffaddr		'set write-fast starting at buff
+	xinit	##$E0BE<<16 + 200,#0	'start capturing 64 bytes of P24..P31 into buff
+
+	mov	i,#5			'ready to output byte values 5..1
+.next	wypin	i,#txpin		'send serial byte
+	waitx	#1			'wait 3 clocks before polling
+.wait	rdpin	j,#txpin	wc	'poll until tx not busy
+  if_c	jmp	#.wait
+	djnz	i,#.next		'another byte?
+
+	waitxfi				'wait until streamer done capturing
+
+	end
+
+  repeat i from 0 to 199
+    debug("`ser ", uhex_(buff[i]))

@@ -1,0 +1,214 @@
+{
+To instantiate a display type:
+
+DEBUG("`DISPLAY_TYPE name {configurations and values}")
+
+To feed a display:
+
+DEBUG("`name value value value keyword value etc")
+
+
+Display types:
+
+LOGIC		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SAMPLES sample_depth		'default is 32
+			SPACING spacing_1_to_64		'default is 8
+			'label' bitcount color		'establish channel(s)
+			LINESIZE line_size_1_to_7	'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			PACKEDxxxx			'set packed data mode for efficiency
+			UPDATE				'set 'update' mode
+
+		feed:	data				'numerical data for channels 0..31
+			TRIGGER maskvalue matchvalue sample_offset		'set up triggering
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+FFT		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_x_size scope_y_size	'default is 256 256
+			SAMPLES sample_depth		'default is 512, must be 4/8/16/32/64/128/256/512/1024/2048
+			DOTSIZE dot_size_0_to_7		'default is 0
+			LINESIZE line_size_0_to_7	'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			PACKEDxxxx			'set packed data mode for efficiency
+			UPDATE				'set 'update' mode
+
+		feed:	ch0 ch1 ch2 ...			'numerical data for channels 0..7max, repeating
+			'label' topvalue bottomvalue height_y offset_y grid_4_bits color_rrggbb		'assign channel, starting at channel 0
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+SCOPE		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_x_size scope_y_size	'default is 256 256
+			SAMPLES sample_depth		'default is 256
+			DOTSIZE dot_size_0_to_7		'default is 0
+			LINESIZE line_size_0_to_7	'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			PACKEDxxxx			'set packed data mode for efficiency
+			UPDATE				'set 'update' mode
+
+		feed:	ch0 ch1 ch2 ...			'numerical data for channels 0..7max, repeating
+			'label' topvalue bottomvalue height_y offset_y grid_4_bits color_rrggbb		'assign channel, starting at channel 0
+			TRIGGER channel_0_to_7 arming_value triggering_value sample_offset		'set up triggering
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+SCOPE_XY/RT	config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_xy_size		'default is 256
+			'label' color			'establish channel with optional color override
+			RANGE absvalue_range		'default is $7FFFFFFF
+			SAMPLES sample_depth		'default is 256, 0=infinite persistence
+			DOTSIZE dot_size_1_to_6		'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color			'default is black
+			GRIDCOLOR color			'default is grey
+			LOGSCALE			'apply log dilation for better small-signal viewing
+			PACKEDxxxx			'set packed data mode for efficiency, theta in scope_rt is MSB-justified in packed mode
+			UPDATE				'set 'update' mode
+			
+		feed:	x0 y0 x1 y1 x2 y2 ...		'numerical x,y data for channels 0..7max
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+PLOT		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE x_size y_size		'default is 256 256
+			OFFSET x_offset y_offset	'default is 0 0
+			UPDATE				'set 'update' mode
+
+		feed:	x y ...				'plot a point
+			TO x y ...			'draw a line
+			LINESIZE line_size_1_to_16	'default is 1
+			LINECOLOR color_rrggbb		'set line color
+			FILLCOLOR color_rrggbb		'set fill color			
+			RECT left bottom right top	'draw a rectangle
+			RECTFILL left bottom right top	'draw a filled rectangle
+			OVAL left bottom right top	'draw an oval/circle
+			OVALFILL left bottom right top	'draw a filled oval/circle
+			POLY x0 y0 x1 y1 x2 y2 ...	'draw a polygon
+			POLYFILL x0 y0 x1 y1 x2 y2 ...	'draw a filled polygon
+			TEXTSIZE text_size_6_to_200	'default is 10			
+			TEXTCOLOR color_rrggbb		'set text color
+			TEXTSTYLE hjust2|vjust2|strikeout|underline|italic|bold		'set text style using bits 7..0
+			TEXT x y 'string'		'draw text
+			BACKCOLOR color_rrggbb		'default is black
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+TERM		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE columns rows		'default is 80 25
+			TEXTSIZE text_size_6_to_200	'default is current text editor size
+			TEXTCOLOR text0 back0 ...	'define text and back colors for settings 0..3
+			BACKCOLOR color_rrggbb		'set background color
+			UPDATE				'set 'update' mode
+
+		feed:	0 = Clear			'control characters
+			1 = Home
+			2 = Set colum, column follows
+			3 = Set row, row follows
+			4 = Set color 0
+			5 = Set color 1
+			6 = Set color 2
+			7 = Set color 3
+			8 = Backspace			'printable characters
+			9 = Tab
+			13 = New line
+			>31 = chr
+			'string'			'print string
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+BITMAP		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE x_pixels y_pixels		'default is 256 256
+			DOTSIZE size_1_to_32		'default is 1
+			LUT1				'set one-bit mode, uses palette
+			LUT2				'set two-bit mode, uses palette
+			LUT4				'set four-bit mode, uses palette
+			LUT8				'set eight-bit mode, uses palette
+			LUMA8 %rgb			'set luma8 mode
+			RGBI8				'set rgbi8 mode
+			RGB8				'set rgb8 mode
+			RGB16				'set rgb16 mode
+			RGB24				'set rgb24 mode (takes 32 bits per pixel)
+			PACKEDxxxx			'set packed data mode for efficiency
+			UPDATE				'set 'update' mode
+
+		feed:	data				'numerical pixel data
+			SETXY x_pixel y_pixel xy_path	'set x,y pixel position for next data and set path %DYX: D=dominantY, Y=decY, X=decX
+			SCROLL x_scroll y_scroll	'scroll screen by x and y pixels
+			COLOR startindex colors...	'set palette startindex and set $RRGGBB colors
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+
+PARSER
+------
+SCOPE		dd_dsp
+displayname	dd_nam
+SAMPLES		dd_key
+{$|%}num	dd_num
+'string'	dd_str
+eol		dd_end
+
+init:
+dd_dsp
+dd_nam
+dd_key | dd_num | dd_str | dd_end
+
+feed:
+dd_nam
+dd_key | dd_num | dd_str | dd_end
+
+
+Packed Data
+-----------
+default			bits=32	count=1
+
+PACKEDLONGS_1BIT	bits=1	count=32
+PACKEDLONGS_2BIT	bits=2	count=16
+PACKEDLONGS_4BIT	bits=4	count=8
+PACKEDLONGS_8BIT	bits=8	count=4
+PACKEDLONGS_16BIT	bits=16	count=2
+
+PACKEDWORDS_1BIT	bits=1	count=16
+PACKEDWORDS_2BIT	bits=2	count=8
+PACKEDWORDS_4BIT	bits=4	count=4
+PACKEDWORDS_8BIT	bits=8	count=2
+
+PACKEDBYTES_1BIT	bits=1	count=8
+PACKEDBYTES_2BIT	bits=2	count=4
+PACKEDBYTES_4BIT	bits=4	count=2
+}

@@ -1,0 +1,9 @@
+_clkfreq = 10_000_000
+
+PUB go() | i, j
+
+  debug("`term temp size 11 1 textsize 40")
+
+  repeat i from 50 to 150
+    debug("`temp clear 'Temp = ", udec_(i), "'")
+    waitms(100)

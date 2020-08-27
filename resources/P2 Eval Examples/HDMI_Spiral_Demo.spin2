@@ -1,0 +1,356 @@
+'*****************
+'*  HDMI Spiral  *
+'*****************
+
+CON		hdmi_base	= 48		'must be a multiple of 8
+
+		_clkfreq	= 250_000_000	'system clock frequency must be 250 MHz for HDMI
+
+		fast		= 1		'0 for small code (7.8 fps), 1 for fast code (36.6 fps)
+
+		bitmap		= $400		'HDMI bitmap (300 KB)
+
+DAT		org
+
+		asmclk
+
+		coginit	#1,##@pgm_hdmi		'launch HDMI
+		coginit	#0,##@pgm_bmap		'launch bitmap cog
+
+
+'*********************************
+'*  HDMI 640 x 480 x 8bpp rgbi8  *
+'*********************************
+
+DAT             org
+
+pgm_hdmi        setcmod #$100                   'enable HDMI mode
+                drvl    #7<<6 + hdmi_base       'enable HDMI pins
+                wrpin   ##%001001<<8,#7<<6 + hdmi_base  'set 1k-ohm drive on HDMI pins
+
+                setxfrq ##$0CCCCCCC+1           'set streamer freq to 1/10th clk (25 MHz)
+
+                rdfast  ##640*480/64,##bitmap   'set rdfast to wrap on bitmap
+
+' Field loop
+
+field           mov     hsync0,sync_000         'vsync off
+                mov     hsync1,sync_001
+
+                callpa  #10,#blank              'top blanks
+
+                mov     i,#480                  'set visible lines
+line            call    #hsync                  'do horizontal sync
+                xcont   m_rf,#0		        'do visible line
+                djnz    i,#line                 'another line?
+
+                callpa  #33,#blank              'bottom blanks
+
+                mov     hsync0,sync_222         'vsync on
+                mov     hsync1,sync_223
+
+                callpa  #2,#blank               'vertical sync blanks
+
+                jmp     #field                  'loop
+
+' Subroutines
+
+blank           call    #hsync                  'blank lines
+                xcont   m_vi,hsync0
+        _ret_   djnz    pa,#blank
+
+hsync           xcont   m_bs,hsync0             'horizontal sync
+                xzero   m_sn,hsync1
+        _ret_   xcont   m_bv,hsync0
+
+' Data
+
+sync_000        long    %1101010100_1101010100_1101010100_10    '
+sync_001        long    %1101010100_1101010100_0010101011_10    '        hsync
+sync_222        long    %0101010100_0101010100_0101010100_10    'vsync
+sync_223        long    %0101010100_0101010100_1010101011_10    'vsync + hsync
+
+m_bs            long    $70810000 + hdmi_base<<17 + 16          'before sync
+m_sn            long    $70810000 + hdmi_base<<17 + 96          'sync
+m_bv            long    $70810000 + hdmi_base<<17 + 48          'before visible
+m_vi            long    $70810000 + hdmi_base<<17 + 640         'visible
+m_rf            long    $B0830000 + hdmi_base<<17 + 640         'visible rfbyte rgbi8
+
+i               res     1
+hsync0          res     1
+hsync1          res     1
+
+
+'**************************************
+'*  Make spirals in 640 x 480 bitmap  *
+'**************************************
+
+		org
+
+pgm_bmap	wrfast	##640*480/64,##bitmap	'set wrfast to wrap on bitmap
+
+		modc	fast * %1111	wc	'fast or slow code?
+	if_nc	jmp	#.pixel
+
+
+' Fast code (36.6 fps) 4.7x the speed of slow code
+
+.lut		mov	.px,.z			'make lookup table for fast translation
+		test	.px,#$20	wc	'convert 6 LSBs to 5-bit up/down ramp
+	if_c	xor	.px,#$3F
+		and	.px,#$1F
+		mov	.py,.z
+		shr	.py,#1			'apply 3 MSBs to RGB bits
+		and	.py,#$E0
+		or	.px,.py
+		wrlut	.px,.z
+		incmod	.z,#$1FF	wc
+	if_nc	jmp	#.lut
+
+
+.pixels		qvector	.x,.y	'0 in		do overlapped QVECTOR ops for 16 pixels
+
+		add	.x,#1	'1 in
+		qvector	.x,.y
+
+		add	.x,#1	'2 in
+		qvector	.x,.y
+
+		add	.x,#1	'3 in
+		qvector	.x,.y
+
+		add	.x,#1	'4 in
+		qvector	.x,.y
+
+		add	.x,#1	'5 in
+		qvector	.x,.y
+
+		add	.x,#1	'6 in
+		qvector	.x,.y
+
+		add	.x,#1	'7 in
+		qvector	.x,.y
+
+		getqx	.px+0	'0 out
+		getqy	.py+0
+
+		add	.x,#1	'8 in
+		qvector	.x,.y
+
+		getqx	.px+1	'1 out
+		getqy	.py+1
+
+		add	.x,#1	'9 in
+		qvector	.x,.y
+
+		getqx	.px+2	'2 out
+		getqy	.py+2
+
+		add	.x,#1	'10 in
+		qvector	.x,.y
+
+		getqx	.px+3	'3 out
+		getqy	.py+3
+
+		add	.x,#1	'11 in
+		qvector	.x,.y
+
+		getqx	.px+4	'4 out
+		getqy	.py+4
+
+		add	.x,#1	'12 in
+		qvector	.x,.y
+
+		getqx	.px+5	'5 out
+		getqy	.py+5
+
+		add	.x,#1	'13 in
+		qvector	.x,.y
+
+		getqx	.px+6	'6 out
+		getqy	.py+6
+
+		add	.x,#1	'14 in
+		qvector	.x,.y
+
+		getqx	.px+7	'7 out
+		getqy	.py+7
+
+		add	.x,#1	'15 in
+		qvector	.x,.y
+
+		getqx	.px+8	'8 out
+		getqy	.py+8
+
+		shr	.py+0,#32-9		'get 9 MSBs of theta (stuff code between GETQx ops)
+		add	.py+0,.px+0		'add rho to twist it
+
+		getqx	.px+9	'9 out
+		getqy	.py+9
+
+		shr	.py+1,#32-9
+		add	.py+1,.px+1
+
+		getqx	.px+10	'10 out
+		getqy	.py+10
+
+		shr	.py+2,#32-9
+		add	.py+2,.px+2
+
+		getqx	.px+11	'11 out
+		getqy	.py+11
+
+		shr	.py+3,#32-9
+		add	.py+3,.px+3
+
+		getqx	.px+12	'12 out
+		getqy	.py+12
+
+		shr	.py+4,#32-9
+		add	.py+4,.px+4
+
+		getqx	.px+13	'13 out
+		getqy	.py+13
+
+		shr	.py+5,#32-9
+		add	.py+5,.px+5
+
+		getqx	.px+14	'14 out
+		getqy	.py+14
+
+		shr	.py+6,#32-9
+		add	.py+6,.px+6
+
+		getqx	.px+15	'15 out
+		getqy	.py+15
+
+
+		add	.py+0,.z		'add z to slowly spin it
+		rdlut	.py+0,.py+0		'lookup rgbi8 color
+		wfbyte	.py+0			'write rgbi8 pixel to bitmap
+
+		add	.py+1,.z
+		rdlut	.py+1,.py+1
+		wfbyte	.py+1
+
+		add	.py+2,.z
+		rdlut	.py+2,.py+2
+		wfbyte	.py+2
+
+		add	.py+3,.z
+		rdlut	.py+3,.py+3
+		wfbyte	.py+3
+
+		add	.py+4,.z
+		rdlut	.py+4,.py+4
+		wfbyte	.py+4
+
+		add	.py+5,.z
+		rdlut	.py+5,.py+5
+		wfbyte	.py+5
+
+		add	.py+6,.z
+		rdlut	.py+6,.py+6
+		wfbyte	.py+6
+
+		shr	.py+7,#32-9
+		add	.py+7,.px+7
+		add	.py+7,.z
+		rdlut	.py+7,.py+7
+		wfbyte	.py+7
+
+		shr	.py+8,#32-9
+		add	.py+8,.px+8
+		add	.py+8,.z
+		rdlut	.py+8,.py+8
+		wfbyte	.py+8
+
+		shr	.py+9,#32-9
+		add	.py+9,.px+9
+		add	.py+9,.z
+		rdlut	.py+9,.py+9
+		wfbyte	.py+9
+
+		shr	.py+10,#32-9
+		add	.py+10,.px+10
+		add	.py+10,.z
+		rdlut	.py+10,.py+10
+		wfbyte	.py+10
+
+		shr	.py+11,#32-9
+		add	.py+11,.px+11
+		add	.py+11,.z
+		rdlut	.py+11,.py+11
+		wfbyte	.py+11
+
+		shr	.py+12,#32-9
+		add	.py+12,.px+12
+		add	.py+12,.z
+		rdlut	.py+12,.py+12
+		wfbyte	.py+12
+
+		shr	.py+13,#32-9
+		add	.py+13,.px+13
+		add	.py+13,.z
+		rdlut	.py+13,.py+13
+		wfbyte	.py+13
+
+		shr	.py+14,#32-9
+		add	.py+14,.px+14
+		add	.py+14,.z
+		rdlut	.py+14,.py+14
+		wfbyte	.py+14
+
+		shr	.py+15,#32-9
+		add	.py+15,.px+15
+		add	.py+15,.z
+		rdlut	.py+15,.py+15
+		wfbyte	.py+15
+
+		incmod	.x,#640/2-1	wc	'check if x at limit
+	if_c	neg	.x,#640/2
+	if_c	incmod	.y,#480/2-1	wc	'step y
+	if_c	neg	.y,#480/2
+	if_c	sub	.z,#1			'step z
+	if_c	drvnot	#56			'toggle P56 for speed check
+
+		jmp	#.pixels
+
+
+' Slow code (7.8 fps)
+
+.pixel		qvector	.x,.y			'convert (x,y) to polar (rho,theta)
+		getqx	.px
+		getqy	.py
+
+		shr	.py,#32-9		'get 9 MSBs of theta
+		add	.py,.px			'add rho to twist it
+		add	.py,.z			'add z to slowly spin it
+
+		mov	.px,.py			'convert 6 LSBs to 5-bit up/down ramp
+		test	.px,#$20	wc
+	if_c	xor	.px,#$3F
+		and	.px,#$1F
+
+		shr	.py,#1			'apply 3 MSBs to RGB bits
+		and	.py,#$E0
+		or	.px,.py
+
+		wfbyte	.px			'write rgbi8 pixel to bitmap
+
+		incmod	.x,#640/2-1	wc	'step x
+	if_c	neg	.x,#640/2
+	if_c	incmod	.y,#480/2-1	wc	'step y
+	if_c	neg	.y,#480/2
+	if_c	sub	.z,#1			'step z
+	if_c	drvnot	#56			'toggle P56 for speed check
+
+		jmp	#.pixel
+
+' Data
+
+.x		long	-640/2
+.y		long	-480/2
+.z		long	0
+.px		res	16
+.py		res	16

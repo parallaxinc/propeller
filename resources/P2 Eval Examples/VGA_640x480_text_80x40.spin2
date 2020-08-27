@@ -1,0 +1,298 @@
+'*****************************************
+'*  VGA 640 x 480 - 80 x 40 text driver  *
+'*****************************************
+
+CON
+
+  cols		= 80
+  rows		= 40
+
+  screen_size	= cols * rows
+  last_row	= screen_size - cols
+
+  intensity	= 80	'0..128
+
+  fpix		= 25_000_000
+
+
+VAR	cog		'status
+	flag
+	color
+
+	background0_	'data read by driver cog
+	foreground0_
+	background1_
+	foreground1_
+	screen_base_
+	av_base_pin_
+
+	row		'print position
+	col
+
+	byte screen[screen_size]	
+
+
+PUB start(av_board_base_pin) : okay
+
+'' Start VGA driver cog
+
+  stop()
+
+  flag := 0
+  print(0)
+
+  background0_ := $000000_00
+  foreground0_ := $FF8000_00
+  background1_ := $FF8000_00
+  foreground1_ := $000000_00
+  screen_base_ := @screen
+  av_base_pin_ := av_board_base_pin & $38
+
+  okay := cog := coginit(16, @driver, @background0_) + 1
+
+
+PUB stop()
+
+'' Stop VGA driver cog
+
+  if cog
+    cogstop(cog-1)
+    pinclear(av_base_pin_ addpins 4)
+
+
+PUB print(chr)
+
+'' Print a character to screen
+''
+''      0 = clear screen
+''      1 = home
+''      2 = set X position (X follows)
+''      3 = set Y position (Y follows)
+''      4 = set background0 color (color follows)
+''      5 = set foreground0 color (color follows)
+''      6 = set background1 color (color follows)
+''      7 = set foreground1 color (color follows)
+''      8 = backspace
+''      9 = tab (8 spaces per)
+''     10 = linefeed, ignored
+''     11 = select color0
+''     12 = select color1
+''     13 = return, new line
+'' others = printable characters
+
+  case flag
+    0: case_fast chr
+         0:     bytefill(@screen, " ", screen_size)
+                col := row := 0
+         1:     col := row := 0
+         2..7:  flag := chr
+                return
+         8:     if col
+                  col--
+         9:     repeat
+                  out(" ")
+                while col & 7
+         10:    return
+         11:    color := $00
+         12:    color := $80
+         13:    newline()
+         other: out(chr)
+
+    2:    col := chr // cols
+    3:    row := chr // rows
+    4..7: background0_[flag-$04] := chr << 8
+
+  flag := 0
+
+PRI out(chr)
+
+  screen[row * cols + col] := chr ^ color
+  if ++col == cols
+    newline()
+
+PRI newline()
+
+  col := 0
+  if ++row == rows
+    row--
+    bytemove(@screen, @screen[cols], last_row)	'scroll lines
+    bytefill(@screen[last_row], " ", cols)	'clear bottom line
+'
+'
+' Driver
+'
+DAT		org
+
+driver		add	ptrb,#@font-@driver	'load font into LUT %000..$17F
+		setq2	#$180-1
+		rdlong	0,ptrb
+
+		rdlong	pa,#@clkfreq		'calculate streamer frequency
+		qfrac	##fpix,pa
+		getqx	pa
+		shr	pa,#1
+		setxfrq	pa
+
+		setcy	##intensity << 24	'r	set colorspace for rgb
+		setci	##intensity << 16	'g
+		setcq	##intensity << 08	'b
+
+		setcmod	#%01_0_000_0		'enable colorspace conversion
+
+		cogid	pa			'insert cogid into dac modes
+		setnib	dacmode_s,pa,#2
+		setnib	dacmode_c,pa,#2
+
+
+		rdlong	av_base_pin,ptra[5]	'get av_base
+
+		wrpin	dacmode_s,av_base_pin	'enable 123-ohm 3.3V dac mode in pin +0
+
+		xor	av_base_pin,#2<<6|1	'enable 75-ohm 2.0V dac mode in pins +1..3
+		wrpin	dacmode_c,av_base_pin
+
+		xor	av_base_pin,#3<<6 ^(2<<6|1)	'make pins +0..3 outputs
+		drvl	av_base_pin
+
+		xor	av_base_pin,#4|(3<<6)	'leave av_base pointing to pin +4 (vertical sync)
+'
+'
+' Field loop
+'
+.field		setq	#5-1			'load settings
+		rdlong	background0,ptra
+
+		mov	ptrb,#$190		'point between $180/$1A0 color sets in LUT
+
+		wrlut	background0,ptrb[-16]	'set colors for chr msb = 0
+		wrlut	foreground0,ptrb[-15]
+		wrlut	background1,ptrb[+16]	'set colors for chr msb = 1
+		wrlut	foreground1,ptrb[+17]
+
+
+.line		xcont	m_bv,#0			'do before-visible part of scan line
+
+		rdfast	#0,screen_base		'set fifo to read from current screen row
+
+		rep	@.chr,#cols		'ready to output 8 pixels for each chr
+
+		rfbyte	pa		wc	'2	get chr
+		bitc	m_px,#16		'2	select colors using msb of chr
+		and	pa,#$7F			'2	trim chr to 7 bits
+		add	pa,font_base		'2	add offset for top/middle/bottom lines of chr
+		rdlut	pa,pa			'3	look up four lines of chr
+		shr	pa,font_line		'2	get line of interest into lower 8 bits
+		xcont	m_px,pa			'2 =15	output 8 single-bit pixels to streamer
+.chr
+		xcont	m_bs,#0			'do before-sync part of scan line
+		xzero	m_sn,#1			'do sync part of scan line
+
+		add	font_line,#$08		'increment chr line selector
+		cmpsub	font_line,#$20	wz
+	if_z	add	font_base,#$080		'increment top/middle/bottom lines selector
+	if_z	cmpsub	font_base,#$180	wz
+	if_z	add	screen_base,#cols	'increment screen pointer and row
+	if_z	incmod	rowx,#rows-1	wz
+	if_nz	jmp	#.line			'loop until all rows output
+
+
+		callpa	#10,#blanks		'do bottom blanks
+
+		drvnot	av_base_pin		'vertical sync on
+		callpa	#2,#blanks		'do vertical sync blanks
+		drvnot	av_base_pin		'vertical sync off
+
+		callpa	#33,#blanks		'do top blanks
+
+		jmp	#.field			'loop
+'
+'
+' Output blank lines
+'
+blanks		xcont	m_bv,#0			'do before-visible part of scan line
+		xcont	m_vi,#0			'do visible part of scan line (blank)
+		xcont	m_bs,#0			'do before-sync part of scan line
+		xzero	m_sn,#1			'do sync part of scan line
+	_ret_	djnz	pa,#blanks		'loop if more blanks needed
+'
+'
+' Initialized data
+'
+dacmode_s	long	%0000_0000_000_1011000000000_01_00000_0		'hsync is 123-ohm, 3.3V
+dacmode_c	long	%0000_0000_000_1011100000000_01_00000_0		'R/G/B are 75-ohm, 2.0V
+
+m_bs		long	$7F010000+16		'before sync
+m_sn		long	$7F010000+96		'sync
+m_bv		long	$7F010000+48		'before visible
+m_vi		long	$7F010000+640		'visible
+m_px		long	$0F0C0000+8		'8 single-bit pixels, colors in LUT $180/$181
+
+rowx		long	0
+font_base	long	0
+font_line	long	0
+'
+'
+' Uninitialized data
+'
+background0	res	1
+foreground0	res	1
+background1	res	1
+foreground1	res	1
+screen_base	res	1
+av_base_pin	res	1
+'
+'
+' 8 x 12 font of 128 chrs
+'
+	orgh
+
+font	long  $0C080000,$30100000,$7E3C1800,$18181800,$81423C00,$99423C00,$8181FF00,$E7C3FF00  'top 4 lines of 128 chrs
+	long  $1E0E0602,$1C000000,$00000000,$00000000,$18181818,$18181818,$00000000,$18181818
+	long  $00000000,$18181818,$18181818,$18181818,$18181818,$00FFFF00,$CC993366,$66666666
+	long  $AA55AA55,$0F0F0F0F,$0F0F0F0F,$0F0F0F0F,$0F0F0F0F,$00000000,$00000000,$00000000
+	long  $00000000,$3C3C1800,$77666600,$7F363600,$667C1818,$46000000,$1B1B0E00,$1C181800
+	long  $0C183000,$180C0600,$66000000,$18000000,$00000000,$00000000,$00000000,$60400000
+	long  $73633E00,$1E181000,$66663C00,$60663C00,$3C383000,$06067E00,$060C3800,$63637F00
+	long  $66663C00,$66663C00,$1C000000,$00000000,$18306000,$00000000,$180C0600,$60663C00
+	long  $63673E00,$66663C00,$66663F00,$63663C00,$66361F00,$06467F00,$06467F00,$63663C00
+	long  $63636300,$18183C00,$30307800,$36666700,$06060F00,$7F776300,$67636300,$63361C00
+	long  $66663F00,$63361C00,$66663F00,$66663C00,$185A7E00,$66666600,$66666600,$63636300
+	long  $66666600,$66666600,$31637F00,$0C0C3C00,$03010000,$30303C00,$361C0800,$00000000
+	long  $0C000000,$00000000,$06060700,$00000000,$30303800,$00000000,$0C6C3800,$00000000
+	long  $06060700,$00181800,$00606000,$06060700,$18181E00,$00000000,$00000000,$00000000
+	long  $00000000,$00000000,$00000000,$00000000,$0C080000,$00000000,$00000000,$00000000
+	long  $00000000,$00000000,$00000000,$18187000,$18181800,$18180E00,$73DBCE00,$18180000
+
+	long  $080C7E7E,$10307E7E,$18181818,$7E181818,$81818181,$99BDBDBD,$81818181,$E7BD99BD  'middle 4 lines of 128 chrs
+	long  $1E3E7E3E,$1C3E3E3E,$30F0C000,$0C0F0300,$00C0F030,$00030F0C,$00FFFF00,$18181818
+	long  $18FFFF00,$00FFFF18,$18F8F818,$181F1F18,$18FFFF18,$00FFFF00,$CC993366,$66666666
+	long  $AA55AA55,$FFFF0F0F,$F0F00F0F,$0F0F0F0F,$00000F0F,$FFFF0000,$F0F00000,$0F0F0000
+	long  $00000000,$0018183C,$00000033,$7F363636,$66603C06,$0C183066,$337B5B0E,$0000000C
+	long  $0C0C0C0C,$18181818,$663CFF3C,$18187E18,$00000000,$00007E00,$00000000,$060C1830
+	long  $676F6B7B,$18181818,$0C183060,$60603860,$307F3336,$60603E06,$66663E06,$0C183060
+	long  $66763C6E,$60607C66,$1C00001C,$00001C1C,$180C060C,$007E007E,$18306030,$00181830
+	long  $033B7B7B,$66667E66,$66663E66,$63030303,$66666666,$06263E26,$06263E26,$63730303
+	long  $63637F63,$18181818,$33333030,$36361E36,$66460606,$63636B7F,$737B7F6F,$63636363
+	long  $06063E66,$7B636363,$66363E66,$66301C06,$18181818,$66666666,$66666666,$366B6B63
+	long  $663C183C,$18183C66,$43060C18,$0C0C0C0C,$30180C06,$30303030,$00000063,$00000000
+	long  $0030381C,$333E301E,$6666663E,$0606663C,$3333333E,$067E663C,$0C0C3E0C,$3333336E
+	long  $66666E36,$1818181C,$60606070,$361E3666,$18181818,$6B6B6B3F,$6666663E,$6666663C
+	long  $6666663B,$3333336E,$066E7637,$300C663C,$0C0C0C7E,$33333333,$66666666,$6B6B6363
+	long  $1C1C3663,$66666666,$0C30627E,$180C060C,$18181818,$18306030,$00000000,$0018187E
+
+	long  $00000000,$00000000,$00001818,$0000183C,$00003C42,$00003C42,$0000FF81,$0000FFC3  'bottom 4 lines of 128 chrs
+	long  $0002060E,$00000000,$18181818,$18181818,$00000000,$00000000,$00000000,$18181818
+	long  $18181818,$00000000,$18181818,$18181818,$18181818,$00FFFF00,$CC993366,$66666666
+	long  $AA55AA55,$FFFFFFFF,$F0F0F0F0,$0F0F0F0F,$00000000,$FFFFFFFF,$F0F0F0F0,$0F0F0F0F
+	long  $00000000,$00001818,$00000000,$00003636,$0018183E,$00006266,$00006E3B,$00000000
+	long  $00003018,$0000060C,$00000000,$00000000,$0C181C1C,$00000000,$00001C1C,$00000103
+	long  $00003E63,$00007E18,$00007E66,$00003C66,$00007830,$00003C66,$00003C66,$00000C0C
+	long  $00003C66,$00001C30,$0000001C,$0C181C1C,$00006030,$00000000,$0000060C,$00001818
+	long  $00003E07,$00006666,$00003F66,$00003C66,$00001F36,$00007F46,$00000F06,$00007C66
+	long  $00006363,$00003C18,$00001E33,$00006766,$00007F66,$00006363,$00006363,$00001C36
+	long  $00000F06,$00603C36,$00006766,$00003C66,$00003C18,$00003C66,$0000183C,$00003636
+	long  $00006666,$00003C18,$00007F63,$00003C0C,$00004060,$00003C30,$00000000,$0000FF00
+	long  $00000000,$00006E33,$00003B66,$00003C66,$00006E33,$00003C66,$00001E0C,$1E33303E
+	long  $00006766,$00007E18,$3C666660,$00006766,$00007E18,$00006B6B,$00006666,$00003C66
+	long  $0F063E66,$78303E33,$00000F06,$00003C66,$0000386C,$00006E33,$0000183C,$00003636
+	long  $00006336,$1C30607C,$00007E46,$00007018,$00001818,$00000E18,$00000000,$0000007E

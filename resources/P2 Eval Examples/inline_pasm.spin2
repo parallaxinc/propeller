@@ -1,0 +1,11 @@
+pub go() | x
+
+  repeat
+
+    org
+	getrnd	wc
+	rcl	x,#1
+    end
+
+    pinwrite(56 addpins 7, x)
+    waitms(100)

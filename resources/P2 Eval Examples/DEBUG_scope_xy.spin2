@@ -1,0 +1,112 @@
+'*******************************************
+'*  Use Goertzel board to drive VGA board  *
+'*******************************************
+
+CON		_clkfreq	= 250_000_000	'system clock frequency
+
+		gtzl_base_1	= 16		'must be a multiple of 8
+		gtzl_base_2	= 32
+
+
+DAT		org
+
+		asmclk				'set clock
+
+		setq	#gtzl_base_1		'launch Goertzel 1
+		coginit	#16,##@pgm_gtzl
+
+		setq	#gtzl_base_2		'launch Goertzel 2
+		coginit	#16,##@pgm_gtzl
+
+		debug("`scope_xy xy size 200 range 2000 samples 100 dotsize 3 label 'Goertzel 1' 'Goertzel 2'")
+
+.loop		debug("`xy ", sdec_long_array_(#$00000,#4))
+		waitx	##250_000_000/100
+		jmp	 #.loop
+
+
+
+'**************
+'*  Goertzel  *
+'**************
+
+CON		gtzl_freq	= 120_000.0	'goertzel frequency is multiple of both 50 and 60 Hz
+		cycles		= 120*5		'number of cycles to measure
+		shifts		= 13-3		'right-shifts for acc's
+
+
+DAT		org
+
+pgm_gtzl	add	ptra,#7			'init ADC pin
+		wrpin	adcmode,ptra
+
+		cogid	x			'init DAC pins for this cog's DAC channels
+		setnib	dacmode,x,#2
+		add	ptra,#3<<6 - 7
+		wrpin	dacmode,ptra
+		dirh	ptra
+
+		test	ptra,#32	wz
+	if_nz	or	wraddr,#8
+
+		sub	ptra,#3<<6
+		shl	ptra,#17
+		or	dds_d,ptra
+
+'		drvl	#gtzl_base+4 addpins 2
+
+		setxfrq	xfreq			'set streamer NCO frequency
+
+' Make sine and cosine tables in LUT bytes 3 and 2
+
+		mov	z,#$1FF			'make 512-sample sin/cos table in LUT
+sincos		shl	z,#32-9			'get angle into top 9 bits of z
+		qrotate	#127,z			'rotate (127,0) by z
+		shr	z,#32-9			'restore z
+		getqx	x			'get x
+		getqy	y			'get y
+		rolbyte	y,x,#0			'make 0:0:y:x
+		rolword	y,y,#0			'make y:x:y:x
+		wrlut	y,z			'write sin:cos:sin:cos into LUT
+		djnf	z,#sincos		'loop until 512 samples
+
+' Take Goertzel measurements and plot in bitmap
+
+loop		xcont	dds_d,dds_s		'issue Goertzel command
+		getxacc	x			'get prior Goertzel acc's, cos first
+		mov	y,0			'..then sin
+
+		cmpsub	calwait,#1	wc	'initially calibrate
+	if_c	mov	xcal,x
+	if_c	mov	ycal,y
+
+		sub	x,xcal			'get calibrated/shifted x
+		sar	x,#shifts
+
+		sub	y,ycal			'get calibrated/shifted y
+		sar	y,#shifts
+
+		neg	x			'write samples to memory
+		neg	y
+		setq	#1
+wraddr		wrlong	x,#$00000
+
+		jmp	#loop			'loop
+
+' Data
+
+adcmode		long	%0000_0000_000_100111_0000000_00_00000_0		'ADC mode
+dacmode		long	%0000_0000_000_10110_00000000_01_00000_0		'DAC mode, cog DAC channels
+
+xfreq		long	round(gtzl_freq/float(clkfreq_) * 65536.0 * 32768.0)	'streamer frequency value
+
+dds_d		long	%1111_1110_0000_1111<<16 + cycles			'Goertzel mode, input from pin +4..7
+dds_s		long	%0000_1000_000_000000000				'input from pin +3
+
+calwait		long	100			'initial calibration cycles
+
+x		res	1
+y		res	1
+z		res	1
+xcal		res	1
+ycal		res	1
