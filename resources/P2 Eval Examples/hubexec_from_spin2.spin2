@@ -1,0 +1,19 @@
+pub go()
+  coginit(32+16,@blink,0)		'launch hub-exe program in free cog
+
+DAT	orgh				'being hub-exec program
+
+blink	setbyte	dirb,#$FF,#3		'make LEDs outputs
+	mov	pb,#0			'clear pb
+
+loop	loc	pa,#table		'get address of table (relative)
+	add	pa,pb			'add pb
+	rdbyte	pa,pa			'read table byte
+	not	pa			'NOT for LEDs
+	setbyte	outb,pa,#3		'write to LEDs
+	incmod	pb,#7			'inc pb 0..7 and repeat
+	waitx	##clkfreq_/10		'wait 1/10 second
+	jmp	#loop			'loop
+
+table	byte	$01,$02,$04,$08,$10,$20,$40,$80
+

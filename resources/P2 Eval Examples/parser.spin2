@@ -1,0 +1,2839 @@
+'****************************************************************
+'*								*
+'*  This block demonstrates these two blocks:			*
+'*								*
+'*	Elementizer	- parses text into 2-long "elements"	*
+'*	Symbol Engine	- provides symbol storage and lookup	*
+'*								*
+'*  All the Spin2 data is in these two blocks:			*
+'*								*
+'*	Equates		- constants used by auto symbols	*
+'*	Auto Symbols	- auto symbol definitions		*
+'*								*
+'****************************************************************
+
+CON _clkfreq = 297_000_000
+
+OBJ
+  vga : "VGA_640x480_text_80x40"	'_clkfreq >= 50MHz
+' vga : "VGA_1280x1024_text_160x85"	'_clkfreq >= 216MHz
+' vga : "HDTV_1920x1080_text_240x90"	'_clkfreq >= 297MHz
+' vga : "HDTV_1920x1080_text_135x160"	'_clkfreq >= 297MHz
+
+VAR
+
+PUB go() | i, t, k
+
+  vga.start(8)			'start vga
+  send := @vga.print		'set send pointer
+
+  send(str(@spin2),13,13)	'show source file
+ 
+  str(\init_auto_symbols())	'init automatic symbols, show any error
+
+  t := getct()			'elementize source file, tracking time
+  str(\elementize(@spin2, @spin2_end - @spin2))
+  i := getct()
+  t := muldiv64(i - t, 1_000_000, clkfreq)	'get delta in microseconds
+  send(12, "Elementizing took ", dec(t), " microseconds.", 11,13)
+
+  show_elements()		'show element lines
+
+' show_symbol_hash_table()	'show symbol hash table
+
+
+PRI show_symbol_hash_table() | i, k, t
+
+  i~
+  k~
+  repeat 256
+    t := word[table_write][i++]
+    hex(t,4)
+    ifnot t
+      k++
+    send(" ")
+  send(13, "Symbol table size: ", dec(word[table_write][256]))
+  send(13, "Unused hashes: ", dec(k),13)
+
+
+PRI show_elements() | i, t, k
+
+  send(13, "Element count: ", dec(element_index), 13, 13)
+
+  repeat i from 0 to element_index - 1
+    t := long[@element + i<<3]
+    k := long[@element + i<<3 + 4]
+    send(dec(i), "=", 9)
+    send("offset +", dec(t.[15..0]), 9)
+    send("length ", dec(t.[23..16]), 9)
+    send("value $", hex(k,8))
+    send("   type ", str(@@type_table[t.[31..24]]), 13)
+
+
+PRI str(p)
+
+  if p
+    repeat
+      send(byte[p++])
+    while byte[p]
+
+
+PRI dec(value) | flag, place, digit
+
+  flag~
+  place := 1_000_000_000
+  repeat
+    if flag ||= (digit := value / place // 10) or place == 1
+      send("0" + digit)
+      if lookdown(place : 1_000_000_000, 1_000_000, 1_000)
+        send(",")
+  while place /= 10
+
+PRI hex(value, digits)
+
+  value <<= (8-digits) << 2
+  repeat digits
+    send(lookupz((value rol= 4) & $F : "0".."9", "A".."F"))
+
+DAT
+
+spin2		file	"blink.spin2"
+spin2_end	byte	0			'zero terminator enables printing via str(@spin2)
+
+type_table	word	@type00,@type01,@type02,@type03,@type04,@type05,@type06,@type07
+		word	@type08,@type09,@type0A,@type0B,@type0C,@type0D,@type0E,@type0F
+		word	@type10,@type11,@type12,@type13,@type14,@type15,@type16,@type17
+		word	@type18,@type19,@type1A,@type1B,@type1C,@type1D,@type1E,@type1F
+		word	@type20,@type21,@type22,@type23,@type24,@type25,@type26,@type27
+		word	@type28,@type29,@type2A,@type2B,@type2C,@type2D,@type2E,@type2F
+		word	@type30,@type31,@type32,@type33,@type34,@type35,@type36,@type37
+		word	@type38,@type39,@type3A,@type3B,@type3C,@type3D,@type3E,@type3F
+		word	@type40,@type41,@type42,@type43,@type44,@type45,@type46,@type47
+		word	@type48,@type49,@type4A,@type4B,@type4C,@type4D,@type4E,@type4F
+		word	@type50,@type51,@type52,@type53,@type54,@type55
+
+type00		byte	"UNDEFINED",0
+type01		byte	"STRING",0
+type02		byte	"LEFT",0
+type03		byte	"RIGHT",0
+type04		byte	"LEFTB",0
+type05		byte	"RIGHTB",0
+type06		byte	"COMMA",0
+type07		byte	"EQUAL",0
+type08		byte	"POUND",0
+type09		byte	"COLON",0
+type0A		byte	"BACK",0
+type0B		byte	"UNDER",0
+type0C		byte	"DOT",0
+type0D		byte	"DOTDOT",0
+type0E		byte	"AT",0
+type0F		byte	"ATAT",0
+type10		byte	"TIL",0
+type11		byte	"TILTIL",0
+type12		byte	"INC",0
+type13		byte	"DEC",0
+type14		byte	"RND",0
+type15		byte	"ASSIGN",0
+type16		byte	"OPERATOR",0
+type17		byte	"FLOAT",0
+type18		byte	"ROUND",0
+type19		byte	"TRUNC",0
+type1A		byte	"CONSTR",0
+type1B		byte	"BLOCK",0
+type1C		byte	"SIZE",0
+type1D		byte	"FVAR",0
+type1E		byte	"PRECOMPILE",0
+type1F		byte	"ARCHIVE",0
+type20		byte	"FILE",0
+type21		byte	"IF",0
+type22		byte	"IFNOT",0
+type23		byte	"ELSEIF",0
+type24		byte	"ELSEIFNOT",0
+type25		byte	"ELSE",0
+type26		byte	"CASE",0
+type27		byte	"CASE_FAST",0
+type28		byte	"OTHER",0
+type29		byte	"REPEAT",0
+type2A		byte	"REPEAT_VAR",0
+type2B		byte	"REPEAT_COUNT",0
+type2C		byte	"WHILE",0
+type2D		byte	"UNTIL",0
+type2E		byte	"FROM",0
+type2F		byte	"TO",0
+type30		byte	"STEP",0
+type31		byte	"NEXT_QUIT",0
+type32		byte	"RETURN",0
+type33		byte	"ABORT",0
+type34		byte	"LOOK",0
+type35		byte	"COGSPIN",0
+type36		byte	"FLEX",0
+type37		byte	"SEND",0
+type38		byte	"ASM_ORG",0
+type39		byte	"ASM_END",0
+type3A		byte	"ASM_DIRECTIVE",0
+type3B		byte	"ASM_COND",0
+type3C		byte	"ASM_INST",0
+type3D		byte	"ASM_EFFECT",0
+type3E		byte	"ASM_EFFECT2",0
+type3F		byte	"REG",0
+type40		byte	"CON",0
+type41		byte	"CON_FLOAT",0
+type42		byte	"REGISTER",0
+type43		byte	"LOC_BYTE",0
+type44		byte	"LOC_WORD",0
+type45		byte	"LOC_LONG",0
+type46		byte	"VAR_BYTE",0
+type47		byte	"VAR_WORD",0
+type48		byte	"VAR_LONG",0
+type49		byte	"DAT_BYTE",0
+type4A		byte	"DAT_WORD",0
+type4B		byte	"DAT_LONG",0
+type4C		byte	"DAT_LONG_RES",0
+type4D		byte	"HUB_BYTE",0
+type4E		byte	"HUB_WORD",0
+type4F		byte	"HUB_LONG",0
+type50		byte	"OBJ",0
+type51		byte	"OBJPUB",0
+type52		byte	"OBJCON",0
+type53		byte	"OBJCON_FLOAT",0
+type54		byte	"METHOD",0
+type55		byte	"EOL",0
+
+
+'****************************************************************
+'*  Elementizer							*
+'****************************************************************
+'
+' Element record structure
+' ---------------------------------------------
+' word	offset from last in source
+' byte	length in source
+' byte	type
+' long	value, or symbol hash if type_undefined
+'
+CON
+
+  element_limit		= 5_000
+
+VAR
+
+  long	source_ptr
+  long	source_last
+  long	source_curr
+  long	source_limit
+
+  long	element_index
+  byte	element		[element_limit * 8]
+
+'
+' Elementize source file
+'
+PRI elementize(source, source_size) | c, size, type, value
+
+  reset_main_symbols()
+  reset_local_symbols()
+  reset_inline_symbols()
+
+  source_ptr   := source
+  source_last  := source
+  source_limit := source + source_size
+
+  element_index~
+
+  repeat
+    size~
+    source_curr := source_ptr
+
+    case c := source_chr()
+      $00	: enter_element(type_end, 0)	'if end of file, done
+		  quit
+
+      $0A, $0D	: enter_element(type_end, 0)	'end of line
+
+      $09, " "	: next				'ignore tab and space chrs
+
+      $22	: repeat			'string
+		    value := c
+		    c := source_chr()
+		    if c == $22
+		      ifnot size
+			abort string("String is empty")
+		      if size == 1
+			enter_element(type_con, value)
+			quit
+		      else
+			enter_element(type_string, 0)
+			quit
+		    if c < " "
+		      abort string("Expected ", $22)
+		    if size++ > 255
+		      abort string("String exceeds 255 characters")
+
+      "'"	: repeat until lookdown(source_chr() : $00, $0A, $0D)
+		  enter_element(type_end, 0)
+
+      "0".."9"	: source_ptr--			'decimal
+		  elementize_con(10)
+          
+      "$"	: elementize_con(16)		'hex
+
+      "%"	: if source_test("%")		'binary or double-binary
+		    elementize_con(4)
+		  else
+		    elementize_con(2)
+
+      "A".."Z", "a".."z", "_" :			'symbol
+
+		  repeat
+		    if size++ == symbol_size
+		      abort string("Symbol is too long")
+		  while lookdown(source_chr() : "0".."9", "A".."Z", "a".."z", "_")
+
+		  source_ptr--
+		  enter_element(find_symbol(source_curr, size, hash_symbol(source_curr, size)))
+
+      other	: if operator_chr(c)		'operator symbol, try 3/2/1-chr operator symbols
+		    size++
+		    if operator_chr(source_chr())
+		      size++
+		      if operator_chr(source_chr())
+			size++
+		      else
+			source_ptr--
+		    else
+		      source_ptr--
+
+		    repeat
+		      type, value := find_symbol(source_curr, size, hash_symbol(source_curr, size))
+		      if type
+			enter_element(type, value)
+			quit
+		      source_ptr--
+		    while --size
+
+		  else				'unknown chr
+		    abort string("Unknown character")
+
+'
+' Elementize constant
+'
+PRI elementize_con(base) | first_chr, constant, chr, digit
+
+  first_chr~~
+  constant~
+  repeat
+    chr := uppercase(source_chr())			'get chr
+    digit := lookdown(chr : "0".."9", "A".."F") - 1
+    if digit >= 0 and digit < base			'accumulate valid digit
+      constant := constant * base + digit
+      first_chr~
+      next
+    if first_chr					'if first chr non-digit, error
+      abort string("Constant must begin with a valid digit")
+    if chr == "_"					'ignore subsequent "_" chrs
+      next
+    source_ptr--					'invalid chr, back up, done
+    enter_element(type_con, constant)
+    quit
+
+'
+' Get next source chr
+'
+PRI source_chr() : chr
+
+  chr := byte[source_ptr++]
+
+  if source_ptr > source_limit
+    return 0
+
+'
+' Test next source chr
+'
+PRI source_test(chr) : is
+
+  if source_chr() == chr
+    return true
+  source_ptr--
+
+'
+' Check operator chr
+'
+PRI operator_chr(chr) : is
+
+  return lookdown(chr : "!#&()*+,-./:<=>?@[\]^|~")
+
+'
+' Enter element
+'
+PRI enter_element(type, value) | offset, length, i
+
+  if type == type_end				'inhibit redundant type_end elements
+    if element_index and element[(element_index-1) << 3 + 3] == type_end
+      return
+
+  if element_index == element_limit		'check element table space
+    abort string("Element table full")
+
+  offset := source_curr - source_last		'compute source offset and length
+  length := source_ptr - source_curr
+
+  source_last := source_curr			'update source last
+
+  i := @element + element_index++ << 3		'add element record
+
+  long[i]   := offset + length << 16 + type << 24
+  long[i+4] := value
+
+
+'****************************************************************
+'*  Symbol Engine						*
+'****************************************************************
+'
+' Symbol table structure
+' ------------------------------------------------------------
+' word[0..255]	= hash table
+' word[256]	= write pointer		(initialized to 258*2)
+' word[257]	= limit pointer		(initialized to limit)
+' bytes left	= symbol records
+'
+' Symbol record structure (symbol size + 8 bytes)
+' -----------------------------------------------
+' byte		= size
+' byte[1..size]	= name
+' byte		= type
+' long		= value
+' word		= pointer to next record (0=end)
+'
+CON
+
+  table_size_auto	= $3400	'$33BA needed, but leave room for edits.
+  table_size_main	= $4000
+  table_size_local	= $1000
+  table_size_inline	= $1000
+
+VAR
+
+  long	table_write
+
+  byte	table_auto	[table_size_auto]
+  byte	table_main	[table_size_main]
+  byte	table_local	[table_size_local]
+  byte	table_inline	[table_size_inline]
+
+'
+' Init auto symbols - called once at application start
+'
+PRI init_auto_symbols() | p, symbol, size, type, value
+
+  init_symbol_table(@table_auto, table_size_auto)
+  table_write := @table_auto
+
+  p := @autos
+
+  repeat
+    symbol := p			'get symbol address
+
+    size~			'get symbol size
+    repeat
+      size++
+    until byte[p++].[7]
+
+    type := byte[p++]		'get symbol type
+
+    if type.[7]~		'get symbol value
+      value := long[p]		'long value
+      p += 4
+    else			'fvar value
+      if     (value :=                     byte[p++]      ) & $00000080
+        if   (value := value & $0000007F | byte[p++] <<  7) & $00004000
+          if (value := value & $00003FFF | byte[p++] << 14) & $00200000
+              value := value & $001FFFFF | byte[p++] << 21
+
+    enter_symbol(symbol, size, hash_symbol(symbol, size), type, value)
+
+  while byte[p]
+
+'
+' Reset main/local/inline symbols
+'
+PRI reset_main_symbols()
+
+  init_symbol_table(@table_main, table_size_main)
+
+PRI reset_local_symbols()
+
+  init_symbol_table(@table_local, table_size_local)
+
+PRI reset_inline_symbols()
+
+  init_symbol_table(@table_inline, table_size_inline)
+
+'
+' Write main/local/inline symbols
+'
+PRI write_main_symbols()
+
+  table_write := @table_main
+
+PRI write_local_symbols()
+
+  table_write := @table_local
+
+PRI write_inline_symbols()
+
+  table_write := @table_inline
+
+'
+' Init symbol table
+'
+PRI init_symbol_table(table, size)
+
+  wordfill(table, 0, 256)		'clear hash table
+  word[table][256] := 258 << 1		'set pointer to start of bytes
+  word[table][257] := size		'set size limit
+
+'
+' Hash symbol
+'
+PRI hash_symbol(symbol, size) : hash
+
+  repeat size
+    hash += uppercase(byte[symbol++])
+    hash += hash << 10
+    hash ^= hash >> 6
+
+  hash := hash.byte[3] ^ hash.byte[2] ^ hash.byte[1] ^ hash.byte[0]
+
+'
+' Enter symbol
+'
+PRI enter_symbol(symbol, size, hash, type, value) | table, n, p, q
+
+  table := table_write			'get table to write
+
+  n := word[table][256]			'get symbol table write pointer
+
+  if n + size + 8 > word[table][257]	'check symbol table space
+    abort string("Symbol table full")
+
+  ifnot p := word[table][hash]		'if initial hash entry unused, use it
+    word[table][hash] := n
+  else					'else, scan to end of record chain
+    repeat
+      p += byte[table + p] + 6		'point to next record link
+      if (q := word[table + p])		'if link valid, loop
+        p := q
+      else				'found end, set new link
+        word[table + p] := n
+	quit
+
+  byte[n += table] := size		'enter size
+  repeat size				'enter name
+    byte[n += 1] := uppercase(byte[symbol++])
+  byte[n += 1] := type			'enter type
+  long[n += 1] := value			'enter value
+  word[n += 4] := 0			'enter end-of-list
+
+  word[table][256] := n + 2 - table	'update symbol table write pointer
+
+'
+' Find symbol - searches all tables, returns type=0/value=hash if undefined
+'
+PRI find_symbol(symbol, size, hash) : type, value | t, table, p, s, i
+
+  value := hash					'set value to hash in case undefined
+
+  repeat t from 1 to 4				'search in all four symbol tables
+
+    table := lookup(t : @table_auto, @table_main, @table_local, @table_inline)
+
+    ifnot p := word[table][hash]		'if initial hash entry unused, try next table
+      next
+    else					'else, scan record chain for match
+      repeat
+        s := byte[table + p++]			'get record symbol size
+        if s == size				'if size match, compare symbols
+          repeat i from 0 to s - 1
+            if uppercase(byte[symbol + i]) <> byte[table + p + i]
+              quit
+          if i == s				'if symbols match, return type and value
+            table += p + s
+            return byte[table++], long[table]
+        ifnot p := word[table + p + s + 5]	'mismatch, if end of records, try next table
+          quit
+
+'
+' Make uppercase
+'
+PRI uppercase(chr_in) : chr_out
+
+  return (lookdown(chr_in : "a".."z") ? chr_in & $5F : chr_in & $7F)
+
+
+'****************************************************************
+'*  Equates							*
+'****************************************************************
+'
+CON
+
+symbol_size		= 32		'cannot exceed 255
+pasm_regs		= $1D8		'convenient PASM <-> Spin2 registers
+m			= $80		'byte MSB
+'
+'
+' Assembly operands
+'
+#0
+operand_ds
+operand_bitx
+operand_testb
+operand_du
+operand_duii
+operand_duiz
+operand_ds3set
+operand_ds3get
+operand_ds2set
+operand_ds2get
+operand_ds1set
+operand_ds1get
+operand_dsj
+operand_ls
+operand_lsj
+operand_dsp
+operand_lsp
+operand_rep
+operand_jmp
+operand_call
+operand_calld
+operand_jpoll
+operand_loc
+operand_aug
+operand_d
+operand_de
+operand_l
+operand_cz
+operand_pollwait
+operand_getbrk
+operand_pinop
+operand_testp
+operand_pushpop
+operand_xlat
+operand_akpin
+operand_nop
+'
+'
+' Assembly push/pops
+'
+#0
+pp_pusha	'	PUSHA	D/#	-->	WRLONG	D/#,PTRA++
+pp_pushb	'	PUSHB	D/#	-->	WRLONG	D/#,PTRB++
+pp_popa		'	POPA	D	-->	RDLONG	D,--PTRA
+pp_popb		'	POPB	D	-->	RDLONG	D,--PTRB
+'
+'
+' Assembly codes
+'			opcode        flags    operand                          instruction
+'			---------------------------------------------------------------------------------
+ac_ror		=	%000000000 | %11 <<9 | operand_ds	<<11	'	ROR	D,S/#
+ac_rol		=	%000000100 | %11 <<9 | operand_ds	<<11	'	ROL	D,S/#
+ac_shr		=	%000001000 | %11 <<9 | operand_ds	<<11	'	SHR	D,S/#
+ac_shl		=	%000001100 | %11 <<9 | operand_ds	<<11	'	SHL	D,S/#
+ac_rcr		=	%000010000 | %11 <<9 | operand_ds	<<11	'	RCR	D,S/#
+ac_rcl		=	%000010100 | %11 <<9 | operand_ds	<<11	'	RCL	D,S/#
+ac_sar		=	%000011000 | %11 <<9 | operand_ds	<<11	'	SAR	D,S/#
+ac_sal		=	%000011100 | %11 <<9 | operand_ds	<<11	'	SAL	D,S/#
+
+ac_add		=	%000100000 | %11 <<9 | operand_ds	<<11	'	ADD	D,S/#
+ac_addx		=	%000100100 | %11 <<9 | operand_ds	<<11	'	ADDX	D,S/#
+ac_adds		=	%000101000 | %11 <<9 | operand_ds	<<11	'	ADDS	D,S/#
+ac_addsx	=	%000101100 | %11 <<9 | operand_ds	<<11	'	ADDSX	D,S/#
+
+ac_sub		=	%000110000 | %11 <<9 | operand_ds	<<11	'	SUB	D,S/#
+ac_subx		=	%000110100 | %11 <<9 | operand_ds	<<11	'	SUBX	D,S/#
+ac_subs		=	%000111000 | %11 <<9 | operand_ds	<<11	'	SUBS	D,S/#
+ac_subsx	=	%000111100 | %11 <<9 | operand_ds	<<11	'	SUBSX	D,S/#
+
+ac_cmp		=	%001000000 | %11 <<9 | operand_ds	<<11	'	CMP	D,S/#
+ac_cmpx		=	%001000100 | %11 <<9 | operand_ds	<<11	'	CMPX	D,S/#
+ac_cmps		=	%001001000 | %11 <<9 | operand_ds	<<11	'	CMPS	D,S/#
+ac_cmpsx	=	%001001100 | %11 <<9 | operand_ds	<<11	'	CMPSX	D,S/#
+
+ac_cmpr		=	%001010000 | %11 <<9 | operand_ds	<<11	'	CMPR	D,S/#
+ac_cmpm		=	%001010100 | %11 <<9 | operand_ds	<<11	'	CMPM	D,S/#
+ac_subr		=	%001011000 | %11 <<9 | operand_ds	<<11	'	SUBR	D,S/#
+ac_cmpsub	=	%001011100 | %11 <<9 | operand_ds	<<11	'	CMPSUB	D,S/#
+
+ac_fge		=	%001100000 | %11 <<9 | operand_ds	<<11	'	FGE	D,S/#
+ac_fle		=	%001100100 | %11 <<9 | operand_ds	<<11	'	FLE	D,S/#
+ac_fges		=	%001101000 | %11 <<9 | operand_ds	<<11	'	FGES	D,S/#
+ac_fles		=	%001101100 | %11 <<9 | operand_ds	<<11	'	FLES	D,S/#
+
+ac_sumc		=	%001110000 | %11 <<9 | operand_ds	<<11	'	SUMC	D,S/#
+ac_sumnc	=	%001110100 | %11 <<9 | operand_ds	<<11	'	SUMNC	D,S/#
+ac_sumz		=	%001111000 | %11 <<9 | operand_ds	<<11	'	SUMZ	D,S/#
+ac_sumnz	=	%001111100 | %11 <<9 | operand_ds	<<11	'	SUMNZ	D,S/#
+
+ac_bitl		=	%010000000 | %00 <<9 | operand_bitx	<<11	'	BITL	D,S/#
+ac_bith		=	%010000100 | %00 <<9 | operand_bitx	<<11	'	BITH	D,S/#
+ac_bitc		=	%010001000 | %00 <<9 | operand_bitx	<<11	'	BITC	D,S/#
+ac_bitnc	=	%010001100 | %00 <<9 | operand_bitx	<<11	'	BITNC	D,S/#
+ac_bitz		=	%010010000 | %00 <<9 | operand_bitx	<<11	'	BITZ	D,S/#
+ac_bitnz	=	%010010100 | %00 <<9 | operand_bitx	<<11	'	BITNZ	D,S/#
+ac_bitrnd	=	%010011000 | %00 <<9 | operand_bitx	<<11	'	BITRND	D,S/#
+ac_bitnot	=	%010011100 | %00 <<9 | operand_bitx	<<11	'	BITNOT	D,S/#
+
+ac_testb	=	%010000000 | %00 <<9 | operand_testb	<<11	'	TESTB	D,S/#
+ac_testbn	=	%010000100 | %00 <<9 | operand_testb	<<11	'	TESTBN	D,S/#
+
+ac_and		=	%010100000 | %11 <<9 | operand_ds	<<11	'	AND	D,S/#
+ac_andn		=	%010100100 | %11 <<9 | operand_ds	<<11	'	ANDN	D,S/#
+ac_or		=	%010101000 | %11 <<9 | operand_ds	<<11	'	OR	D,S/#
+ac_xor		=	%010101100 | %11 <<9 | operand_ds	<<11	'	XOR	D,S/#
+
+ac_muxc		=	%010110000 | %11 <<9 | operand_ds	<<11	'	MUXC	D,S/#
+ac_muxnc	=	%010110100 | %11 <<9 | operand_ds	<<11	'	MUXNC	D,S/#
+ac_muxz		=	%010111000 | %11 <<9 | operand_ds	<<11	'	MUXZ	D,S/#
+ac_muxnz	=	%010111100 | %11 <<9 | operand_ds	<<11	'	MUXNZ	D,S/#
+
+ac_mov		=	%011000000 | %11 <<9 | operand_ds	<<11	'	MOV	D,S/#
+ac_not		=	%011000100 | %11 <<9 | operand_du	<<11	'	NOT	D{,S/#}
+ac_abs		=	%011001000 | %11 <<9 | operand_du	<<11	'	ABS	D{,S/#}
+ac_neg		=	%011001100 | %11 <<9 | operand_du	<<11	'	NEG	D{,S/#}
+
+ac_negc		=	%011010000 | %11 <<9 | operand_du	<<11	'	NEGC	D{,S/#}
+ac_negnc	=	%011010100 | %11 <<9 | operand_du	<<11	'	NEGNC	D{,S/#}
+ac_negz		=	%011011000 | %11 <<9 | operand_du	<<11	'	NEGZ	D{,S/#}
+ac_negnz	=	%011011100 | %11 <<9 | operand_du	<<11	'	NEGNZ	D{,S/#}
+
+ac_incmod	=	%011100000 | %11 <<9 | operand_ds	<<11	'	INCMOD	D,S/#
+ac_decmod	=	%011100100 | %11 <<9 | operand_ds	<<11	'	DECMOD	D,S/#
+ac_zerox	=	%011101000 | %11 <<9 | operand_ds	<<11	'	ZEROX	D,S/#
+ac_signx	=	%011101100 | %11 <<9 | operand_ds	<<11	'	SIGNX	D,S/#
+
+ac_encod	=	%011110000 | %11 <<9 | operand_du	<<11	'	ENCOD	D{,S/#}
+ac_ones		=	%011110100 | %11 <<9 | operand_du	<<11	'	ONES	D{,S/#}
+ac_test		=	%011111000 | %11 <<9 | operand_du	<<11	'	TEST	D,{S/#}
+ac_testn	=	%011111100 | %11 <<9 | operand_ds	<<11	'	TESTN	D,S/#
+
+ac_setnib	=	%100000000 | %00 <<9 | operand_ds3set	<<11	'	SETNIB	{D,}S/#{,#0..7}
+ac_getnib	=	%100001000 | %00 <<9 | operand_ds3get	<<11	'	GETNIB	D{,S/#,#0..7}
+ac_rolnib	=	%100010000 | %00 <<9 | operand_ds3get	<<11	'	ROLNIB	D{,S/#,#0..7}
+
+ac_setbyte	=	%100011000 | %00 <<9 | operand_ds2set	<<11	'	SETBYTE	{D,}S/#{,#0..3}
+ac_getbyte	=	%100011100 | %00 <<9 | operand_ds2get	<<11	'	GETBYTE	D{,S/#,#0..3}
+ac_rolbyte	=	%100100000 | %00 <<9 | operand_ds2get	<<11	'	ROLBYTE	D{,S/#,#0..3}
+
+ac_setword	=	%100100100 | %00 <<9 | operand_ds1set	<<11	'	SETWORD	{D,}S/#{,#0..1}
+ac_getword	=	%100100110 | %00 <<9 | operand_ds1get	<<11	'	GETWORD	D{,S/#,#0..1}
+ac_rolword	=	%100101000 | %00 <<9 | operand_ds1get	<<11	'	ROLWORD	D{,S/#,#0..1}
+
+ac_altsn	=	%100101010 | %00 <<9 | operand_duiz	<<11	'	ALTSN	D{,S/#}
+ac_altgn	=	%100101011 | %00 <<9 | operand_duiz	<<11	'	ALTGN	D{,S/#}
+ac_altsb	=	%100101100 | %00 <<9 | operand_duiz	<<11	'	ALTSB	D{,S/#}
+ac_altgb	=	%100101101 | %00 <<9 | operand_duiz	<<11	'	ALTGB	D{,S/#}
+ac_altsw	=	%100101110 | %00 <<9 | operand_duiz	<<11	'	ALTSW	D{,S/#}
+ac_altgw	=	%100101111 | %00 <<9 | operand_duiz	<<11	'	ALTGW	D{,S/#}
+ac_altr		=	%100110000 | %00 <<9 | operand_duiz	<<11	'	ALTR	D{,S/#}
+ac_altd		=	%100110001 | %00 <<9 | operand_duiz	<<11	'	ALTD	D{,S/#}
+ac_alts		=	%100110010 | %00 <<9 | operand_duiz	<<11	'	ALTS	D{,S/#}
+ac_altb		=	%100110011 | %00 <<9 | operand_duiz	<<11	'	ALTB	D{,S/#}
+ac_alti		=	%100110100 | %00 <<9 | operand_duii	<<11	'	ALTI	D{,S/#}
+ac_setr		=	%100110101 | %00 <<9 | operand_ds	<<11	'	SETR	D,S/#
+ac_setd		=	%100110110 | %00 <<9 | operand_ds	<<11	'	SETD	D,S/#
+ac_sets		=	%100110111 | %00 <<9 | operand_ds	<<11	'	SETS	D,S/#
+ac_decod	=	%100111000 | %00 <<9 | operand_du	<<11	'	DECOD	D{,S/#}
+ac_bmask	=	%100111001 | %00 <<9 | operand_du	<<11	'	BMASK	D{,S/#}
+ac_crcbit	=	%100111010 | %00 <<9 | operand_ds	<<11	'	CRCBIT	D,S/#
+ac_crcnib	=	%100111011 | %00 <<9 | operand_ds	<<11	'	CRCNIB	D,S/#
+ac_muxnits	=	%100111100 | %00 <<9 | operand_ds	<<11	'	MUXNITS	D,S/#
+ac_muxnibs	=	%100111101 | %00 <<9 | operand_ds	<<11	'	MUXNIBS	D,S/#
+ac_muxq		=	%100111110 | %00 <<9 | operand_ds	<<11	'	MUXQ	D,S/#
+ac_movbyts	=	%100111111 | %00 <<9 | operand_ds	<<11	'	MOVBYTS	D,S/#
+
+ac_mul		=	%101000000 | %01 <<9 | operand_ds	<<11	'	MUL	D,S/#
+ac_muls		=	%101000010 | %01 <<9 | operand_ds	<<11	'	MULS	D,S/#
+ac_sca		=	%101000100 | %01 <<9 | operand_ds	<<11	'	SCA	D,S/#
+ac_scas		=	%101000110 | %01 <<9 | operand_ds	<<11	'	SCAS	D,S/#
+
+ac_addpix	=	%101001000 | %00 <<9 | operand_ds	<<11	'	ADDPIX	D,S/#
+ac_mulpix	=	%101001001 | %00 <<9 | operand_ds	<<11	'	MULPIX	D,S/#
+ac_blnpix	=	%101001010 | %00 <<9 | operand_ds	<<11	'	BLNPIX	D,S/#
+ac_mixpix	=	%101001011 | %00 <<9 | operand_ds	<<11	'	MIXPIX	D,S/#
+
+ac_addct1	=	%101001100 | %00 <<9 | operand_ds	<<11	'	ADDCT1	D,S/#
+ac_addct2	=	%101001101 | %00 <<9 | operand_ds	<<11	'	ADDCT2	D,S/#
+ac_addct3	=	%101001110 | %00 <<9 | operand_ds	<<11	'	ADDCT3	D,S/#
+ac_wmlong	=	%101001111 | %00 <<9 | operand_dsp	<<11	'	WMLONG	D,S/#/PTRx
+
+ac_rqpin	=	%101010000 | %10 <<9 | operand_ds	<<11	'	RQPIN	D,S/#
+ac_rdpin	=	%101010001 | %10 <<9 | operand_ds	<<11	'	RDPIN	D,S/#
+ac_rdlut	=	%101010100 | %11 <<9 | operand_dsp	<<11	'	RDLUT	D,S/#/PTRx
+
+ac_rdbyte	=	%101011000 | %11 <<9 | operand_dsp	<<11	'	RDBYTE	D,S/#/PTRx
+ac_rdword	=	%101011100 | %11 <<9 | operand_dsp	<<11	'	RDWORD	D,S/#/PTRx
+ac_rdlong	=	%101100000 | %11 <<9 | operand_dsp	<<11	'	RDLONG	D,S/#/PTRx
+
+ac_callpa	=	%101101000 | %00 <<9 | operand_lsj	<<11	'	CALLPA	D/#,S/#
+ac_callpb	=	%101101010 | %00 <<9 | operand_lsj	<<11	'	CALLPB	D/#,S/#
+
+ac_djz		=	%101101100 | %00 <<9 | operand_dsj	<<11	'	DJZ	D,S/#
+ac_djnz		=	%101101101 | %00 <<9 | operand_dsj	<<11	'	DJNZ	D,S/#
+ac_djf		=	%101101110 | %00 <<9 | operand_dsj	<<11	'	DJF	D,S/#
+ac_djnf		=	%101101111 | %00 <<9 | operand_dsj	<<11	'	DJNF	D,S/#
+
+ac_ijz		=	%101110000 | %00 <<9 | operand_dsj	<<11	'	IJZ	D,S/#
+ac_ijnz		=	%101110001 | %00 <<9 | operand_dsj	<<11	'	IJNZ	D,S/#
+
+ac_tjz		=	%101110010 | %00 <<9 | operand_dsj	<<11	'	TJZ	D,S/#
+ac_tjnz		=	%101110011 | %00 <<9 | operand_dsj	<<11	'	TJNZ	D,S/#
+ac_tjf		=	%101110100 | %00 <<9 | operand_dsj	<<11	'	TJF	D,S/#
+ac_tjnf		=	%101110101 | %00 <<9 | operand_dsj	<<11	'	TJNF	D,S/#
+ac_tjs		=	%101110110 | %00 <<9 | operand_dsj	<<11	'	TJS	D,S/#
+ac_tjns		=	%101110111 | %00 <<9 | operand_dsj	<<11	'	TJNS	D,S/#
+ac_tjv		=	%101111000 | %00 <<9 | operand_dsj	<<11	'	TJV	D,S/#
+
+ac_jint		=	%000000000 | %00 <<9 | operand_jpoll	<<11	'	JINT	S/#
+ac_jct1		=	%000000001 | %00 <<9 | operand_jpoll	<<11	'	JCT1	S/#
+ac_jct2		=	%000000010 | %00 <<9 | operand_jpoll	<<11	'	JCT2	S/#
+ac_jct3		=	%000000011 | %00 <<9 | operand_jpoll	<<11	'	JCT3	S/#
+ac_jse1		=	%000000100 | %00 <<9 | operand_jpoll	<<11	'	JSE1	S/#
+ac_jse2		=	%000000101 | %00 <<9 | operand_jpoll	<<11	'	JSE2	S/#
+ac_jse3		=	%000000110 | %00 <<9 | operand_jpoll	<<11	'	JSE3	S/#
+ac_jse4		=	%000000111 | %00 <<9 | operand_jpoll	<<11	'	JSE4	S/#
+ac_jpat		=	%000001000 | %00 <<9 | operand_jpoll	<<11	'	JPAT	S/#
+ac_jfbw		=	%000001001 | %00 <<9 | operand_jpoll	<<11	'	JFBW	S/#
+ac_jxmt		=	%000001010 | %00 <<9 | operand_jpoll	<<11	'	JXMT	S/#
+ac_jxfi		=	%000001011 | %00 <<9 | operand_jpoll	<<11	'	JXFI	S/#
+ac_jxro		=	%000001100 | %00 <<9 | operand_jpoll	<<11	'	JXRO	S/#
+ac_jxrl		=	%000001101 | %00 <<9 | operand_jpoll	<<11	'	JXRL	S/#
+ac_jatn		=	%000001110 | %00 <<9 | operand_jpoll	<<11	'	JATN	S/#
+ac_jqmt		=	%000001111 | %00 <<9 | operand_jpoll	<<11	'	JQMT	S/#
+
+ac_jnint	=	%000010000 | %00 <<9 | operand_jpoll	<<11	'	JNINT	S/#
+ac_jnct1	=	%000010001 | %00 <<9 | operand_jpoll	<<11	'	JNCT1	S/#
+ac_jnct2	=	%000010010 | %00 <<9 | operand_jpoll	<<11	'	JNCT2	S/#
+ac_jnct3	=	%000010011 | %00 <<9 | operand_jpoll	<<11	'	JNCT3	S/#
+ac_jnse1	=	%000010100 | %00 <<9 | operand_jpoll	<<11	'	JNSE1	S/#
+ac_jnse2	=	%000010101 | %00 <<9 | operand_jpoll	<<11	'	JNSE2	S/#
+ac_jnse3	=	%000010110 | %00 <<9 | operand_jpoll	<<11	'	JNSE3	S/#
+ac_jnse4	=	%000010111 | %00 <<9 | operand_jpoll	<<11	'	JNSE4	S/#
+ac_jnpat	=	%000011000 | %00 <<9 | operand_jpoll	<<11	'	JNPAT	S/#
+ac_jnfbw	=	%000011001 | %00 <<9 | operand_jpoll	<<11	'	JNFBW	S/#
+ac_jnxmt	=	%000011010 | %00 <<9 | operand_jpoll	<<11	'	JNXMT	S/#
+ac_jnxfi	=	%000011011 | %00 <<9 | operand_jpoll	<<11	'	JNXFI	S/#
+ac_jnxro	=	%000011100 | %00 <<9 | operand_jpoll	<<11	'	JNXRO	S/#
+ac_jnxrl	=	%000011101 | %00 <<9 | operand_jpoll	<<11	'	JNXRL	S/#
+ac_jnatn	=	%000011110 | %00 <<9 | operand_jpoll	<<11	'	JNATN	S/#
+ac_jnqmt	=	%000011111 | %00 <<9 | operand_jpoll	<<11	'	JNQMT	S/#
+
+ac_empty1	=	%101111010 | %00 <<9 | operand_ls	<<11	'	<empty>	D/#,S/#
+ac_empty2	=	%101111100 | %00 <<9 | operand_ls	<<11	'	<empty>	D/#,S/#
+ac_setpat	=	%101111110 | %00 <<9 | operand_ls	<<11	'	SETPAT	D/#,S/#
+
+ac_wrpin	=	%110000000 | %00 <<9 | operand_ls	<<11	'	WRPIN	D/#,S/#
+ac_wxpin	=	%110000010 | %00 <<9 | operand_ls	<<11	'	WXPIN	D/#,S/#
+ac_wypin	=	%110000100 | %00 <<9 | operand_ls	<<11	'	WYPIN	D/#,S/#
+ac_wrlut	=	%110000110 | %00 <<9 | operand_lsp	<<11	'	WRLUT	D/#,S/#/PTRx
+
+ac_wrbyte	=	%110001000 | %00 <<9 | operand_lsp	<<11	'	WRBYTE	D/#,S/#/PTRx
+ac_wrword	=	%110001010 | %00 <<9 | operand_lsp	<<11	'	WRWORD	D/#,S/#/PTRx
+ac_wrlong	=	%110001100 | %00 <<9 | operand_lsp	<<11	'	WRLONG	D/#,S/#/PTRx
+
+ac_rdfast	=	%110001110 | %00 <<9 | operand_ls	<<11	'	RDFAST	D/#,S/#
+ac_wrfast	=	%110010000 | %00 <<9 | operand_ls	<<11	'	WRFAST	D/#,S/#
+ac_fblock	=	%110010010 | %00 <<9 | operand_ls	<<11	'	FBLOCK	D/#,S/#
+
+ac_xinit	=	%110010100 | %00 <<9 | operand_ls	<<11	'	XINIT	D/#,S/#
+ac_xzero	=	%110010110 | %00 <<9 | operand_ls	<<11	'	XZERO	D/#,S/#
+ac_xcont	=	%110011000 | %00 <<9 | operand_ls	<<11	'	XCONT	D/#,S/#
+
+ac_rep		=	%110011010 | %00 <<9 | operand_rep	<<11	'	REP	D/#/@,S/#
+
+ac_coginit	=	%110011100 | %10 <<9 | operand_ls	<<11	'	COGINIT	D/#,S/#
+ac_qmul		=	%110100000 | %00 <<9 | operand_ls	<<11	'	QMUL	D/#,S/#
+ac_qdiv		=	%110100010 | %00 <<9 | operand_ls	<<11	'	QDIV	D/#,S/#
+ac_qfrac	=	%110100100 | %00 <<9 | operand_ls	<<11	'	QFRAC	D/#,S/#
+ac_qsqrt	=	%110100110 | %00 <<9 | operand_ls	<<11	'	QSQRT	D/#,S/#
+ac_qrotate	=	%110101000 | %00 <<9 | operand_ls	<<11	'	QROTATE	D/#,S/#
+ac_qvector	=	%110101010 | %00 <<9 | operand_ls	<<11	'	QVECTOR	D/#,S/#
+
+ac_hubset	=	%000000000 | %00 <<9 | operand_l	<<11	'	HUBSET	D/#
+ac_cogid	=	%000000001 | %10 <<9 | operand_l	<<11	'	COGID	D/#
+ac_cogstop	=	%000000011 | %00 <<9 | operand_l	<<11	'	COGSTOP	D/#
+ac_locknew	=	%000000100 | %10 <<9 | operand_d	<<11	'	LOCKNEW	D
+ac_lockret	=	%000000101 | %00 <<9 | operand_l	<<11	'	LOCKRET	D/#
+ac_locktry	=	%000000110 | %10 <<9 | operand_l	<<11	'	LOCKTRY	D/#
+ac_lockrel	=	%000000111 | %10 <<9 | operand_l	<<11	'	LOCKREL	D/#
+ac_qlog		=	%000001110 | %00 <<9 | operand_l	<<11	'	QLOG	D/#
+ac_qexp		=	%000001111 | %00 <<9 | operand_l	<<11	'	QEXP	D/#
+
+ac_rfbyte	=	%000010000 | %11 <<9 | operand_d	<<11	'	RFBYTE	D
+ac_rfword	=	%000010001 | %11 <<9 | operand_d	<<11	'	RFWORD	D
+ac_rflong	=	%000010010 | %11 <<9 | operand_d	<<11	'	RFLONG	D
+ac_rfvar	=	%000010011 | %11 <<9 | operand_d	<<11	'	RFVAR	D
+ac_rfvars	=	%000010100 | %11 <<9 | operand_d	<<11	'	RFVARS	D
+
+ac_wfbyte	=	%000010101 | %00 <<9 | operand_l	<<11	'	WFBYTE	D/#
+ac_wfword	=	%000010110 | %00 <<9 | operand_l	<<11	'	WFWORD	D/#
+ac_wflong	=	%000010111 | %00 <<9 | operand_l	<<11	'	WFLONG	D/#
+
+ac_getqx	=	%000011000 | %11 <<9 | operand_d	<<11	'	GETQX	D
+ac_getqy	=	%000011001 | %11 <<9 | operand_d	<<11	'	GETQY	D
+
+ac_getct	=	%000011010 | %10 <<9 | operand_d	<<11	'	GETCT	D
+ac_getrnd	=	%000011011 | %11 <<9 | operand_de	<<11	'	GETRND	D
+
+ac_setdacs	=	%000011100 | %00 <<9 | operand_l	<<11	'	SETDACS	D/#
+ac_setxfrq	=	%000011101 | %00 <<9 | operand_l	<<11	'	SETXFRQ	D/#
+ac_getxacc	=	%000011110 | %00 <<9 | operand_d	<<11	'	GETXACC	D
+ac_waitx	=	%000011111 | %11 <<9 | operand_l	<<11	'	WAITX	D/#
+
+ac_setse1	=	%000100000 | %00 <<9 | operand_l	<<11	'	SETSE1	D/#
+ac_setse2	=	%000100001 | %00 <<9 | operand_l	<<11	'	SETSE2	D/#
+ac_setse3	=	%000100010 | %00 <<9 | operand_l	<<11	'	SETSE3	D/#
+ac_setse4	=	%000100011 | %00 <<9 | operand_l	<<11	'	SETSE4	D/#
+
+ac_pollint	=	%000000000 | %11 <<9 | operand_pollwait	<<11	'	POLLINT
+ac_pollct1	=	%000000001 | %11 <<9 | operand_pollwait	<<11	'	POLLCT1
+ac_pollct2	=	%000000010 | %11 <<9 | operand_pollwait	<<11	'	POLLCT2
+ac_pollct3	=	%000000011 | %11 <<9 | operand_pollwait	<<11	'	POLLCT3
+ac_pollse1	=	%000000100 | %11 <<9 | operand_pollwait	<<11	'	POLLSE1
+ac_pollse2	=	%000000101 | %11 <<9 | operand_pollwait	<<11	'	POLLSE2
+ac_pollse3	=	%000000110 | %11 <<9 | operand_pollwait	<<11	'	POLLSE3
+ac_pollse4	=	%000000111 | %11 <<9 | operand_pollwait	<<11	'	POLLSE4
+ac_pollpat	=	%000001000 | %11 <<9 | operand_pollwait	<<11	'	POLLPAT
+ac_pollfbw	=	%000001001 | %11 <<9 | operand_pollwait	<<11	'	POLLFBW
+ac_pollxmt	=	%000001010 | %11 <<9 | operand_pollwait	<<11	'	POLLXMT
+ac_pollxfi	=	%000001011 | %11 <<9 | operand_pollwait	<<11	'	POLLXFI
+ac_pollxro	=	%000001100 | %11 <<9 | operand_pollwait	<<11	'	POLLXRO
+ac_pollxrl	=	%000001101 | %11 <<9 | operand_pollwait	<<11	'	POLLXRL
+ac_pollatn	=	%000001110 | %11 <<9 | operand_pollwait	<<11	'	POLLATN
+ac_pollqmt	=	%000001111 | %11 <<9 | operand_pollwait	<<11	'	POLLQMT
+
+ac_waitint	=	%000010000 | %11 <<9 | operand_pollwait	<<11	'	WAITINT
+ac_waitct1	=	%000010001 | %11 <<9 | operand_pollwait	<<11	'	WAITCT1
+ac_waitct2	=	%000010010 | %11 <<9 | operand_pollwait	<<11	'	WAITCT2
+ac_waitct3	=	%000010011 | %11 <<9 | operand_pollwait	<<11	'	WAITCT3
+ac_waitse1	=	%000010100 | %11 <<9 | operand_pollwait	<<11	'	WAITSE1
+ac_waitse2	=	%000010101 | %11 <<9 | operand_pollwait	<<11	'	WAITSE2
+ac_waitse3	=	%000010110 | %11 <<9 | operand_pollwait	<<11	'	WAITSE3
+ac_waitse4	=	%000010111 | %11 <<9 | operand_pollwait	<<11	'	WAITSE4
+ac_waitpat	=	%000011000 | %11 <<9 | operand_pollwait	<<11	'	WAITPAT
+ac_waitfbw	=	%000011001 | %11 <<9 | operand_pollwait	<<11	'	WAITFBW
+ac_waitxmt	=	%000011010 | %11 <<9 | operand_pollwait	<<11	'	WAITXMT
+ac_waitxfi	=	%000011011 | %11 <<9 | operand_pollwait	<<11	'	WAITXFI
+ac_waitxro	=	%000011100 | %11 <<9 | operand_pollwait	<<11	'	WAITXRO
+ac_waitxrl	=	%000011101 | %11 <<9 | operand_pollwait	<<11	'	WAITXRL
+ac_waitatn	=	%000011110 | %11 <<9 | operand_pollwait	<<11	'	WAITATN
+
+ac_allowi	=	%000100000 | %00 <<9 | operand_pollwait	<<11	'	ALLOWI
+ac_stalli	=	%000100001 | %00 <<9 | operand_pollwait	<<11	'	STALLI
+
+ac_trgint1	=	%000100010 | %00 <<9 | operand_pollwait	<<11	'	TRGINT1
+ac_trgint2	=	%000100011 | %00 <<9 | operand_pollwait	<<11	'	TRGINT2
+ac_trgint3	=	%000100100 | %00 <<9 | operand_pollwait	<<11	'	TRGINT3
+
+ac_nixint1	=	%000100101 | %00 <<9 | operand_pollwait	<<11	'	NIXINT1
+ac_nixint2	=	%000100110 | %00 <<9 | operand_pollwait	<<11	'	NIXINT2
+ac_nixint3	=	%000100111 | %00 <<9 | operand_pollwait	<<11	'	NIXINT3
+
+ac_setint1	=	%000100101 | %00 <<9 | operand_l	<<11	'	SETINT1	D/#
+ac_setint2	=	%000100110 | %00 <<9 | operand_l	<<11	'	SETINT2	D/#
+ac_setint3	=	%000100111 | %00 <<9 | operand_l	<<11	'	SETINT3	D/#
+
+ac_setq		=	%000101000 | %00 <<9 | operand_l	<<11	'	SETQ	D/#
+ac_setq2	=	%000101001 | %00 <<9 | operand_l	<<11	'	SETQ2	D/#
+ac_push		=	%000101010 | %00 <<9 | operand_l	<<11	'	PUSH	D/#
+ac_pop		=	%000101011 | %11 <<9 | operand_d	<<11	'	POP	D
+
+ac_jmprel	=	%000110000 | %00 <<9 | operand_l	<<11	'	JMPREL	D/#
+ac_skip		=	%000110001 | %00 <<9 | operand_l	<<11	'	SKIP	D/#
+ac_skipf	=	%000110010 | %00 <<9 | operand_l	<<11	'	SKIPF	D/#
+ac_execf	=	%000110011 | %00 <<9 | operand_l	<<11	'	EXECF	D/#
+
+ac_getptr	=	%000110100 | %00 <<9 | operand_d	<<11	'	GETPTR	D
+ac_getbrk	=	%000110101 | %11 <<9 | operand_getbrk	<<11	'	GETBRK	D
+ac_cogbrk	=	%000110101 | %00 <<9 | operand_l	<<11	'	COGBRK	D/#
+ac_brk		=	%000110110 | %00 <<9 | operand_l	<<11	'	BRK	D/#
+
+ac_setluts	=	%000110111 | %00 <<9 | operand_l	<<11	'	SETLUTS	D/#
+
+ac_setcy	=	%000111000 | %00 <<9 | operand_l	<<11	'	SETCY	D/#
+ac_setci	=	%000111001 | %00 <<9 | operand_l	<<11	'	SETCI	D/#
+ac_setcq	=	%000111010 | %00 <<9 | operand_l	<<11	'	SETCQ	D/#
+ac_setcfrq	=	%000111011 | %00 <<9 | operand_l	<<11	'	SETCFRQ	D/#
+ac_setcmod	=	%000111100 | %00 <<9 | operand_l	<<11	'	SETCMOD	D/#
+
+ac_setpiv	=	%000111101 | %00 <<9 | operand_l	<<11	'	SETPIV	D/#
+ac_setpix	=	%000111110 | %00 <<9 | operand_l	<<11	'	SETPIX	D/#
+
+ac_cogatn	=	%000111111 | %00 <<9 | operand_l	<<11	'	COGATN	D/#
+
+ac_testp	=	%001000000 | %00 <<9 | operand_testp	<<11	'	TESTP	D/#
+ac_testpn	=	%001000001 | %00 <<9 | operand_testp	<<11	'	TESTPN	D/#
+
+ac_dirl		=	%001000000 | %00 <<9 | operand_pinop	<<11	'	DIRL	D/#
+ac_dirh		=	%001000001 | %00 <<9 | operand_pinop	<<11	'	DIRH	D/#
+ac_dirc		=	%001000010 | %00 <<9 | operand_pinop	<<11	'	DIRC	D/#
+ac_dirnc	=	%001000011 | %00 <<9 | operand_pinop	<<11	'	DIRNC	D/#
+ac_dirz		=	%001000100 | %00 <<9 | operand_pinop	<<11	'	DIRZ	D/#
+ac_dirnz	=	%001000101 | %00 <<9 | operand_pinop	<<11	'	DIRNZ	D/#
+ac_dirrnd	=	%001000110 | %00 <<9 | operand_pinop	<<11	'	DIRRND	D/#
+ac_dirnot	=	%001000111 | %00 <<9 | operand_pinop	<<11	'	DIRNOT	D/#
+
+ac_outl		=	%001001000 | %00 <<9 | operand_pinop	<<11	'	OUTL	D/#
+ac_outh		=	%001001001 | %00 <<9 | operand_pinop	<<11	'	OUTH	D/#
+ac_outc		=	%001001010 | %00 <<9 | operand_pinop	<<11	'	OUTC	D/#
+ac_outnc	=	%001001011 | %00 <<9 | operand_pinop	<<11	'	OUTNC	D/#
+ac_outz		=	%001001100 | %00 <<9 | operand_pinop	<<11	'	OUTZ	D/#
+ac_outnz	=	%001001101 | %00 <<9 | operand_pinop	<<11	'	OUTNZ	D/#
+ac_outrnd	=	%001001110 | %00 <<9 | operand_pinop	<<11	'	OUTRND	D/#
+ac_outnot	=	%001001111 | %00 <<9 | operand_pinop	<<11	'	OUTNOT	D/#
+
+ac_fltl		=	%001010000 | %00 <<9 | operand_pinop	<<11	'	FLTL	D/#
+ac_flth		=	%001010001 | %00 <<9 | operand_pinop	<<11	'	FLTH	D/#
+ac_fltc		=	%001010010 | %00 <<9 | operand_pinop	<<11	'	FLTC	D/#
+ac_fltnc	=	%001010011 | %00 <<9 | operand_pinop	<<11	'	FLTNC	D/#
+ac_fltz		=	%001010100 | %00 <<9 | operand_pinop	<<11	'	FLTZ	D/#
+ac_fltnz	=	%001010101 | %00 <<9 | operand_pinop	<<11	'	FLTNZ	D/#
+ac_fltrnd	=	%001010110 | %00 <<9 | operand_pinop	<<11	'	FLTRND	D/#
+ac_fltnot	=	%001010111 | %00 <<9 | operand_pinop	<<11	'	FLTNOT	D/#
+
+ac_drvl		=	%001011000 | %00 <<9 | operand_pinop	<<11	'	DRVL	D/#
+ac_drvh		=	%001011001 | %00 <<9 | operand_pinop	<<11	'	DRVH	D/#
+ac_drvc		=	%001011010 | %00 <<9 | operand_pinop	<<11	'	DRVC	D/#
+ac_drvnc	=	%001011011 | %00 <<9 | operand_pinop	<<11	'	DRVNC	D/#
+ac_drvz		=	%001011100 | %00 <<9 | operand_pinop	<<11	'	DRVZ	D/#
+ac_drvnz	=	%001011101 | %00 <<9 | operand_pinop	<<11	'	DRVNZ	D/#
+ac_drvrnd	=	%001011110 | %00 <<9 | operand_pinop	<<11	'	DRVRND	D/#
+ac_drvnot	=	%001011111 | %00 <<9 | operand_pinop	<<11	'	DRVNOT	D/#
+
+ac_splitb	=	%001100000 | %00 <<9 | operand_d	<<11	'	SPLITB	D
+ac_mergeb	=	%001100001 | %00 <<9 | operand_d	<<11	'	MERGEB	D
+ac_splitw	=	%001100010 | %00 <<9 | operand_d	<<11	'	SPLITW	D
+ac_mergew	=	%001100011 | %00 <<9 | operand_d	<<11	'	MERGEW	D
+ac_seussf	=	%001100100 | %00 <<9 | operand_d	<<11	'	SEUSSF	D
+ac_seussr	=	%001100101 | %00 <<9 | operand_d	<<11	'	SEUSSR	D
+ac_rgbsqz	=	%001100110 | %00 <<9 | operand_d	<<11	'	RGBSQZ	D
+ac_rgbexp	=	%001100111 | %00 <<9 | operand_d	<<11	'	RGBEXP	D
+ac_xoro32	=	%001101000 | %00 <<9 | operand_d	<<11	'	XORO32	D
+ac_rev		=	%001101001 | %00 <<9 | operand_d	<<11	'	REV	D
+ac_rczr		=	%001101010 | %11 <<9 | operand_d	<<11	'	RCZR	D
+ac_rczl		=	%001101011 | %11 <<9 | operand_d	<<11	'	RCZL	D
+ac_wrc		=	%001101100 | %00 <<9 | operand_d	<<11	'	WRC	D
+ac_wrnc		=	%001101101 | %00 <<9 | operand_d	<<11	'	WRNC	D
+ac_wrz		=	%001101110 | %00 <<9 | operand_d	<<11	'	WRZ	D
+ac_wrnz		=	%001101111 | %00 <<9 | operand_d	<<11	'	WRNZ	D
+ac_modcz	=	%001101111 | %11 <<9 | operand_cz	<<11	'	MODCZ	c,z
+ac_modc		=	%001101111 | %10 <<9 | operand_cz	<<11	'	MODC	c
+ac_modz		=	%001101111 | %01 <<9 | operand_cz	<<11	'	MODZ	z
+
+ac_setscp	=	%001110000 | %00 <<9 | operand_l	<<11	'	SETSCP	D/#
+ac_getscp	=	%001110001 | %00 <<9 | operand_d	<<11	'	GETSCP	D
+
+ac_jmp		=	%110110000 | %00 <<9 | operand_jmp	<<11	'	JMP	# <or> D
+ac_call		=	%110110100 | %00 <<9 | operand_call	<<11	'	CALL	# <or> D
+ac_calla	=	%110111000 | %00 <<9 | operand_call	<<11	'	CALLA	# <or> D
+ac_callb	=	%110111100 | %00 <<9 | operand_call	<<11	'	CALLB	# <or> D
+ac_calld	=	%111000000 | %00 <<9 | operand_calld	<<11	'	CALLD	reg,# / D,S
+ac_loc		=	%111010000 | %00 <<9 | operand_loc	<<11	'	LOC	reg,#
+
+ac_augs		=	%111100000 | %00 <<9 | operand_aug	<<11	'	AUGS	#
+ac_augd		=	%111110000 | %00 <<9 | operand_aug	<<11	'	AUGD	#
+
+
+ac_pusha	=	pp_pusha   | %00 <<9 | operand_pushpop	<<11	'	PUSHA	D/#	alias instructions
+ac_pushb	=	pp_pushb   | %00 <<9 | operand_pushpop	<<11	'	PUSHB	D/#
+ac_popa		=	pp_popa    | %11 <<9 | operand_pushpop	<<11	'	POPA	D
+ac_popb		=	pp_popb    | %11 <<9 | operand_pushpop	<<11	'	POPB	D
+
+ac_ret		=	0	   | %11 <<9 | operand_xlat	<<11	'	RET
+ac_reta		=	1	   | %11 <<9 | operand_xlat	<<11	'	RETA
+ac_retb		=	2	   | %11 <<9 | operand_xlat	<<11	'	RETB
+ac_reti0	=	3	   | %00 <<9 | operand_xlat	<<11	'	RETI0
+ac_reti1	=	4	   | %00 <<9 | operand_xlat	<<11	'	RETI1
+ac_reti2	=	5	   | %00 <<9 | operand_xlat	<<11	'	RETI2
+ac_reti3	=	6	   | %00 <<9 | operand_xlat	<<11	'	RETI3
+ac_resi0	=	7	   | %00 <<9 | operand_xlat	<<11	'	RESI0
+ac_resi1	=	8	   | %00 <<9 | operand_xlat	<<11	'	RESI1
+ac_resi2	=	9	   | %00 <<9 | operand_xlat	<<11	'	RESI2
+ac_resi3	=	10	   | %00 <<9 | operand_xlat	<<11	'	RESI3
+ac_xstop	=	11	   | %00 <<9 | operand_xlat	<<11	'	XSTOP
+
+ac_akpin	=	0	   | %00 <<9 | operand_akpin	<<11	'	AKPIN	S/#
+
+ac_nop		=	%000000000 | %00 <<9 | operand_nop	<<11	'	NOP
+'
+'
+' Types
+'
+#0
+type_undefined		'	(undefined symbol, must be 0)
+type_string		'	"Hello" --> "H","e","l","l","o"
+type_left		'	(
+type_right		'	)
+type_leftb		'	[
+type_rightb		'	]
+type_comma		'	,
+type_equal		'	=
+type_pound		'	#
+type_colon		'	:
+type_back		'	\
+type_under		'	_
+type_dot		'	.
+type_dotdot		'	..
+type_at			'	@
+type_atat		'	@@
+type_til		'	~
+type_tiltil		'	~~
+type_inc		'	++
+type_dec		'	--
+type_rnd		'	??
+type_assign		'	:=
+type_op			'	!, -, ABS, ENC, etc.
+type_float		'	FLOAT
+type_round		'	ROUND
+type_trunc		'	TRUNC
+type_constr		'	STRING
+type_block		'	CON, VAR, DAT, OBJ, PUB, PRI
+type_size		'	BYTE, WORD, LONG
+type_fvar		'	FVAR, FVARS
+type_precompile		'	PRECOMPILE
+type_archive		'	ARCHIVE
+type_file		'	FILE
+type_if			'	IF
+type_ifnot		'	IFNOT
+type_elseif		'	ELSEIF
+type_elseifnot		'	ELSEIFNOT
+type_else		'	ELSE
+type_case		'	CASE
+type_case_fast		'	CASE_FAST
+type_other		'	OTHER
+type_repeat		'	REPEAT
+type_repeat_var		'	REPEAT var   - different QUIT method
+type_repeat_count	'	REPEAT count - different QUIT method
+type_while		'	WHILE
+type_until		'	UNTIL
+type_from		'	FROM
+type_to			'	TO
+type_step		'	STEP
+type_i_next_quit	'	NEXT/QUIT
+type_i_return		'	RETURN
+type_i_abort		'	ABORT
+type_i_look		'	LOOKUPZ/LOOKUP/LOOKDOWNZ/LOOKDOWN
+type_i_cogspin		'	COGSPIN
+type_i_flex		'	HUBSET, COGINIT, COGSTOP...
+type_send		'	SEND
+type_asm_org		'	$ (without a hex digit following)
+type_asm_end		'	END
+type_asm_dir		'	ORGH, ORG, ORGF, RES, FIT
+type_asm_cond		'	IF_C, IF_Z, IF_NC, etc
+type_asm_inst		'	RDBYTE, RDWORD, RDLONG, etc.
+type_asm_effect		'	WC, WZ, WCZ
+type_asm_effect2	'	ANDC, ANDZ, ORC, ORZ, XORC, XORZ
+type_reg		'	REG
+type_con		'	user constant integer (must be followed by type_con_float)
+type_con_float		'	user constant float
+type_register		'	user long register
+type_loc_byte		'	user byte local
+type_loc_word		'	user word local
+type_loc_long		'	user long local
+type_var_byte		'V0	user byte var
+type_var_word		'V1	user word var
+type_var_long		'V2	user long var
+type_dat_byte		'D0	user byte dat
+type_dat_word		'D1	user word dat
+type_dat_long		'D2	user long dat
+type_dat_long_res	'(D2)	user res dat (must follow type_dat_long)
+type_hub_byte		'H0	user byte hub
+type_hub_word		'H1	user word hub
+type_hub_long		'H2	user long hub
+type_obj		'	user object
+type_objpub		'	user object.subroutine
+type_objcon		'	user object.constant (must be followed by type_objcon_float)
+type_objcon_float	'	user object.constant float
+type_method		'	user method
+type_end		'	end-of-line c=0, end-of-file c=1
+'
+'
+' Bytecodes
+'
+#0			'main bytecodes
+bc_drop
+bc_drop_push
+bc_drop_trap
+bc_drop_trap_push
+
+bc_return_results
+bc_return_args
+
+bc_abort_0
+bc_abort_arg
+
+bc_call_obj_sub
+bc_call_obji_sub
+bc_call_sub
+bc_call_ptr
+bc_call_send
+bc_call_send_bytes
+
+bc_mptr_obj_sub
+bc_mptr_obji_sub
+bc_mptr_sub
+
+bc_jmp
+bc_jz
+bc_jnz
+bc_tjz
+bc_djnz
+
+bc_case_fast_init
+bc_case_fast_done
+
+bc_case_value
+bc_case_range
+bc_case_done
+
+bc_lookup_value
+bc_lookdown_value
+bc_lookup_range
+bc_lookdown_range
+bc_look_done
+
+bc_pop
+bc_pop_rfvar
+
+bc_hub_bytecode
+
+bc_add_pbase
+
+bc_hubset
+
+bc_coginit
+bc_coginit_push
+bc_cogstop
+bc_cogid
+bc_cogchk
+
+bc_locknew
+bc_lockret
+bc_locktry
+bc_lockrel
+bc_lockchk
+
+bc_cogatn
+bc_pollatn
+bc_waitatn
+
+bc_getrnd
+bc_getct
+bc_pollct
+bc_waitct
+
+bc_pinwrite
+bc_pinlow
+bc_pinhigh
+bc_pintoggle
+bc_pinfloat
+bc_pinread
+
+bc_pinstart
+bc_pinclear
+
+bc_wrpin
+bc_wxpin
+bc_wypin
+bc_akpin
+bc_rdpin
+bc_rqpin
+
+bc_debug
+
+bc_con_rfbyte
+bc_con_rfbyte_not
+bc_con_rfword
+bc_con_rfword_not
+bc_con_rflong
+bc_con_rfbyte_decod
+bc_con_rfbyte_decod_not
+bc_con_rfbyte_bmask
+bc_con_rfbyte_bmask_not
+
+bc_setup_reg
+bc_setup_reg_pi
+
+bc_setup_byte_pbase
+bc_setup_byte_vbase
+bc_setup_byte_dbase
+
+bc_setup_byte_pbase_pi
+bc_setup_byte_vbase_pi
+bc_setup_byte_dbase_pi
+
+bc_setup_word_pbase
+bc_setup_word_vbase
+bc_setup_word_dbase
+
+bc_setup_word_pbase_pi
+bc_setup_word_vbase_pi
+bc_setup_word_dbase_pi
+
+bc_setup_long_pbase
+bc_setup_long_vbase
+bc_setup_long_dbase
+
+bc_setup_long_pbase_pi
+bc_setup_long_vbase_pi
+bc_setup_long_dbase_pi
+
+bc_setup_byte_pb_pi
+bc_setup_word_pb_pi
+bc_setup_long_pb_pi
+
+bc_setup_byte_pa
+bc_setup_word_pa
+bc_setup_long_pa
+
+bc_rotxy
+bc_polxy
+bc_xypol
+
+bc_ternary
+
+bc_lt
+bc_ltu
+bc_lte
+bc_lteu
+bc_e
+bc_ne
+bc_gte
+bc_gteu
+bc_gt
+bc_gtu
+bc_ltegt
+
+bc_lognot
+bc_bitnot
+bc_neg
+bc_abs
+bc_encod
+bc_decod
+bc_bmask
+bc_ones
+bc_sqrt
+bc_qlog
+bc_qexp
+
+bc_shr
+bc_shl
+bc_sar
+bc_ror
+bc_rol
+bc_rev
+bc_zerox
+bc_signx
+bc_add
+bc_sub
+
+bc_logand
+bc_logxor
+bc_logor
+bc_bitand
+bc_bitxor
+bc_bitor
+bc_fge
+bc_fle
+bc_addbits
+bc_addpins
+
+bc_mul
+bc_div
+bc_divu
+bc_rem
+bc_remu
+bc_sca
+bc_scas
+bc_frac
+
+bc_string
+bc_bitrange
+
+bc_con_n1		[16]
+bc_setup_reg_1D8_1F8	[16]
+bc_setup_var_0_15	[16]
+bc_setup_local_0_15	[16]
+bc_read_local_0_15	[16]
+bc_write_local_0_15	[16]
+
+#$7C			'variable-operator bytecodes
+bc_repeat_var_init_1
+bc_repeat_var_init
+bc_repeat_var_loop
+
+bc_addr
+bc_read
+bc_write
+bc_write_push
+
+bc_var_inc
+bc_var_dec
+bc_var_preinc_push
+bc_var_predec_push
+bc_var_postinc_push
+bc_var_postdec_push
+bc_var_lognot
+bc_var_lognot_push
+bc_var_bitnot
+bc_var_bitnot_push
+bc_var_swap
+bc_var_rnd
+bc_var_rnd_push
+
+bc_lognot_write
+bc_bitnot_write
+bc_neg_write
+bc_abs_write
+bc_encod_write
+bc_decod_write
+bc_bmask_write
+bc_ones_write
+bc_sqrt_write
+bc_qlog_write
+bc_qexp_write
+
+bc_shr_write
+bc_shl_write
+bc_sar_write
+bc_ror_write
+bc_rol_write
+bc_rev_write
+bc_zerox_write
+bc_signx_write
+bc_add_write
+bc_sub_write
+
+bc_logand_write
+bc_logxor_write
+bc_logor_write
+bc_bitand_write
+bc_bitxor_write
+bc_bitor_write
+bc_fge_write
+bc_fle_write
+bc_addbits_write
+bc_addpins_write
+
+bc_mul_write
+bc_div_write
+bc_divu_write
+bc_rem_write
+bc_remu_write
+bc_sca_write
+bc_scas_write
+bc_frac_write
+
+bc_lognot_write_push
+bc_bitnot_write_push
+bc_neg_write_push
+bc_abs_write_push
+bc_encod_write_push
+bc_decod_write_push
+bc_bmask_write_push
+bc_ones_write_push
+bc_sqrt_write_push
+bc_qlog_write_push
+bc_qexp_write_push
+
+bc_shr_write_push
+bc_shl_write_push
+bc_sar_write_push
+bc_ror_write_push
+bc_rol_write_push
+bc_rev_write_push
+bc_zerox_write_push
+bc_signx_write_push
+bc_add_write_push
+bc_sub_write_push
+
+bc_logand_write_push
+bc_logxor_write_push
+bc_logor_write_push
+bc_bitand_write_push
+bc_bitxor_write_push
+bc_bitor_write_push
+bc_fge_write_push
+bc_fle_write_push
+bc_addbits_write_push
+bc_addpins_write_push
+
+bc_mul_write_push
+bc_div_write_push
+bc_divu_write_push
+bc_rem_write_push
+bc_remu_write_push
+bc_sca_write_push
+bc_scas_write_push
+bc_frac_write_push
+
+bc_setup_field_pop
+bc_setup_field_rfvar
+bc_setup_field_0_31	[32]
+
+#$54[2]			'hub bytecodes (step by 2)
+bc_clkset
+bc_read_clkfreq
+bc_cogspin
+bc_inline
+bc_regexec
+bc_regload
+bc_call
+bc_getregs
+bc_setregs
+bc_bytemove
+bc_bytefill
+bc_wordmove
+bc_wordfill
+bc_longmove
+bc_longfill
+bc_strsize
+bc_strcomp
+bc_waitus
+bc_waitms
+bc_getsec
+bc_muldiv64
+'
+'
+' Flex codes
+'
+flex_params		=	$07
+flex_results		=	$38
+flex_results_shift	=	3
+flex_pinfld		=	$40
+flex_hubcode		=	$80
+
+'			bytecode	  params  results  pinfld   hubcode
+'			-------------------------------------------------------------------------------
+fc_hubset	=	bc_hubset	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+
+fc_coginit	=	bc_coginit	| 3 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_coginit_push	=	bc_coginit_push	| 3 <<8 | 1 <<11 | 0 <<14 | 0 <<15
+fc_cogstop	=	bc_cogstop	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_cogid	=	bc_cogid	| 0 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_cogchk	=	bc_cogchk	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15
+
+fc_getrnd	=	bc_getrnd	| 0 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_getct	=	bc_getct	| 0 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_pollct	=	bc_pollct	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15
+fc_waitct	=	bc_waitct	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15
+
+fc_pinwrite	=	bc_pinwrite	| 2 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pinlow	=	bc_pinlow	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pinhigh	=	bc_pinhigh	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pintoggle	=	bc_pintoggle	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pinfloat	=	bc_pinfloat	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pinread	=	bc_pinread	| 1 <<8 | 1 <<11 | 1 <<14 | 0 <<15
+
+fc_pinstart	=	bc_pinstart	| 4 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+fc_pinclear	=	bc_pinclear	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15
+
+fc_wrpin	=	bc_wrpin	| 2 <<8 | 0 <<11 | 1 <<14 | 0 <<15	'(also asm instruction)
+fc_wxpin	=	bc_wxpin	| 2 <<8 | 0 <<11 | 1 <<14 | 0 <<15	'(also asm instruction)
+fc_wypin	=	bc_wypin	| 2 <<8 | 0 <<11 | 1 <<14 | 0 <<15	'(also asm instruction)
+fc_akpin	=	bc_akpin	| 1 <<8 | 0 <<11 | 1 <<14 | 0 <<15	'(also asm instruction)
+fc_rdpin	=	bc_rdpin	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_rqpin	=	bc_rqpin	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+
+fc_rotxy	=	bc_rotxy	| 3 <<8 | 2 <<11 | 0 <<14 | 0 <<15
+fc_polxy	=	bc_polxy	| 2 <<8 | 2 <<11 | 0 <<14 | 0 <<15
+fc_xypol	=	bc_xypol	| 2 <<8 | 2 <<11 | 0 <<14 | 0 <<15
+
+fc_locknew	=	bc_locknew	| 0 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_lockret	=	bc_lockret	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_locktry	=	bc_locktry	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_lockrel	=	bc_lockrel	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_lockchk	=	bc_lockchk	| 1 <<8 | 1 <<11 | 0 <<14 | 0 <<15
+
+fc_cogatn	=	bc_cogatn	| 1 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_pollatn	=	bc_pollatn	| 0 <<8 | 1 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+fc_waitatn	=	bc_waitatn	| 0 <<8 | 0 <<11 | 0 <<14 | 0 <<15	'(also asm instruction)
+
+fc_clkset	=	bc_clkset	| 2 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_regexec	=	bc_regexec	| 1 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_regload	=	bc_regload	| 1 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_call		=	bc_call		| 1 <<8 | 0 <<11 | 0 <<14 | 1 <<15	'(also asm instruction)
+fc_getregs	=	bc_getregs	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_setregs	=	bc_setregs	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+
+fc_bytemove	=	bc_bytemove	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_bytefill	=	bc_bytefill	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_wordmove	=	bc_wordmove	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_wordfill	=	bc_wordfill	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_longmove	=	bc_longmove	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_longfill	=	bc_longfill	| 3 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+
+fc_strsize	=	bc_strsize	| 1 <<8 | 1 <<11 | 0 <<14 | 1 <<15
+fc_strcomp	=	bc_strcomp	| 2 <<8 | 1 <<11 | 0 <<14 | 1 <<15
+
+fc_waitus	=	bc_waitus	| 1 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_waitms	=	bc_waitms	| 1 <<8 | 0 <<11 | 0 <<14 | 1 <<15
+fc_getsec	=	bc_getsec	| 0 <<8 | 1 <<11 | 0 <<14 | 1 <<15
+fc_muldiv64	=	bc_muldiv64	| 3 <<8 | 1 <<11 | 0 <<14 | 1 <<15
+'
+'
+' Operators
+'
+'	Operator precedence (highest to lowest)
+'
+'	0	!, -, ABS, ENCOD, DECOD, BMASK, ONES, SQRT, QLOG, QEXP		(unary)
+'	1	>>, <<, SAR, ROR, ROL, REV, ZEROX, SIGNX			(binary)
+'	2	&								(binary)
+'	3	^								(binary)
+'	4	|								(binary)
+'	5	*, /, +/, //, +//, SCA, SCAS, FRAC				(binary)
+'	6	+, -								(binary)
+'	7	#>, <#								(binary)
+'	8	ADDBITS, ADDPINS						(binary)
+'	9	<, +<, <=, +<=, ==, <>, >=, +>=, >, +>, <=>			(binary)
+'	10	!!, NOT								(unary)
+'	11	&&, AND								(binary)
+'	12	^^, XOR								(binary)
+'	13	||, OR								(binary)
+'	14	? :								(ternary)
+'
+'			oper		type		prec	float
+#0		'	---------------------------------------------
+op_bitnot	'	!		unary		0	-
+op_neg		'	-		unary		0	yes
+op_abs		'	ABS		unary		0	yes
+op_encod	'	ENCOD		unary		0	-
+op_decod	'	DECOD		unary		0	-
+op_bmask	'	BMASK		unary		0	-
+op_ones		'	ONES		unary		0	-
+op_sqrt		'	SQRT		unary		0	-
+op_qlog		'	QLOG		unary		0	-
+op_qexp		'	QEXP		unary		0	-
+op_shr		'	>>		binary		1	-
+op_shl		'	<<		binary		1	-
+op_sar		'	SAR		binary		1	-
+op_ror		'	ROR		binary		1	-
+op_rol		'	ROL		binary		1	-
+op_rev		'	REV		binary		1	-
+op_zerox	'	ZEROX		binary		1	-
+op_signx	'	SIGNX		binary		1	-
+op_bitand	'	&		binary		2	-
+op_bitxor	'	^		binary		3	-
+op_bitor	'	|		binary		4	-
+op_mul		'	*		binary		5	yes
+op_div		'	/		binary		5	yes
+op_divu		'	+/		binary		5	-
+op_rem		'	//		binary		5	-
+op_remu		'	+//		binary		5	-
+op_sca		'	SCA		binary		5	-
+op_scas		'	SCAS		binary		5	-
+op_frac		'	FRAC		binary		5	-
+op_add		'	+		binary		6	yes
+op_sub		'	-		binary		6	yes
+op_fge		'	#>		binary		7	yes
+op_fle		'	<#		binary		7	yes
+op_addbits	'	ADDBITS		binary		8	-
+op_addpins	'	ADDPINS		binary		8	-
+op_lt		'	<		binary		9	yes
+op_ltu		'	+<		binary		9	-
+op_lte		'	<=		binary		9	yes
+op_lteu		'	+<=		binary		9	-
+op_e		'	==		binary		9	yes
+op_ne		'	<>		binary		9	yes
+op_gte		'	>=		binary		9	yes
+op_gteu		'	+>=		binary		9	-
+op_gt		'	>		binary		9	yes
+op_gtu		'	+>		binary		9	-
+op_ltegt	'	<=>		binary		9	-
+op_lognot	'	!!, NOT		unary		10	-
+op_logand	'	&&, AND		binary		11	-
+op_logxor	'	^^, XOR		binary		12	-
+op_logor	'	||, OR		binary		13	-
+op_ternary	'	? (:)		ternary		14	-
+
+ternary_prec	=	14
+
+opc_ternary	=	1 << 24
+opc_binary	=	1 << 25
+opc_unary	=	1 << 26
+opc_assign	=	1 << 27
+opc_float	=	1 << 28
+opc_alias	=	1 << 29
+
+'			op		   precedence	bytecode	       ternary  binary   unary    assign   float    alias
+
+oc_bitnot	=	op_bitnot	|  0	<<8 |	bc_bitnot	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' !	
+oc_neg		=	op_neg		|  0	<<8 |	bc_neg		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' -	(uses op_sub symbol)
+oc_abs		=	op_abs		|  0	<<8 |	bc_abs		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' ABS	
+oc_encod	=	op_encod	|  0	<<8 |	bc_encod	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ENCOD
+oc_decod	=	op_decod	|  0	<<8 |	bc_decod	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' DECOD
+oc_bmask	=	op_bmask	|  0	<<8 |	bc_bmask	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' BMASK
+oc_ones		=	op_ones		|  0	<<8 |	bc_ones		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ONES
+oc_sqrt		=	op_sqrt		|  0	<<8 |	bc_sqrt		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' SQRT
+oc_qlog		=	op_qlog		|  0	<<8 |	bc_qlog		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' QLOG
+oc_qexp		=	op_qexp		|  0	<<8 |	bc_qexp		<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' QEXP
+oc_shr		=	op_shr		|  1	<<8 |	bc_shr		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' >>
+oc_shl		=	op_shl		|  1	<<8 |	bc_shl		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' <<
+oc_sar		=	op_sar		|  1	<<8 |	bc_sar		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' SAR
+oc_ror		=	op_ror		|  1	<<8 |	bc_ror		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ROR
+oc_rol		=	op_rol		|  1	<<8 |	bc_rol		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ROL
+oc_rev		=	op_rev		|  1	<<8 |	bc_rev		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' REV
+oc_zerox	=	op_zerox	|  1	<<8 |	bc_zerox	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ZEROX
+oc_signx	=	op_signx	|  1	<<8 |	bc_signx	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' SIGNX
+oc_bitand	=	op_bitand	|  2	<<8 |	bc_bitand	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' &
+oc_bitxor	=	op_bitxor	|  3	<<8 |	bc_bitxor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ^
+oc_bitor	=	op_bitor	|  4	<<8 |	bc_bitor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' |
+oc_mul		=	op_mul		|  5	<<8 |	bc_mul		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' *
+oc_div		=	op_div		|  5	<<8 |	bc_div		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' /
+oc_divu		=	op_divu		|  5	<<8 |	bc_divu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' +/
+oc_rem		=	op_rem		|  5	<<8 |	bc_rem		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' //
+oc_remu		=	op_remu		|  5	<<8 |	bc_remu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' +//
+oc_sca		=	op_sca		|  5	<<8 |	bc_sca		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' SCA
+oc_scas		=	op_scas		|  5	<<8 |	bc_scas		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' SCAS
+oc_frac		=	op_frac		|  5	<<8 |	bc_frac		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' FRAC
+oc_add		=	op_add		|  6	<<8 |	bc_add		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' +
+oc_sub		=	op_sub		|  6	<<8 |	bc_sub		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' -
+oc_fge		=	op_fge		|  7	<<8 |	bc_fge		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' #>
+oc_fle		=	op_fle		|  7	<<8 |	bc_fle		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' <#
+oc_addbits	=	op_addbits	|  8	<<8 |	bc_addbits	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ADDBITS
+oc_addpins	=	op_addpins	|  8	<<8 |	bc_addpins	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ADDPINS
+oc_lt		=	op_lt		|  9	<<8 |	bc_lt		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' <
+oc_ltu		=	op_ltu		|  9	<<8 |	bc_ltu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 0 <<28 | 0 <<29	' +<
+oc_lte		=	op_lte		|  9	<<8 |	bc_lte		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' <=
+oc_lteu		=	op_lteu		|  9	<<8 |	bc_lteu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 0 <<28 | 0 <<29	' +<=
+oc_e		=	op_e		|  9	<<8 |	bc_e		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' ==
+oc_ne		=	op_ne		|  9	<<8 |	bc_ne		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' <>
+oc_gte		=	op_gte		|  9	<<8 |	bc_gte		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' >=
+oc_gteu		=	op_gteu		|  9	<<8 |	bc_gteu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 0 <<28 | 0 <<29	' +>=
+oc_gt		=	op_gt		|  9	<<8 |	bc_gt		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' >
+oc_gtu		=	op_gtu		|  9	<<8 |	bc_gtu		<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 0 <<28 | 0 <<29	' +>
+oc_ltegt	=	op_ltegt	|  9	<<8 |	bc_ltegt	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 0 <<27 | 1 <<28 | 0 <<29	' <=>
+oc_lognot	=	op_lognot	|  10	<<8 |	bc_lognot	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 1 <<28 | 1 <<29	' !!
+oc_lognot_name	=	op_lognot	|  10	<<8 |	bc_lognot	<<16 | 0 <<24 | 0 <<25 | 1 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' NOT
+oc_logand	=	op_logand	|  11	<<8 |	bc_logand	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 1 <<29	' &&
+oc_logand_name	=	op_logand	|  11	<<8 |	bc_logand	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' AND
+oc_logxor	=	op_logxor	|  12	<<8 |	bc_logxor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 1 <<29	' ^^
+oc_logxor_name	=	op_logxor	|  12	<<8 |	bc_logxor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' XOR
+oc_logor	=	op_logor	|  13	<<8 |	bc_logor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 1 <<29	' ||
+oc_logor_name	=	op_logor	|  13	<<8 |	bc_logor	<<16 | 0 <<24 | 1 <<25 | 0 <<26 | 1 <<27 | 1 <<28 | 0 <<29	' OR
+oc_ternary	=	op_ternary	|  14	<<8 |	0		<<16 | 1 <<24 | 0 <<25 | 0 <<26 | 1 <<27 | 0 <<28 | 0 <<29	' ?
+'
+'
+' Blocks
+'
+#0
+block_con
+block_obj
+block_var
+block_pub
+block_pri
+block_dat
+block_dev
+'
+'
+' Directives
+'
+#0
+dir_orgh
+dir_alignw
+dir_alignl
+dir_org
+dir_orgf
+dir_res
+dir_fit
+'
+'
+' Ifs
+'
+#0
+_if_never
+_if_nc_and_nz
+_if_nc_and_z
+_if_nc
+_if_c_and_nz
+_if_nz
+_if_c_ne_z
+_if_nc_or_nz
+_if_c_and_z
+_if_c_eq_z
+_if_z
+_if_nc_or_z
+_if_c
+_if_c_or_nz
+_if_c_or_z
+_if_always
+'
+'
+' Info types
+'
+#0
+info_con			'data0 = value (must be followed by info_con_float)
+info_con_float			'data0 = value
+info_dat			'data0/1 = obj start/finish
+info_dat_symbol			'data0 = offset, data1 = size
+info_pub			'data0/1 = obj start/finish, data2/3 = name start/finish
+info_pri			'data0/1 = obj start/finish, data2/3 = name start/finish
+'
+'
+'******************
+'*  Auto Symbols  *
+'******************
+'
+DAT
+
+autos	byte
+
+byte	"("|m,				type_left,		fvar	0		'1-chr non-text symbols
+byte	")"|m,				type_right,		fvar	0
+byte	"["|m,				type_leftb,		fvar	0
+byte	"]"|m,				type_rightb,		fvar	0
+byte	","|m,				type_comma,		fvar	0
+byte	"="|m,				type_equal,		fvar	0
+byte	"#"|m,				type_pound,		fvar	0
+byte	":"|m,				type_colon,		fvar	0
+byte	"\"|m,				type_back,		fvar	0
+byte	"."|m,				type_dot,		fvar	0
+byte	"@"|m,				type_at,		fvar	0
+byte	"~"|m,				type_til,		fvar	0
+byte	"_"|m,				type_under,		fvar	0
+
+byte	"!"|m,				type_op,		fvar	oc_bitnot
+byte	"&"|m,				type_op,		fvar	oc_bitand
+byte	"^"|m,				type_op,		fvar	oc_bitxor
+byte	"|"|m,				type_op,		fvar	oc_bitor
+byte	"*"|m,				type_op,		fvar	oc_mul
+byte	"/"|m,				type_op,		fvar	oc_div
+byte	"+"|m,				type_op,		fvar	oc_add
+byte	"-"|m,				type_op,		fvar	oc_sub 		'(also oc_neg)
+byte	"<"|m,				type_op,		fvar	oc_lt
+byte	">"|m,				type_op,		fvar	oc_gt
+byte	"?"|m,				type_op,		fvar	oc_ternary
+
+byte	":="|m,				type_assign,		fvar	0		'2-chr non-text symbols
+byte	"@@"|m,				type_atat,		fvar	0
+byte	".."|m,				type_dotdot,		fvar	0
+byte	"~~"|m,				type_tiltil,		fvar	0
+byte	"++"|m,				type_inc,		fvar	0
+byte	"--"|m,				type_dec,		fvar	0
+byte	"??"|m,				type_rnd,		fvar	0
+
+byte	">>"|m,				type_op,		fvar	oc_shr
+byte	"<<"|m,				type_op,		fvar	oc_shl
+byte	"+/"|m,				type_op,		fvar	oc_divu
+byte	"//"|m,				type_op,		fvar	oc_rem
+byte	"#>"|m,				type_op,		fvar	oc_fge
+byte	"<#"|m,				type_op,		fvar	oc_fle
+byte	"+<"|m,				type_op,		fvar	oc_ltu
+byte	"<="|m,				type_op,		fvar	oc_lte
+byte	"=="|m,				type_op,		fvar	oc_e
+byte	"<>"|m,				type_op,		fvar	oc_ne
+byte	">="|m,				type_op,		fvar	oc_gte
+byte	"+>"|m,				type_op,		fvar	oc_gtu
+byte	"!!"|m,				type_op |m,		long	oc_lognot
+byte	"&&"|m,				type_op |m,		long	oc_logand
+byte	"^^"|m,				type_op |m,		long	oc_logxor
+byte	"||"|m,				type_op |m,		long	oc_logor
+
+byte	"+//"|m,			type_op,		fvar	oc_remu		'3-chr non-text symbols
+byte	"+<="|m,			type_op,		fvar	oc_lteu
+byte	"+>="|m,			type_op,		fvar	oc_gteu
+byte	"<=>"|m,			type_op,		fvar	oc_ltegt
+
+byte	"ABS"|m,			type_op,		fvar	oc_abs		'(also pasm instruction)
+byte	"ENCOD"|m,			type_op,		fvar	oc_encod	'(also pasm instruction)
+byte	"DECOD"|m,			type_op,		fvar	oc_decod	'(also pasm instruction)
+byte	"BMASK"|m,			type_op,		fvar	oc_bmask	'(also pasm instruction)
+byte	"ONES"|m,			type_op,		fvar	oc_ones		'(also pasm instruction)
+byte	"SQRT"|m,			type_op,		fvar	oc_sqrt
+byte	"QLOG"|m,			type_op,		fvar	oc_qlog		'(also pasm instruction)
+byte	"QEXP"|m,			type_op,		fvar	oc_qexp		'(also pasm instruction)
+byte	"SAR"|m,			type_op,		fvar	oc_sar		'(also pasm instruction)
+byte	"ROR"|m,			type_op,		fvar	oc_ror		'(also pasm instruction)
+byte	"ROL"|m,			type_op,		fvar	oc_rol		'(also pasm instruction)
+byte	"REV"|m,			type_op,		fvar	oc_rev		'(also pasm instruction)
+byte	"ZEROX"|m,			type_op,		fvar	oc_zerox	'(also pasm instruction)
+byte	"SIGNX"|m,			type_op,		fvar	oc_signx	'(also pasm instruction)
+byte	"SCA"|m,			type_op,		fvar	oc_sca		'(also pasm instruction)
+byte	"SCAS"|m,			type_op,		fvar	oc_scas		'(also pasm instruction)
+byte	"FRAC"|m,			type_op,		fvar	oc_frac
+byte	"ADDBTIS"|m,			type_op,		fvar	oc_addbits
+byte	"ADDPINS"|m,			type_op,		fvar	oc_addpins
+byte	"NOT"|m,			type_op,		fvar	oc_lognot_name	'(also pasm instruction)
+byte	"AND"|m,			type_op,		fvar	oc_logand_name	'(also pasm instruction)
+byte	"XOR"|m,			type_op,		fvar	oc_logxor_name	'(also pasm instruction)
+byte	"OR"|m,				type_op,		fvar	oc_logor_name	'(also pasm instruction)
+
+byte	"FLOAT"|m,			type_float,		fvar	0		'floating-point operators
+byte	"ROUND"|m,			type_round,		fvar	0
+byte	"TRUNC"|m,			type_trunc,		fvar	0
+
+byte	"STRING"|m,			type_constr,		fvar	0		'string expression
+
+byte	"CON"|m,			type_block,		fvar	block_con	'block designators
+byte	"OBJ"|m,			type_block,		fvar	block_obj
+byte	"VAR"|m,			type_block,		fvar	block_var
+byte	"PUB"|m,			type_block,		fvar	block_pub
+byte	"PRI"|m,			type_block,		fvar	block_pri
+byte	"DAT"|m,			type_block,		fvar	block_dat
+byte	"DEV"|m,			type_block,		fvar	block_dev
+
+byte	"BYTE"|m,			type_size,		fvar	0		'sizes
+byte	"WORD"|m,			type_size,		fvar	1
+byte	"fvar"|m,			type_size,		fvar	2
+
+byte	"FVAR"|m,			type_fvar,		fvar	0		'fvar
+byte	"FVARS"|m,			type_fvar,		fvar	1
+
+byte	"PRECOMPILE"|m,			type_precompile,	fvar	0		'file-related
+byte	"ARCHIVE"|m,			type_archive,		fvar	0
+byte	"FILE"|m,			type_file,		fvar	0
+
+byte	"IF"|m,				type_if,		fvar	0		'high-level structures
+byte	"IFNOT"|m,			type_ifnot,		fvar	0
+byte	"ELSEIF"|m,			type_elseif,		fvar	0
+byte	"ELSEIFNOT"|m,			type_elseifnot,		fvar	0
+byte	"ELSE"|m,			type_else,		fvar	0
+byte	"CASE"|m,			type_case,		fvar	0
+byte	"CASE_FAST"|m,			type_case_fast,		fvar	0
+byte	"OTHER"|m,			type_other,		fvar	0
+byte	"REPEAT"|m,			type_repeat,		fvar	0
+byte	"WHILE"|m,			type_while,		fvar	0
+byte	"UNTIL"|m,			type_until,		fvar	0
+byte	"FROM"|m,			type_from,		fvar	0
+byte	"TO"|m,				type_to,		fvar	0
+byte	"STEP"|m,			type_step,		fvar	0
+
+byte	"NEXT"|m,			type_i_next_quit,	fvar	0		'high-level instructions
+byte	"QUIT"|m,			type_i_next_quit,	fvar	1
+byte	"RETURN"|m,			type_i_return,		fvar	0
+byte	"ABORT"|m,			type_i_abort,		fvar	0
+byte	"LOOKUPZ"|m,			type_i_look,		fvar	%00
+byte	"LOOKUP"|m,			type_i_look,		fvar	%01
+byte	"LOOKDOWNZ"|m,			type_i_look,		fvar	%10
+byte	"LOOKDOWN"|m,			type_i_look,		fvar	%11
+byte	"COGSPIN"|m,			type_i_cogspin,		fvar	0
+byte	"SEND"|m,			type_send,		fvar	0
+
+byte	"END"|m,			type_asm_end,		fvar	0		'misc
+
+
+byte	"HUBSET"|m,			type_i_flex,		fvar	fc_hubset	'(also asm instruction)
+
+byte	"COGINIT"|m,			type_i_flex,		fvar	fc_coginit	'(also asm instruction)
+byte	"COGSTOP"|m,			type_i_flex,		fvar	fc_cogstop	'(also asm instruction)
+byte	"COGID"|m,			type_i_flex,		fvar	fc_cogid	'(also asm instruction)
+byte	"COGCHK"|m,			type_i_flex,		fvar	fc_cogchk
+
+byte	"GETRND"|m,			type_i_flex,		fvar	fc_getrnd	'(also asm instruction)
+byte	"GETCT"|m,			type_i_flex,		fvar	fc_getct	'(also asm instruction)
+byte	"POLLCT"|m,			type_i_flex,		fvar	fc_pollct
+byte	"WAITCT"|m,			type_i_flex,		fvar	fc_waitct
+
+byte	"PINWRITE"|m,			type_i_flex,		fvar	fc_pinwrite
+byte	"PINW"|m,			type_i_flex,		fvar	fc_pinwrite
+byte	"PINLOW"|m,			type_i_flex,		fvar	fc_pinlow
+byte	"PINL"|m,			type_i_flex,		fvar	fc_pinlow
+byte	"PINHIGH"|m,			type_i_flex,		fvar	fc_pinhigh
+byte	"PINH"|m,			type_i_flex,		fvar	fc_pinhigh
+byte	"PINTOGGLE"|m,			type_i_flex,		fvar	fc_pintoggle
+byte	"PINT"|m,			type_i_flex,		fvar	fc_pintoggle
+byte	"PINFLOAT"|m,			type_i_flex,		fvar	fc_pinfloat
+byte	"PINF"|m,			type_i_flex,		fvar	fc_pinfloat
+byte	"PINREAD"|m,			type_i_flex,		fvar	fc_pinread
+byte	"PINR"|m,			type_i_flex,		fvar	fc_pinread
+
+byte	"PINSTART"|m,			type_i_flex,		fvar	fc_pinstart
+byte	"PINCLEAR"|m,			type_i_flex,		fvar	fc_pinclear
+
+byte	"WRPIN"|m,			type_i_flex,		fvar	fc_wrpin	'(also asm instruction)
+byte	"WXPIN"|m,			type_i_flex,		fvar	fc_wxpin	'(also asm instruction)
+byte	"WYPIN"|m,			type_i_flex,		fvar	fc_wypin	'(also asm instruction)
+byte	"AKPIN"|m,			type_i_flex,		fvar	fc_akpin	'(also asm instruction)
+byte	"RDPIN"|m,			type_i_flex,		fvar	fc_rdpin	'(also asm instruction)
+byte	"RQPIN"|m,			type_i_flex,		fvar	fc_rqpin	'(also asm instruction)
+
+byte	"ROTXY"|m,			type_i_flex,		fvar	fc_rotxy
+byte	"POLXY"|m,			type_i_flex,		fvar	fc_polxy
+byte	"XYPOL"|m,			type_i_flex,		fvar	fc_xypol
+
+byte	"LOCKNEW"|m,			type_i_flex,		fvar	fc_locknew	'(also asm instruction)
+byte	"LOCKRET"|m,			type_i_flex,		fvar	fc_lockret	'(also asm instruction)
+byte	"LOCKTRY"|m,			type_i_flex,		fvar	fc_locktry	'(also asm instruction)
+byte	"LOCKREL"|m,			type_i_flex,		fvar	fc_lockrel	'(also asm instruction)
+byte	"LOCKCHK"|m,			type_i_flex,		fvar	fc_lockchk
+
+byte	"COGATN"|m,			type_i_flex,		fvar	fc_cogatn	'(also asm instruction)
+byte	"POLLATN"|m,			type_i_flex,		fvar	fc_pollatn	'(also asm instruction)
+byte	"WAITATN"|m,			type_i_flex,		fvar	fc_waitatn	'(also asm instruction)
+
+byte	"CLKSET"|m,			type_i_flex,		fvar	fc_clkset
+byte	"REGEXEC"|m,			type_i_flex,		fvar	fc_regexec
+byte	"REGLOAD"|m,			type_i_flex,		fvar	fc_regload
+byte	"CALL"|m,			type_i_flex,		fvar	fc_call		'(also asm instruction)
+byte	"GETREGS"|m,			type_i_flex,		fvar	fc_getregs
+byte	"SETREGS"|m,			type_i_flex,		fvar	fc_setregs
+
+byte	"BYTEMOVE"|m,			type_i_flex,		fvar	fc_bytemove
+byte	"BYTEFILL"|m,			type_i_flex,		fvar	fc_bytefill
+byte	"WORDMOVE"|m,			type_i_flex,		fvar	fc_wordmove
+byte	"WORDFILL"|m,			type_i_flex,		fvar	fc_wordfill
+byte	"LONGMOVE"|m,			type_i_flex,		fvar	fc_longmove
+byte	"LONGFILL"|m,			type_i_flex,		fvar	fc_longfill
+
+byte	"STRSIZE"|m,			type_i_flex,		fvar	fc_strsize
+byte	"STRCOMP"|m,			type_i_flex,		fvar	fc_strcomp
+
+byte	"WAITUS"|m,			type_i_flex,		fvar	fc_waitus
+byte	"WAITMS"|m,			type_i_flex,		fvar	fc_waitms
+byte	"GETSEC"|m,			type_i_flex,		fvar	fc_getsec
+byte	"MULDIV64"|m,			type_i_flex,		fvar	fc_muldiv64
+
+
+byte	"ORGH"|m,			type_asm_dir,		fvar	dir_orgh	'assembly directives
+byte	"ALIGNW"|m,			type_asm_dir,		fvar	dir_alignw
+byte	"ALIGNL"|m,			type_asm_dir,		fvar	dir_alignl
+byte	"ORG"|m,			type_asm_dir,		fvar	dir_org
+byte	"ORGF"|m,			type_asm_dir,		fvar	dir_orgf
+byte	"RES"|m,			type_asm_dir,		fvar	dir_res
+byte	"FIT"|m,			type_asm_dir,		fvar	dir_fit
+
+byte	"_RET_"|m,			type_asm_cond,		fvar	_if_never	'assembly conditionals
+byte	"IF_NC_AND_NZ"|m,		type_asm_cond,		fvar	_if_nc_and_nz
+byte	"IF_NZ_AND_NC"|m,		type_asm_cond,		fvar	_if_nc_and_nz
+byte	"IF_GT"|m,			type_asm_cond,		fvar	_if_nc_and_nz
+byte	"IF_A"|m,			type_asm_cond,		fvar	_if_nc_and_nz
+byte	"IF_NC_AND_Z"|m,		type_asm_cond,		fvar	_if_nc_and_z
+byte	"IF_Z_AND_NC"|m,		type_asm_cond,		fvar	_if_nc_and_z
+byte	"IF_NC"|m,			type_asm_cond,		fvar	_if_nc
+byte	"IF_GE"|m,			type_asm_cond,		fvar	_if_nc
+byte	"IF_AE"|m,			type_asm_cond,		fvar	_if_nc
+byte	"IF_C_AND_NZ"|m,		type_asm_cond,		fvar	_if_c_and_nz
+byte	"IF_NZ_AND_C"|m,		type_asm_cond,		fvar	_if_c_and_nz
+byte	"IF_NZ"|m,			type_asm_cond,		fvar	_if_nz
+byte	"IF_NE"|m,			type_asm_cond,		fvar	_if_nz
+byte	"IF_C_NE_Z"|m,			type_asm_cond,		fvar	_if_c_ne_z
+byte	"IF_Z_NE_C"|m,			type_asm_cond,		fvar	_if_c_ne_z
+byte	"IF_NC_OR_NZ"|m,		type_asm_cond,		fvar	_if_nc_or_nz
+byte	"IF_NZ_OR_NC"|m,		type_asm_cond,		fvar	_if_nc_or_nz
+byte	"IF_C_AND_Z"|m,			type_asm_cond,		fvar	_if_c_and_z
+byte	"IF_Z_AND_C"|m,			type_asm_cond,		fvar	_if_c_and_z
+byte	"IF_C_EQ_Z"|m,			type_asm_cond,		fvar	_if_c_eq_z
+byte	"IF_Z_EQ_C"|m,			type_asm_cond,		fvar	_if_c_eq_z
+byte	"IF_Z"|m,			type_asm_cond,		fvar	_if_z
+byte	"IF_E"|m,			type_asm_cond,		fvar	_if_z
+byte	"IF_NC_OR_Z"|m,			type_asm_cond,		fvar	_if_nc_or_z
+byte	"IF_Z_OR_NC"|m,			type_asm_cond,		fvar	_if_nc_or_z
+byte	"IF_C"|m,			type_asm_cond,		fvar	_if_c
+byte	"IF_LT"|m,			type_asm_cond,		fvar	_if_c
+byte	"IF_B"|m,			type_asm_cond,		fvar	_if_c
+byte	"IF_C_OR_NZ"|m,			type_asm_cond,		fvar	_if_c_or_nz
+byte	"IF_NZ_OR_C"|m,			type_asm_cond,		fvar	_if_c_or_nz
+byte	"IF_C_OR_Z"|m,			type_asm_cond,		fvar	_if_c_or_z
+byte	"IF_Z_OR_C"|m,			type_asm_cond,		fvar	_if_c_or_z
+byte	"IF_LE"|m,			type_asm_cond,		fvar	_if_c_or_z
+byte	"IF_BE"|m,			type_asm_cond,		fvar	_if_c_or_z
+byte	"IF_ALWAYS"|m,			type_asm_cond,		fvar	_if_always
+
+byte	"IF_00"|m,			type_asm_cond,		fvar	_if_nc_and_nz
+byte	"IF_01"|m,			type_asm_cond,		fvar	_if_nc_and_z
+byte	"IF_10"|m,			type_asm_cond,		fvar	_if_c_and_nz
+byte	"IF_11"|m,			type_asm_cond,		fvar	_if_c_and_z
+byte	"IF_X0"|m,			type_asm_cond,		fvar	_if_nz	
+byte	"IF_X1"|m,			type_asm_cond,		fvar	_if_z
+byte	"IF_0X"|m,			type_asm_cond,		fvar	_if_nc
+byte	"IF_1X"|m,			type_asm_cond,		fvar	_if_c
+byte	"IF_NOT_00"|m,			type_asm_cond,		fvar	_if_c_or_z
+byte	"IF_NOT_01"|m,			type_asm_cond,		fvar	_if_c_or_nz
+byte	"IF_NOT_10"|m,			type_asm_cond,		fvar	_if_nc_or_z
+byte	"IF_NOT_11"|m,			type_asm_cond,		fvar	_if_nc_or_nz
+byte	"IF_SAME"|m,			type_asm_cond,		fvar	_if_c_eq_z
+byte	"IF_DIFF"|m,			type_asm_cond,		fvar	_if_c_ne_z
+
+byte	"IF_0000"|m,			type_asm_cond,		fvar	%0000
+byte	"IF_0001"|m,			type_asm_cond,		fvar	%0001
+byte	"IF_0010"|m,			type_asm_cond,		fvar	%0010
+byte	"IF_0011"|m,			type_asm_cond,		fvar	%0011
+byte	"IF_0100"|m,			type_asm_cond,		fvar	%0100
+byte	"IF_0101"|m,			type_asm_cond,		fvar	%0101
+byte	"IF_0110"|m,			type_asm_cond,		fvar	%0110
+byte	"IF_0111"|m,			type_asm_cond,		fvar	%0111
+byte	"IF_1000"|m,			type_asm_cond,		fvar	%1000
+byte	"IF_1001"|m,			type_asm_cond,		fvar	%1001
+byte	"IF_1010"|m,			type_asm_cond,		fvar	%1010
+byte	"IF_1011"|m,			type_asm_cond,		fvar	%1011
+byte	"IF_1100"|m,			type_asm_cond,		fvar	%1100
+byte	"IF_1101"|m,			type_asm_cond,		fvar	%1101
+byte	"IF_1110"|m,			type_asm_cond,		fvar	%1110
+byte	"IF_1111"|m,			type_asm_cond,		fvar	%1111
+
+											'assembly instructions
+'byte	"ROR"|m,			type_asm_inst,		fvar	ac_ror		(declared as type_op)
+'byte	"ROL"|m,			type_asm_inst,		fvar	ac_rol		(declared as type_op)
+byte	"SHR"|m,			type_asm_inst,		fvar	ac_shr
+byte	"SHL"|m,			type_asm_inst,		fvar	ac_shl
+byte	"RCR"|m,			type_asm_inst,		fvar	ac_rcr
+byte	"RCL"|m,			type_asm_inst,		fvar	ac_rcl
+'byte	"SAR"|m,			type_asm_inst,		fvar	ac_sar		(declared as type_op)
+byte	"SAL"|m,			type_asm_inst,		fvar	ac_sal
+
+byte	"ADD"|m,			type_asm_inst,		fvar	ac_add
+byte	"ADDX"|m,			type_asm_inst,		fvar	ac_addx
+byte	"ADDS"|m,			type_asm_inst,		fvar	ac_adds
+byte	"ADDSX"|m,			type_asm_inst,		fvar	ac_addsx
+
+byte	"SUB"|m,			type_asm_inst,		fvar	ac_sub
+byte	"SUBX"|m,			type_asm_inst,		fvar	ac_subx
+byte	"SUBS"|m,			type_asm_inst,		fvar	ac_subs
+byte	"SUBSX"|m,			type_asm_inst,		fvar	ac_subsx
+
+byte	"CMP"|m,			type_asm_inst,		fvar	ac_cmp
+byte	"CMPX"|m,			type_asm_inst,		fvar	ac_cmpx
+byte	"CMPS"|m,			type_asm_inst,		fvar	ac_cmps
+byte	"CMPSX"|m,			type_asm_inst,		fvar	ac_cmpsx
+
+byte	"CMPR"|m,			type_asm_inst,		fvar	ac_cmpr
+byte	"CMPM"|m,			type_asm_inst,		fvar	ac_cmpm
+byte	"SUBR"|m,			type_asm_inst,		fvar	ac_subr
+byte	"CMPSUB"|m,			type_asm_inst,		fvar	ac_cmpsub
+
+byte	"FGE"|m,			type_asm_inst,		fvar	ac_fge
+byte	"FLE"|m,			type_asm_inst,		fvar	ac_fle
+byte	"FGES"|m,			type_asm_inst,		fvar	ac_fges
+byte	"FLES"|m,			type_asm_inst,		fvar	ac_fles
+
+byte	"SUMC"|m,			type_asm_inst,		fvar	ac_sumc
+byte	"SUMNC"|m,			type_asm_inst,		fvar	ac_sumnc
+byte	"SUMZ"|m,			type_asm_inst,		fvar	ac_sumz
+byte	"SUMNZ"|m,			type_asm_inst,		fvar	ac_sumnz
+
+byte	"BITL"|m,			type_asm_inst,		fvar	ac_bitl
+byte	"BITH"|m,			type_asm_inst,		fvar	ac_bith
+byte	"BITC"|m,			type_asm_inst,		fvar	ac_bitc
+byte	"BITNC"|m,			type_asm_inst,		fvar	ac_bitnc
+byte	"BITZ"|m,			type_asm_inst,		fvar	ac_bitz
+byte	"BITNZ"|m,			type_asm_inst,		fvar	ac_bitnz
+byte	"BITRND"|m,			type_asm_inst,		fvar	ac_bitrnd
+byte	"BITNOT"|m,			type_asm_inst,		fvar	ac_bitnot
+
+byte	"TESTB"|m,			type_asm_inst,		fvar	ac_testb
+byte	"TESTBN"|m,			type_asm_inst,		fvar	ac_testbn
+
+'byte	"AND"|m,			type_asm_inst,		fvar	ac_and		(declared as type_op)
+byte	"ANDN"|m,			type_asm_inst,		fvar	ac_andn
+'byte	"OR"|m,				type_asm_inst,		fvar	ac_or		(declared as type_op)
+'byte	"XOR"|m,			type_asm_inst,		fvar	ac_xor		(declared as type_op)
+
+byte	"MUXC"|m,			type_asm_inst,		fvar	ac_muxc
+byte	"MUXNC"|m,			type_asm_inst,		fvar	ac_muxnc
+byte	"MUXZ"|m,			type_asm_inst,		fvar	ac_muxz
+byte	"MUXNZ"|m,			type_asm_inst,		fvar	ac_muxnz
+
+byte	"MOV"|m,			type_asm_inst,		fvar	ac_mov
+'byte	"NOT"|m,			type_asm_inst,		fvar	ac_not		(declared as type_op)
+'byte	"ABS"|m,			type_asm_inst,		fvar	ac_abs		(declared as type_op)
+byte	"NEG"|m,			type_asm_inst,		fvar	ac_neg
+
+byte	"NEGC"|m,			type_asm_inst,		fvar	ac_negc
+byte	"NEGNC"|m,			type_asm_inst,		fvar	ac_negnc
+byte	"NEGZ"|m,			type_asm_inst,		fvar	ac_negz
+byte	"NEGNZ"|m,			type_asm_inst,		fvar	ac_negnz
+
+byte	"INCMOD"|m,			type_asm_inst,		fvar	ac_incmod
+byte	"DECMOD"|m,			type_asm_inst,		fvar	ac_decmod
+'byte	"ZEROX"|m,			type_asm_inst,		fvar	ac_zerox	(declared as type_op)
+'byte	"SIGNX"|m,			type_asm_inst,		fvar	ac_signx	(declared as type_op)
+
+'byte	"ENCOD"|m,			type_asm_inst,		fvar	ac_encod	(declared as type_op)
+'byte	"ONES"|m,			type_asm_inst,		fvar	ac_ones		(declared as type_op)
+byte	"TEST"|m,			type_asm_inst,		fvar	ac_test
+byte	"TESTN"|m,			type_asm_inst,		fvar	ac_testn
+
+byte	"SETNIB"|m,			type_asm_inst,		fvar	ac_setnib
+byte	"GETNIB"|m,			type_asm_inst,		fvar	ac_getnib
+byte	"ROLNIB"|m,			type_asm_inst,		fvar	ac_rolnib
+
+byte	"SETBYTE"|m,			type_asm_inst,		fvar	ac_setbyte
+byte	"GETBYTE"|m,			type_asm_inst,		fvar	ac_getbyte
+byte	"ROLBYTE"|m,			type_asm_inst,		fvar	ac_rolbyte
+
+byte	"SETWORD"|m,			type_asm_inst,		fvar	ac_setword
+byte	"GETWORD"|m,			type_asm_inst,		fvar	ac_getword
+byte	"ROLWORD"|m,			type_asm_inst,		fvar	ac_rolword
+
+byte	"ALTSN"|m,			type_asm_inst,		fvar	ac_altsn
+byte	"ALTGN"|m,			type_asm_inst,		fvar	ac_altgn
+byte	"ALTSB"|m,			type_asm_inst,		fvar	ac_altsb
+byte	"ALTGB"|m,			type_asm_inst,		fvar	ac_altgb
+byte	"ALTSW"|m,			type_asm_inst,		fvar	ac_altsw
+byte	"ALTGW"|m,			type_asm_inst,		fvar	ac_altgw
+byte	"ALTR"|m,			type_asm_inst,		fvar	ac_altr
+byte	"ALTD"|m,			type_asm_inst,		fvar	ac_altd
+byte	"ALTS"|m,			type_asm_inst,		fvar	ac_alts
+byte	"ALTB"|m,			type_asm_inst,		fvar	ac_altb
+byte	"ALTI"|m,			type_asm_inst,		fvar	ac_alti
+byte	"SETR"|m,			type_asm_inst,		fvar	ac_setr
+byte	"SETD"|m,			type_asm_inst,		fvar	ac_setd
+byte	"SETS"|m,			type_asm_inst,		fvar	ac_sets
+'byte	"DECOD"|m,			type_asm_inst,		fvar	ac_decod	(declared as type_op)
+'byte	"BMASK"|m,			type_asm_inst,		fvar	ac_bmask	(declared as type_op)
+byte	"CRCBIT"|m,			type_asm_inst,		fvar	ac_crcbit
+byte	"CRCNIB"|m,			type_asm_inst,		fvar	ac_crcnib
+byte	"MUXNITS"|m,			type_asm_inst,		fvar	ac_muxnits
+byte	"MUXNIBS"|m,			type_asm_inst,		fvar	ac_muxnibs
+byte	"MUXQ"|m,			type_asm_inst,		fvar	ac_muxq
+byte	"MOVBYTS"|m,			type_asm_inst,		fvar	ac_movbyts
+
+byte	"MUL"|m,			type_asm_inst,		fvar	ac_mul
+byte	"MULS"|m,			type_asm_inst,		fvar	ac_muls
+'byte	"SCA"|m,			type_asm_inst,		fvar	ac_sca		(declared as type_op)
+'byte	"SCAS"|m,			type_asm_inst,		fvar	ac_scas		(declared as type_op)
+
+byte	"ADDPIX"|m,			type_asm_inst,		fvar	ac_addpix
+byte	"MULPIX"|m,			type_asm_inst,		fvar	ac_mulpix
+byte	"BLNPIX"|m,			type_asm_inst,		fvar	ac_blnpix
+byte	"MIXPIX"|m,			type_asm_inst,		fvar	ac_mixpix
+
+byte	"ADDCT1"|m,			type_asm_inst,		fvar	ac_addct1
+byte	"ADDCT2"|m,			type_asm_inst,		fvar	ac_addct2
+byte	"ADDCT3"|m,			type_asm_inst,		fvar	ac_addct3
+byte	"WMLONG"|m,			type_asm_inst,		fvar	ac_wmlong
+
+'byte	"RQPIN"|m,			type_asm_inst,		fvar	ac_rqpin	(declared as type_i_flex)
+'byte	"RDPIN"|m,			type_asm_inst,		fvar	ac_rdpin	(declared as type_i_flex)
+byte	"RDLUT"|m,			type_asm_inst,		fvar	ac_rdlut
+
+byte	"RDBYTE"|m,			type_asm_inst,		fvar	ac_rdbyte
+byte	"RDWORD"|m,			type_asm_inst,		fvar	ac_rdword
+byte	"RDLONG"|m,			type_asm_inst,		fvar	ac_rdlong
+
+byte	"CALLPA"|m,			type_asm_inst,		fvar	ac_callpa
+byte	"CALLPB"|m,			type_asm_inst,		fvar	ac_callpb
+
+byte	"DJZ"|m,			type_asm_inst,		fvar	ac_djz
+byte	"DJNZ"|m,			type_asm_inst,		fvar	ac_djnz
+byte	"DJF"|m,			type_asm_inst,		fvar	ac_djf
+byte	"DJNF"|m,			type_asm_inst,		fvar	ac_djnf
+
+byte	"IJZ"|m,			type_asm_inst,		fvar	ac_ijz
+byte	"IJNZ"|m,			type_asm_inst,		fvar	ac_ijnz
+
+byte	"TJZ"|m,			type_asm_inst,		fvar	ac_tjz
+byte	"TJNZ"|m,			type_asm_inst,		fvar	ac_tjnz
+byte	"TJF"|m,			type_asm_inst,		fvar	ac_tjf
+byte	"TJNF"|m,			type_asm_inst,		fvar	ac_tjnf
+byte	"TJS"|m,			type_asm_inst,		fvar	ac_tjs
+byte	"TJNS"|m,			type_asm_inst,		fvar	ac_tjns
+byte	"TJV"|m,			type_asm_inst,		fvar	ac_tjv
+
+byte	"JINT"|m,			type_asm_inst,		fvar	ac_jint
+byte	"JCT1"|m,			type_asm_inst,		fvar	ac_jct1
+byte	"JCT2"|m,			type_asm_inst,		fvar	ac_jct2
+byte	"JCT3"|m,			type_asm_inst,		fvar	ac_jct3
+byte	"JSE1"|m,			type_asm_inst,		fvar	ac_jse1
+byte	"JSE2"|m,			type_asm_inst,		fvar	ac_jse2
+byte	"JSE3"|m,			type_asm_inst,		fvar	ac_jse3
+byte	"JSE4"|m,			type_asm_inst,		fvar	ac_jse4
+byte	"JPAT"|m,			type_asm_inst,		fvar	ac_jpat
+byte	"JFBW"|m,			type_asm_inst,		fvar	ac_jfbw
+byte	"JXMT"|m,			type_asm_inst,		fvar	ac_jxmt
+byte	"JXFI"|m,			type_asm_inst,		fvar	ac_jxfi
+byte	"JXRO"|m,			type_asm_inst,		fvar	ac_jxro
+byte	"JXRL"|m,			type_asm_inst,		fvar	ac_jxrl
+byte	"JATN"|m,			type_asm_inst,		fvar	ac_jatn
+byte	"JQMT"|m,			type_asm_inst,		fvar	ac_jqmt
+
+byte	"JNINT"|m,			type_asm_inst,		fvar	ac_jnint
+byte	"JNCT1"|m,			type_asm_inst,		fvar	ac_jnct1
+byte	"JNCT2"|m,			type_asm_inst,		fvar	ac_jnct2
+byte	"JNCT3"|m,			type_asm_inst,		fvar	ac_jnct3
+byte	"JNSE1"|m,			type_asm_inst,		fvar	ac_jnse1
+byte	"JNSE2"|m,			type_asm_inst,		fvar	ac_jnse2
+byte	"JNSE3"|m,			type_asm_inst,		fvar	ac_jnse3
+byte	"JNSE4"|m,			type_asm_inst,		fvar	ac_jnse4
+byte	"JNPAT"|m,			type_asm_inst,		fvar	ac_jnpat
+byte	"JNFBW"|m,			type_asm_inst,		fvar	ac_jnfbw
+byte	"JNXMT"|m,			type_asm_inst,		fvar	ac_jnxmt
+byte	"JNXFI"|m,			type_asm_inst,		fvar	ac_jnxfi
+byte	"JNXRO"|m,			type_asm_inst,		fvar	ac_jnxro
+byte	"JNXRL"|m,			type_asm_inst,		fvar	ac_jnxrl
+byte	"JNATN"|m,			type_asm_inst,		fvar	ac_jnatn
+byte	"JNQMT"|m,			type_asm_inst,		fvar	ac_jnqmt
+
+'byte	"<empty>"|m,			type_asm_inst,		fvar	ac_empty
+'byte	"<empty>"|m,			type_asm_inst,		fvar	ac_empty
+byte	"SETPAT"|m,			type_asm_inst,		fvar	ac_setpat
+
+'byte	"WRPIN"|m,			type_asm_inst,		fvar	ac_wrpin	(declared as type_i_flex)
+'byte	"WXPIN"|m,			type_asm_inst,		fvar	ac_wxpin	(declared as type_i_flex)
+'byte	"WYPIN"|m,			type_asm_inst,		fvar	ac_wypin	(declared as type_i_flex)
+byte	"WRLUT"|m,			type_asm_inst,		fvar	ac_wrlut
+
+byte	"WRBYTE"|m,			type_asm_inst,		fvar	ac_wrbyte
+byte	"WRWORD"|m,			type_asm_inst,		fvar	ac_wrword
+byte	"WRLONG"|m,			type_asm_inst,		fvar	ac_wrlong
+
+byte	"RDFAST"|m,			type_asm_inst,		fvar	ac_rdfast
+byte	"WRFAST"|m,			type_asm_inst,		fvar	ac_wrfast
+byte	"FBLOCK"|m,			type_asm_inst,		fvar	ac_fblock
+
+byte	"XINIT"|m,			type_asm_inst,		fvar	ac_xinit
+byte	"XZERO"|m,			type_asm_inst,		fvar	ac_xzero
+byte	"XCONT"|m,			type_asm_inst,		fvar	ac_xcont
+
+byte	"REP"|m,			type_asm_inst,		fvar	ac_rep
+
+'byte	"COGINIT"|m,			type_asm_inst,		fvar	ac_coginit	(declared as type_i_flex)
+byte	"QMUL"|m,			type_asm_inst,		fvar	ac_qmul
+byte	"QDIV"|m,			type_asm_inst,		fvar	ac_qdiv
+byte	"QFRAC"|m,			type_asm_inst,		fvar	ac_qfrac
+byte	"QSQRT"|m,			type_asm_inst,		fvar	ac_qsqrt
+byte	"QROTATE"|m,			type_asm_inst,		fvar	ac_qrotate
+byte	"QVECTOR"|m,			type_asm_inst,		fvar	ac_qvector
+
+'byte	"HUBSET"|m,			type_asm_inst,		fvar	ac_hubset	(declared as type_i_flex)
+'byte	"COGID"|m,			type_asm_inst,		fvar	ac_cogid	(declared as type_i_flex)
+'byte	"COGSTOP"|m,			type_asm_inst,		fvar	ac_cogstop	(declared as type_i_flex)
+'byte	"LOCKNEW"|m,			type_asm_inst,		fvar	ac_locknew	(declared as type_i_flex)
+'byte	"LOCKRET"|m,			type_asm_inst,		fvar	ac_lockret	(declared as type_i_flex)
+'byte	"LOCKTRY"|m,			type_asm_inst,		fvar	ac_locktry	(declared as type_i_flex)
+'byte	"LOCKREL"|m,			type_asm_inst,		fvar	ac_lockrel	(declared as type_i_flex)
+'byte	"QLOG"|m,			type_asm_inst,		fvar	ac_qlog		(declared as type_op)
+'byte	"QEXP"|m,			type_asm_inst,		fvar	ac_qexp		(declared as type_op)
+
+byte	"RFBYTE"|m,			type_asm_inst,		fvar	ac_rfbyte
+byte	"RFWORD"|m,			type_asm_inst,		fvar	ac_rfword
+byte	"RFLONG"|m,			type_asm_inst,		fvar	ac_rflong
+byte	"RFVAR"|m,			type_asm_inst,		fvar	ac_rfvar
+byte	"RFVARS"|m,			type_asm_inst,		fvar	ac_rfvars
+
+byte	"WFBYTE"|m,			type_asm_inst,		fvar	ac_wfbyte
+byte	"WFWORD"|m,			type_asm_inst,		fvar	ac_wfword
+byte	"WFLONG"|m,			type_asm_inst,		fvar	ac_wflong
+
+byte	"GETQX"|m,			type_asm_inst,		fvar	ac_getqx
+byte	"GETQY"|m,			type_asm_inst,		fvar	ac_getqy
+
+'byte	"GETCT"|m,			type_asm_inst,		fvar	ac_getct	(declared as type_i_flex)
+'byte	"GETRND"|m,			type_asm_inst,		fvar	ac_getrnd	(declared as type_i_flex)
+
+byte	"SETDACS"|m,			type_asm_inst,		fvar	ac_setdacs
+byte	"SETXFRQ"|m,			type_asm_inst,		fvar	ac_setxfrq
+byte	"GETXACC"|m,			type_asm_inst,		fvar	ac_getxacc
+
+byte	"WAITX"|m,			type_asm_inst,		fvar	ac_waitx
+
+byte	"SETSE1"|m,			type_asm_inst,		fvar	ac_setse1
+byte	"SETSE2"|m,			type_asm_inst,		fvar	ac_setse2
+byte	"SETSE3"|m,			type_asm_inst,		fvar	ac_setse3
+byte	"SETSE4"|m,			type_asm_inst,		fvar	ac_setse4
+
+byte	"POLLINT"|m,			type_asm_inst,		fvar	ac_pollint
+byte	"POLLCT1"|m,			type_asm_inst,		fvar	ac_pollct1
+byte	"POLLCT2"|m,			type_asm_inst,		fvar	ac_pollct2
+byte	"POLLCT3"|m,			type_asm_inst,		fvar	ac_pollct3
+byte	"POLLSE1"|m,			type_asm_inst,		fvar	ac_pollse1
+byte	"POLLSE2"|m,			type_asm_inst,		fvar	ac_pollse2
+byte	"POLLSE3"|m,			type_asm_inst,		fvar	ac_pollse3
+byte	"POLLSE4"|m,			type_asm_inst,		fvar	ac_pollse4
+byte	"POLLPAT"|m,			type_asm_inst,		fvar	ac_pollpat
+byte	"POLLFBW"|m,			type_asm_inst,		fvar	ac_pollfbw
+byte	"POLLXMT"|m,			type_asm_inst,		fvar	ac_pollxmt
+byte	"POLLXFI"|m,			type_asm_inst,		fvar	ac_pollxfi
+byte	"POLLXRO"|m,			type_asm_inst,		fvar	ac_pollxro
+byte	"POLLXRL"|m,			type_asm_inst,		fvar	ac_pollxrl
+'byte	"POLLATN"|m,			type_asm_inst,		fvar	ac_pollatn	(declared as type_i_flex)
+byte	"POLLQMT"|m,			type_asm_inst,		fvar	ac_pollqmt
+
+byte	"WAITINT"|m,			type_asm_inst,		fvar	ac_waitint
+byte	"WAITCT1"|m,			type_asm_inst,		fvar	ac_waitct1
+byte	"WAITCT2"|m,			type_asm_inst,		fvar	ac_waitct2
+byte	"WAITCT3"|m,			type_asm_inst,		fvar	ac_waitct3
+byte	"WAITSE1"|m,			type_asm_inst,		fvar	ac_waitse1
+byte	"WAITSE2"|m,			type_asm_inst,		fvar	ac_waitse2
+byte	"WAITSE3"|m,			type_asm_inst,		fvar	ac_waitse3
+byte	"WAITSE4"|m,			type_asm_inst,		fvar	ac_waitse4
+byte	"WAITPAT"|m,			type_asm_inst,		fvar	ac_waitpat
+byte	"WAITFBW"|m,			type_asm_inst,		fvar	ac_waitfbw
+byte	"WAITXMT"|m,			type_asm_inst,		fvar	ac_waitxmt
+byte	"WAITXFI"|m,			type_asm_inst,		fvar	ac_waitxfi
+byte	"WAITXRO"|m,			type_asm_inst,		fvar	ac_waitxro
+byte	"WAITXRL"|m,			type_asm_inst,		fvar	ac_waitxrl
+'byte	"WAITATN"|m,			type_asm_inst,		fvar	ac_waitatn	(declared as type_i_flex)
+
+byte	"ALLOWI"|m,			type_asm_inst,		fvar	ac_allowi
+byte	"STALLI"|m,			type_asm_inst,		fvar	ac_stalli
+
+byte	"TRGINT1"|m,			type_asm_inst,		fvar	ac_trgint1
+byte	"TRGINT2"|m,			type_asm_inst,		fvar	ac_trgint2
+byte	"TRGINT3"|m,			type_asm_inst,		fvar	ac_trgint3
+
+byte	"NIXINT1"|m,			type_asm_inst,		fvar	ac_nixint1
+byte	"NIXINT2"|m,			type_asm_inst,		fvar	ac_nixint2
+byte	"NIXINT3"|m,			type_asm_inst,		fvar	ac_nixint3
+
+byte	"SETINT1"|m,			type_asm_inst,		fvar	ac_setint1
+byte	"SETINT2"|m,			type_asm_inst,		fvar	ac_setint2
+byte	"SETINT3"|m,			type_asm_inst,		fvar	ac_setint3
+
+byte	"SETQ"|m,			type_asm_inst,		fvar	ac_setq
+byte	"SETQ2"|m,			type_asm_inst,		fvar	ac_setq2
+
+byte	"PUSH"|m,			type_asm_inst,		fvar	ac_push
+byte	"POP"|m,			type_asm_inst,		fvar	ac_pop
+
+byte	"JMPREL"|m,			type_asm_inst,		fvar	ac_jmprel
+byte	"SKIP"|m,			type_asm_inst,		fvar	ac_skip
+byte	"SKIPF"|m,			type_asm_inst,		fvar	ac_skipf
+byte	"EXECF"|m,			type_asm_inst,		fvar	ac_execf
+
+byte	"GETPTR"|m,			type_asm_inst,		fvar	ac_getptr
+byte	"GETBRK"|m,			type_asm_inst,		fvar	ac_getbrk
+byte	"COGBRK"|m,			type_asm_inst,		fvar	ac_cogbrk
+byte	"BRK"|m,			type_asm_inst,		fvar	ac_brk
+
+byte	"SETLUTS"|m,			type_asm_inst,		fvar	ac_setluts
+
+byte	"SETCY"|m,			type_asm_inst,		fvar	ac_setcy
+byte	"SETCI"|m,			type_asm_inst,		fvar	ac_setci
+byte	"SETCQ"|m,			type_asm_inst,		fvar	ac_setcq
+byte	"SETCFRQ"|m,			type_asm_inst,		fvar	ac_setcfrq
+byte	"SETCMOD"|m,			type_asm_inst,		fvar	ac_setcmod
+
+byte	"SETPIV"|m,			type_asm_inst,		fvar	ac_setpiv
+byte	"SETPIX"|m,			type_asm_inst,		fvar	ac_setpix
+
+'byte	"COGATN"|m,			type_asm_inst,		fvar	ac_cogatn	(declared as type_i_flex)
+
+byte	"TESTP"|m,			type_asm_inst,		fvar	ac_testp
+byte	"TESTPN"|m,			type_asm_inst,		fvar	ac_testpn
+
+byte	"DIRL"|m,			type_asm_inst,		fvar	ac_dirl
+byte	"DIRH"|m,			type_asm_inst,		fvar	ac_dirh
+byte	"DIRC"|m,			type_asm_inst,		fvar	ac_dirc
+byte	"DIRNC"|m,			type_asm_inst,		fvar	ac_dirnc
+byte	"DIRZ"|m,			type_asm_inst,		fvar	ac_dirz
+byte	"DIRNZ"|m,			type_asm_inst,		fvar	ac_dirnz
+byte	"DIRRND"|m,			type_asm_inst,		fvar	ac_dirrnd
+byte	"DIRNOT"|m,			type_asm_inst,		fvar	ac_dirnot
+
+byte	"OUTL"|m,			type_asm_inst,		fvar	ac_outl
+byte	"OUTH"|m,			type_asm_inst,		fvar	ac_outh
+byte	"OUTC"|m,			type_asm_inst,		fvar	ac_outc
+byte	"OUTNC"|m,			type_asm_inst,		fvar	ac_outnc
+byte	"OUTZ"|m,			type_asm_inst,		fvar	ac_outz
+byte	"OUTNZ"|m,			type_asm_inst,		fvar	ac_outnz
+byte	"OUTRND"|m,			type_asm_inst,		fvar	ac_outrnd
+byte	"OUTNOT"|m,			type_asm_inst,		fvar	ac_outnot
+
+byte	"FLTL"|m,			type_asm_inst,		fvar	ac_fltl
+byte	"FLTH"|m,			type_asm_inst,		fvar	ac_flth
+byte	"FLTC"|m,			type_asm_inst,		fvar	ac_fltc
+byte	"FLTNC"|m,			type_asm_inst,		fvar	ac_fltnc
+byte	"FLTZ"|m,			type_asm_inst,		fvar	ac_fltz
+byte	"FLTNZ"|m,			type_asm_inst,		fvar	ac_fltnz
+byte	"FLTRND"|m,			type_asm_inst,		fvar	ac_fltrnd
+byte	"FLTNOT"|m,			type_asm_inst,		fvar	ac_fltnot
+
+byte	"DRVL"|m,			type_asm_inst,		fvar	ac_drvl
+byte	"DRVH"|m,			type_asm_inst,		fvar	ac_drvh
+byte	"DRVC"|m,			type_asm_inst,		fvar	ac_drvc
+byte	"DRVNC"|m,			type_asm_inst,		fvar	ac_drvnc
+byte	"DRVZ"|m,			type_asm_inst,		fvar	ac_drvz
+byte	"DRVNZ"|m,			type_asm_inst,		fvar	ac_drvnz
+byte	"DRVRND"|m,			type_asm_inst,		fvar	ac_drvrnd
+byte	"DRVNOT"|m,			type_asm_inst,		fvar	ac_drvnot
+
+byte	"SPLITB"|m,			type_asm_inst,		fvar	ac_splitb
+byte	"MERGEB"|m,			type_asm_inst,		fvar	ac_mergeb
+byte	"SPLITW"|m,			type_asm_inst,		fvar	ac_splitw
+byte	"MERGEW"|m,			type_asm_inst,		fvar	ac_mergew
+byte	"SEUSSF"|m,			type_asm_inst,		fvar	ac_seussf
+byte	"SEUSSR"|m,			type_asm_inst,		fvar	ac_seussr
+byte	"RGBSQZ"|m,			type_asm_inst,		fvar	ac_rgbsqz
+byte	"RGBEXP"|m,			type_asm_inst,		fvar	ac_rgbexp
+byte	"XORO32"|m,			type_asm_inst,		fvar	ac_xoro32
+'byte	"REV"|m,			type_asm_inst,		fvar	ac_rev		(declared as type_op)
+byte	"RCZR"|m,			type_asm_inst,		fvar	ac_rczr
+byte	"RCZL"|m,			type_asm_inst,		fvar	ac_rczl
+byte	"WRC"|m,			type_asm_inst,		fvar	ac_wrc
+byte	"WRNC"|m,			type_asm_inst,		fvar	ac_wrnc
+byte	"WRZ"|m,			type_asm_inst,		fvar	ac_wrz
+byte	"WRNZ"|m,			type_asm_inst,		fvar	ac_wrnz
+byte	"MODCZ"|m,			type_asm_inst,		fvar	ac_modcz
+byte	"MODC"|m,			type_asm_inst,		fvar	ac_modc
+byte	"MODZ"|m,			type_asm_inst,		fvar	ac_modz
+
+byte	"SETSCP"|m,			type_asm_inst,		fvar	ac_setscp
+byte	"GETSCP"|m,			type_asm_inst,		fvar	ac_getscp
+
+byte	"JMP"|m,			type_asm_inst,		fvar	ac_jmp
+'byte	"CALL"|m,			type_asm_inst,		fvar	ac_call		(declared as type_i_flex)
+byte	"CALLA"|m,			type_asm_inst,		fvar	ac_calla
+byte	"CALLB"|m,			type_asm_inst,		fvar	ac_callb
+byte	"CALLD"|m,			type_asm_inst,		fvar	ac_calld
+byte	"LOC"|m,			type_asm_inst,		fvar	ac_loc
+
+byte	"AUGS"|m,			type_asm_inst,		fvar	ac_augs
+byte	"AUGD"|m,			type_asm_inst,		fvar	ac_augd
+
+byte	"PUSHA"|m,			type_asm_inst,		fvar	ac_pusha	'alias instructions
+byte	"PUSHB"|m,			type_asm_inst,		fvar	ac_pushb
+byte	"POPA"|m,			type_asm_inst,		fvar	ac_popa
+byte	"POPB"|m,			type_asm_inst,		fvar	ac_popb
+
+byte	"RET"|m,			type_asm_inst,		fvar	ac_ret		'xlat instructions
+byte	"RETA"|m,			type_asm_inst,		fvar	ac_reta
+byte	"RETB"|m,			type_asm_inst,		fvar	ac_retb
+byte	"RETI0"|m,			type_asm_inst,		fvar	ac_reti0
+byte	"RETI1"|m,			type_asm_inst,		fvar	ac_reti1
+byte	"RETI2"|m,			type_asm_inst,		fvar	ac_reti2
+byte	"RETI3"|m,			type_asm_inst,		fvar	ac_reti3
+byte	"RESI0"|m,			type_asm_inst,		fvar	ac_resi0
+byte	"RESI1"|m,			type_asm_inst,		fvar	ac_resi1
+byte	"RESI2"|m,			type_asm_inst,		fvar	ac_resi2
+byte	"RESI3"|m,			type_asm_inst,		fvar	ac_resi3
+byte	"XSTOP"|m,			type_asm_inst,		fvar	ac_xstop
+'byte	"AKPIN"|m,			type_asm_inst,		fvar	ac_akpin	(declared as type_i_flex)
+
+byte	"NOP"|m,			type_asm_inst,		fvar	ac_nop
+
+
+byte	"WC"|m,				type_asm_effect,	fvar	$0010		'assembly effects
+byte	"WZ"|m,				type_asm_effect,	fvar	$0001
+byte	"WCZ"|m,			type_asm_effect,	fvar	$0011
+byte	"ANDC"|m,			type_asm_effect2,	fvar	$0110
+byte	"ANDZ"|m,			type_asm_effect2,	fvar	$0101
+byte	"ORC"|m,			type_asm_effect2,	fvar	$1010
+byte	"ORZ"|m,			type_asm_effect2,	fvar	$1001
+byte	"XORC"|m,			type_asm_effect2,	fvar	$1110
+byte	"XORZ"|m,			type_asm_effect2,	fvar	$1101
+
+
+byte	"_CLR"|m,			type_con,		fvar	_if_never	'modcz values
+byte	"_NC_AND_NZ"|m,			type_con,		fvar	_if_nc_and_nz
+byte	"_NZ_AND_NC"|m,			type_con,		fvar	_if_nc_and_nz
+byte	"_GT"|m,			type_con,		fvar	_if_nc_and_nz
+byte	"_NC_AND_Z"|m,			type_con,		fvar	_if_nc_and_z
+byte	"_Z_AND_NC"|m,			type_con,		fvar	_if_nc_and_z
+byte	"_NC"|m,			type_con,		fvar	_if_nc
+byte	"_GE"|m,			type_con,		fvar	_if_nc
+byte	"_C_AND_NZ"|m,			type_con,		fvar	_if_c_and_nz
+byte	"_NZ_AND_C"|m,			type_con,		fvar	_if_c_and_nz
+byte	"_NZ"|m,			type_con,		fvar	_if_nz
+byte	"_NE"|m,			type_con,		fvar	_if_nz
+byte	"_C_NE_Z"|m,			type_con,		fvar	_if_c_ne_z
+byte	"_Z_NE_C"|m,			type_con,		fvar	_if_c_ne_z
+byte	"_NC_OR_NZ"|m,			type_con,		fvar	_if_nc_or_nz
+byte	"_NZ_OR_NC"|m,			type_con,		fvar	_if_nc_or_nz
+byte	"_C_AND_Z"|m,			type_con,		fvar	_if_c_and_z
+byte	"_Z_AND_C"|m,			type_con,		fvar	_if_c_and_z
+byte	"_C_EQ_Z"|m,			type_con,		fvar	_if_c_eq_z
+byte	"_Z_EQ_C"|m,			type_con,		fvar	_if_c_eq_z
+byte	"_Z"|m,				type_con,		fvar	_if_z
+byte	"_E"|m,				type_con,		fvar	_if_z
+byte	"_NC_OR_Z"|m,			type_con,		fvar	_if_nc_or_z
+byte	"_Z_OR_NC"|m,			type_con,		fvar	_if_nc_or_z
+byte	"_C"|m,				type_con,		fvar	_if_c
+byte	"_LT"|m,			type_con,		fvar	_if_c
+byte	"_C_OR_NZ"|m,			type_con,		fvar	_if_c_or_nz
+byte	"_NZ_OR_C"|m,			type_con,		fvar	_if_c_or_nz
+byte	"_C_OR_Z"|m,			type_con,		fvar	_if_c_or_z
+byte	"_Z_OR_C"|m,			type_con,		fvar	_if_c_or_z
+byte	"_LE"|m,			type_con,		fvar	_if_c_or_z
+byte	"_SET"|m,			type_con,		fvar	_if_always
+
+
+byte	"REG"|m,			type_reg,		fvar	0		'reg
+
+byte	"PR0"|m,			type_register,		fvar	pasm_regs+0	'pasm regs
+byte	"PR1"|m,			type_register,		fvar	pasm_regs+1
+byte	"PR2"|m,			type_register,		fvar	pasm_regs+2
+byte	"PR3"|m,			type_register,		fvar	pasm_regs+3
+byte	"PR4"|m,			type_register,		fvar	pasm_regs+4
+byte	"PR5"|m,			type_register,		fvar	pasm_regs+5
+byte	"PR6"|m,			type_register,		fvar	pasm_regs+6
+byte	"PR7"|m,			type_register,		fvar	pasm_regs+7
+
+byte	"IJMP3"|m,			type_register,		fvar	$1F0		'interrupt vectors
+byte	"IRET3"|m,			type_register,		fvar	$1F1
+byte	"IJMP2"|m,			type_register,		fvar	$1F2
+byte	"IRET2"|m,			type_register,		fvar	$1F3
+byte	"IJMP1"|m,			type_register,		fvar	$1F4
+byte	"IRET1"|m,			type_register,		fvar	$1F5
+byte	"PA"|m,				type_register,		fvar	$1F6		'calld/loc targets
+byte	"PB"|m,				type_register,		fvar	$1F7
+byte	"PTRA"|m,			type_register,		fvar	$1F8		'special function registers
+byte	"PTRB"|m,			type_register,		fvar	$1F9
+byte	"DIRA"|m,			type_register,		fvar	$1FA
+byte	"DIRB"|m,			type_register,		fvar	$1FB
+byte	"OUTA"|m,			type_register,		fvar	$1FC
+byte	"OUTB"|m,			type_register,		fvar	$1FD
+byte	"INA"|m,			type_register,		fvar	$1FE
+byte	"INB"|m,			type_register,		fvar	$1FF
+
+
+byte	"CLKMODE"|m,			type_hub_long,		fvar	$00040		'spin permanent variables
+byte	"CLKFREQ"|m,			type_hub_long,		fvar	$00044
+
+byte	"VARBASE"|m,			type_var_long,		fvar	0
+
+
+byte	"FALSE"|m,			type_con,		fvar	$00000000	'numeric constants
+byte	"TRUE"|m,			type_con |m,		long	$FFFFFFFF
+byte	"NEGX"|m,			type_con |m,		long	$80000000
+byte	"POSX"|m,			type_con |m,		long	$7FFFFFFF
+byte	"PI"|m,				type_con_float |m,	long	$40490FDB
+
+
+byte	"COGEXEC"|m,			type_con,		fvar	%000000		'coginit constants
+byte	"HUBEXEC"|m,			type_con,		fvar	%100000
+byte	"COGEXEC_NEW"|m,		type_con,		fvar	%010000
+byte	"HUBEXEC_NEW"|m,		type_con,		fvar	%110000
+byte	"COGEXEC_NEW_PAIR"|m,		type_con,		fvar	%010001
+byte	"HUBEXEC_NEW_PAIR"|m,		type_con,		fvar	%110001
+byte	"NEWCOG"|m,			type_con,		fvar	%010000		'cogspin constant
+
+
+byte	"P_TRUE_A"|m,			type_con,		fvar	%0 << 31	'smart pin constants
+byte	"P_INVERT_A"|m,			type_con |m,		long	%1 << 31
+
+byte	"P_LOCAL_A"|m,			type_con,		fvar	%000 << 28
+byte	"P_PLUS1_A"|m,			type_con,		fvar	%001 << 28
+byte	"P_PLUS2_A"|m,			type_con |m,		long	%010 << 28
+byte	"P_PLUS3_A"|m,			type_con |m,		long	%011 << 28
+byte	"P_OUTBIT_A"|m,			type_con |m,		long	%100 << 28
+byte	"P_MINUS3_A"|m,			type_con |m,		long	%101 << 28
+byte	"P_MINUS2_A"|m,			type_con |m,		long	%110 << 28
+byte	"P_MINUS1_A"|m,			type_con |m,		long	%111 << 28
+
+byte	"P_TRUE_B"|m,			type_con,		fvar	%0 << 27
+byte	"P_INVERT_B"|m,			type_con,		fvar	%1 << 27
+
+byte	"P_LOCAL_B"|m,			type_con,		fvar	%000 << 24
+byte	"P_PLUS1_B"|m,			type_con,		fvar	%001 << 24
+byte	"P_PLUS2_B"|m,			type_con,		fvar	%010 << 24
+byte	"P_PLUS3_B"|m,			type_con,		fvar	%011 << 24
+byte	"P_OUTBIT_B"|m,			type_con,		fvar	%100 << 24
+byte	"P_MINUS3_B"|m,			type_con,		fvar	%101 << 24
+byte	"P_MINUS2_B"|m,			type_con,		fvar	%110 << 24
+byte	"P_MINUS1_B"|m,			type_con,		fvar	%111 << 24
+
+byte	"P_PASS_AB"|m,			type_con,		fvar	%000 << 21
+byte	"P_AND_AB"|m,			type_con,		fvar	%001 << 21
+byte	"P_OR_AB"|m,			type_con,		fvar	%010 << 21
+byte	"P_XOR_AB"|m,			type_con,		fvar	%011 << 21
+byte	"P_FILT0_AB"|m,			type_con,		fvar	%100 << 21
+byte	"P_FILT1_AB"|m,			type_con,		fvar	%101 << 21
+byte	"P_FILT2_AB"|m,			type_con,		fvar	%110 << 21
+byte	"P_FILT3_AB"|m,			type_con,		fvar	%111 << 21
+
+byte	"P_LOGIC_A"|m,			type_con,		fvar	%0000 << 17
+byte	"P_LOGIC_A_FB"|m,		type_con,		fvar	%0001 << 17
+byte	"P_LOGIC_B_FB"|m,		type_con,		fvar	%0010 << 17
+byte	"P_SCHMITT_A"|m,		type_con,		fvar	%0011 << 17
+byte	"P_SCHMITT_A_FB"|m,		type_con,		fvar	%0100 << 17
+byte	"P_SCHMITT_B_FB"|m,		type_con,		fvar	%0101 << 17
+byte	"P_COMPARE_AB"|m,		type_con,		fvar	%0110 << 17
+byte	"P_COMPARE_AB_FB"|m,		type_con,		fvar	%0111 << 17
+
+byte	"P_ADC_GIO"|m,			type_con,		fvar	%100000 << 15
+byte	"P_ADC_VIO"|m,			type_con,		fvar	%100001 << 15
+byte	"P_ADC_FLOAT"|m,		type_con,		fvar	%100010 << 15
+byte	"P_ADC_1X"|m,			type_con,		fvar	%100011 << 15
+byte	"P_ADC_3X"|m,			type_con,		fvar	%100100 << 15
+byte	"P_ADC_10X"|m,			type_con,		fvar	%100101 << 15
+byte	"P_ADC_30X"|m,			type_con,		fvar	%100110 << 15
+byte	"P_ADC_100X"|m,			type_con,		fvar	%100111 << 15
+
+byte	"P_DAC_990R_3V"|m,		type_con,		fvar	%10100 << 16
+byte	"P_DAC_600R_2V"|m,		type_con,		fvar	%10101 << 16
+byte	"P_DAC_124R_3V"|m,		type_con,		fvar	%10110 << 16
+byte	"P_DAC_75R_2V"|m,		type_con,		fvar	%10111 << 16
+
+byte	"P_LEVEL_A"|m,			type_con,		fvar	%1100 << 17
+byte	"P_LEVEL_A_FBN"|m,		type_con,		fvar	%1101 << 17
+byte	"P_LEVEL_B_FBP"|m,		type_con,		fvar	%1110 << 17
+byte	"P_LEVEL_B_FBN"|m,		type_con,		fvar	%1111 << 17
+
+byte	"P_ASYNC_IO"|m,			type_con,		fvar	%0 << 16
+byte	"P_SYNC_IO"|m,			type_con,		fvar	%1 << 16
+
+byte	"P_TRUE_IN"|m,			type_con,		fvar	%0 << 15
+byte	"P_INVERT_IN"|m,		type_con,		fvar	%1 << 15
+
+byte	"P_TRUE_OUTPUT"|m,		type_con,		fvar	%0 << 14
+byte	"P_INVERT_OUTPUT"|m,		type_con,		fvar	%1 << 14
+
+byte	"P_HIGH_FAST"|m,		type_con,		fvar	%000 << 11
+byte	"P_HIGH_1K5"|m,			type_con,		fvar	%001 << 11
+byte	"P_HIGH_15K"|m,			type_con,		fvar	%010 << 11
+byte	"P_HIGH_150K"|m,		type_con,		fvar	%011 << 11
+byte	"P_HIGH_1MA"|m,			type_con,		fvar	%100 << 11
+byte	"P_HIGH_100UA"|m,		type_con,		fvar	%101 << 11
+byte	"P_HIGH_10UA"|m,		type_con,		fvar	%110 << 11
+byte	"P_HIGH_FLOAT"|m,		type_con,		fvar	%111 << 11
+
+byte	"P_LOW_FAST"|m,			type_con,		fvar	%000 << 8
+byte	"P_LOW_1K5"|m,			type_con,		fvar	%001 << 8
+byte	"P_LOW_15K"|m,			type_con,		fvar	%010 << 8
+byte	"P_LOW_150K"|m,			type_con,		fvar	%011 << 8
+byte	"P_LOW_1MA"|m,			type_con,		fvar	%100 << 8
+byte	"P_LOW_100UA"|m,		type_con,		fvar	%101 << 8
+byte	"P_LOW_10UA"|m,			type_con,		fvar	%110 << 8
+byte	"P_LOW_FLOAT"|m,		type_con,		fvar	%111 << 8
+
+byte	"P_TT_00"|m,			type_con,		fvar	%00 << 6
+byte	"P_TT_01"|m,			type_con,		fvar	%01 << 6
+byte	"P_TT_10"|m,			type_con,		fvar	%10 << 6
+byte	"P_TT_11"|m,			type_con,		fvar	%11 << 6
+byte	"P_OE"|m,			type_con,		fvar	%01 << 6
+byte	"P_CHANNEL"|m,			type_con,		fvar	%01 << 6
+byte	"P_BITDAC"|m,			type_con,		fvar	%10 << 6
+
+byte	"P_NORMAL"|m,			type_con,		fvar	%00000 << 1
+byte	"P_REPOSITORY"|m,		type_con,		fvar	%00001 << 1
+byte	"P_DAC_NOISE"|m,		type_con,		fvar	%00001 << 1
+byte	"P_DAC_DITHER_RND"|m,		type_con,		fvar	%00010 << 1
+byte	"P_DAC_DITHER_PWM"|m,		type_con,		fvar	%00011 << 1
+byte	"P_PULSE"|m,			type_con,		fvar	%00100 << 1
+byte	"P_TRANSITION"|m,		type_con,		fvar	%00101 << 1
+byte	"P_NCO_FREQ"|m,			type_con,		fvar	%00110 << 1
+byte	"P_NCO_DUTY"|m,			type_con,		fvar	%00111 << 1
+byte	"P_PWM_TRIANGLE"|m,		type_con,		fvar	%01000 << 1
+byte	"P_PWM_SAWTOOTH"|m,		type_con,		fvar	%01001 << 1
+byte	"P_PWM_SMPS"|m,			type_con,		fvar	%01010 << 1
+byte	"P_QUADRATURE"|m,		type_con,		fvar	%01011 << 1
+byte	"P_REG_UP"|m,			type_con,		fvar	%01100 << 1
+byte	"P_REG_UP_DOWN"|m,		type_con,		fvar	%01101 << 1
+byte	"P_COUNT_RISES"|m,		type_con,		fvar	%01110 << 1
+byte	"P_COUNT_HIGHS"|m,		type_con,		fvar	%01111 << 1
+byte	"P_STATE_TICKS"|m,		type_con,		fvar	%10000 << 1
+byte	"P_HIGH_TICKS"|m,		type_con,		fvar	%10001 << 1
+byte	"P_EVENTS_TICKS"|m,		type_con,		fvar	%10010 << 1
+byte	"P_PERIODS_TICKS"|m,		type_con,		fvar	%10011 << 1
+byte	"P_PERIODS_HIGHS"|m,		type_con,		fvar	%10100 << 1
+byte	"P_COUNTER_TICKS"|m,		type_con,		fvar	%10101 << 1
+byte	"P_COUNTER_HIGHS"|m,		type_con,		fvar	%10110 << 1
+byte	"P_COUNTER_PERIODS"|m,		type_con,		fvar	%10111 << 1
+byte	"P_ADC"|m,			type_con,		fvar	%11000 << 1
+byte	"P_ADC_EXT"|m,			type_con,		fvar	%11001 << 1
+byte	"P_ADC_SCOPE"|m,		type_con,		fvar	%11010 << 1
+byte	"P_USB_PAIR"|m,			type_con,		fvar	%11011 << 1
+byte	"P_SYNC_TX"|m,			type_con,		fvar	%11100 << 1
+byte	"P_SYNC_RX"|m,			type_con,		fvar	%11101 << 1
+byte	"P_ASYNC_TX"|m,			type_con,		fvar	%11110 << 1
+byte	"P_ASYNC_RX"|m,			type_con,		fvar	%11111 << 1
+
+
+byte	"X_IMM_32X1_LUT"|m,		type_con,		fvar	$0000 << 16	'streamer constants
+byte	"X_IMM_16X2_LUT"|m,		type_con,		fvar	$1000 << 16
+byte	"X_IMM_8X4_LUT"|m,		type_con |m,		long	$2000 << 16
+byte	"X_IMM_4X8_LUT"|m,		type_con |m,		long	$3000 << 16
+
+byte	"X_IMM_32X1_1DAC1"|m,		type_con |m,		long	$4000 << 16
+byte	"X_IMM_16X2_2DAC1"|m,		type_con |m,		long	$5000 << 16
+byte	"X_IMM_16X2_1DAC2"|m,		type_con |m,		long	$5002 << 16
+byte	"X_IMM_8X4_4DAC1"|m,		type_con |m,		long	$6000 << 16
+byte	"X_IMM_8X4_2DAC2"|m,		type_con |m,		long	$6002 << 16
+byte	"X_IMM_8X4_1DAC4"|m,		type_con |m,		long	$6004 << 16
+byte	"X_IMM_4X8_4DAC2"|m,		type_con |m,		long	$6006 << 16
+byte	"X_IMM_4X8_2DAC4"|m,		type_con |m,		long	$6007 << 16
+byte	"X_IMM_4X8_1DAC8"|m,		type_con |m,		long	$600E << 16
+byte	"X_IMM_2X16_4DAC4"|m,		type_con |m,		long	$600F << 16
+byte	"X_IMM_2X16_2DAC8"|m,		type_con |m,		long	$7000 << 16
+byte	"X_IMM_1X32_4DAC8"|m,		type_con |m,		long	$7001 << 16
+
+byte	"X_RFLONG_32X1_LUT"|m,		type_con |m,		long	$7002 << 16
+byte	"X_RFLONG_16X2_LUT"|m,		type_con |m,		long	$7004 << 16
+byte	"X_RFLONG_8X4_LUT"|m,		type_con |m,		long	$7006 << 16
+byte	"X_RFLONG_4X8_LUT"|m,		type_con |m,		long	$7008 << 16
+
+byte	"X_RFBYTE_1P_1DAC1"|m,		type_con |m,		long	$8000 << 16
+byte	"X_RFBYTE_2P_2DAC1"|m,		type_con |m,		long	$9000 << 16
+byte	"X_RFBYTE_2P_1DAC2"|m,		type_con |m,		long	$9002 << 16
+byte	"X_RFBYTE_4P_4DAC1"|m,		type_con |m,		long	$A000 << 16
+byte	"X_RFBYTE_4P_2DAC2"|m,		type_con |m,		long	$A002 << 16
+byte	"X_RFBYTE_4P_1DAC4"|m,		type_con |m,		long	$A004 << 16
+byte	"X_RFBYTE_8P_4DAC2"|m,		type_con |m,		long	$A006 << 16
+byte	"X_RFBYTE_8P_2DAC4"|m,		type_con |m,		long	$A007 << 16
+byte	"X_RFBYTE_8P_1DAC8"|m,		type_con |m,		long	$A00E << 16
+byte	"X_RFWORD_16P_4DAC4"|m,		type_con |m,		long	$A00F << 16
+byte	"X_RFWORD_16P_2DAC8"|m,		type_con |m,		long	$B000 << 16
+byte	"X_RFLONG_32P_4DAC8"|m,		type_con |m,		long	$B001 << 16
+
+byte	"X_RFBYTE_LUMA8"|m,		type_con |m,		long	$B002 << 16
+byte	"X_RFBYTE_RGBI8"|m,		type_con |m,		long	$B003 << 16
+byte	"X_RFBYTE_RGB8"|m,		type_con |m,		long	$B004 << 16
+byte	"X_RFWORD_RGB16"|m,		type_con |m,		long	$B005 << 16
+byte	"X_RFLONG_RGB24"|m,		type_con |m,		long	$B006 << 16
+
+byte	"X_1P_1DAC1_WFBYTE"|m,		type_con |m,		long	$C000 << 16
+byte	"X_2P_2DAC1_WFBYTE"|m,		type_con |m,		long	$D000 << 16
+byte	"X_2P_1DAC2_WFBYTE"|m,		type_con |m,		long	$D002 << 16
+byte	"X_4P_4DAC1_WFBYTE"|m,		type_con |m,		long	$E000 << 16
+byte	"X_4P_2DAC2_WFBYTE"|m,		type_con |m,		long	$E002 << 16
+byte	"X_4P_1DAC4_WFBYTE"|m,		type_con |m,		long	$E004 << 16
+byte	"X_8P_4DAC2_WFBYTE"|m,		type_con |m,		long	$E006 << 16
+byte	"X_8P_2DAC4_WFBYTE"|m,		type_con |m,		long	$E007 << 16
+byte	"X_8P_1DAC8_WFBYTE"|m,		type_con |m,		long	$E00E << 16
+byte	"X_16P_4DAC4_WFWORD"|m,		type_con |m,		long	$E00F << 16
+byte	"X_16P_2DAC8_WFWORD"|m,		type_con |m,		long	$F000 << 16
+byte	"X_32P_4DAC8_WFLONG"|m,		type_con |m,		long	$F001 << 16
+
+byte	"X_1ADC8_0P_1DAC8_WFBYTE"|m,	type_con |m,		long	$F002 << 16
+byte	"X_1ADC8_8P_2DAC8_WFWORD"|m,	type_con |m,		long	$F003 << 16
+byte	"X_2ADC8_0P_2DAC8_WFWORD"|m,	type_con |m,		long	$F004 << 16
+byte	"X_2ADC8_16P_4DAC8_WFLONG"|m,	type_con |m,		long	$F005 << 16
+byte	"X_4ADC8_0P_4DAC8_WFLONG"|m,	type_con |m,		long	$F006 << 16
+
+byte	"X_DDS_GOERTZEL_SINC1"|m,	type_con |m,		long	$F007 << 16
+byte	"X_DDS_GOERTZEL_SINC2"|m,	type_con |m,		long	$F087 << 16
+
+byte	"X_DACS_OFF"|m,			type_con,		fvar	$0000 << 16
+byte	"X_DACS_0_0_0_0"|m,		type_con,		fvar	$0100 << 16
+byte	"X_DACS_X_X_0_0"|m,		type_con,		fvar	$0200 << 16
+byte	"X_DACS_0_0_X_X"|m,		type_con,		fvar	$0300 << 16
+byte	"X_DACS_X_X_X_0"|m,		type_con,		fvar	$0400 << 16
+byte	"X_DACS_X_X_0_X"|m,		type_con,		fvar	$0500 << 16
+byte	"X_DACS_X_0_X_X"|m,		type_con,		fvar	$0600 << 16
+byte	"X_DACS_0_X_X_X"|m,		type_con,		fvar	$0700 << 16
+byte	"X_DACS_0N0_0N0"|m,		type_con,		fvar	$0800 << 16
+byte	"X_DACS_X_X_0N0"|m,		type_con,		fvar	$0900 << 16
+byte	"X_DACS_0N0_X_X"|m,		type_con,		fvar	$0A00 << 16
+byte	"X_DACS_1_0_1_0"|m,		type_con,		fvar	$0B00 << 16
+byte	"X_DACS_X_X_1_0"|m,		type_con,		fvar	$0C00 << 16
+byte	"X_DACS_1_0_X_X"|m,		type_con,		fvar	$0D00 << 16
+byte	"X_DACS_1N1_0N0"|m,		type_con,		fvar	$0E00 << 16
+byte	"X_DACS_3_2_1_0"|m,		type_con,		fvar	$0F00 << 16
+
+byte	"X_PINS_OFF"|m,			type_con,		fvar	$0000 << 16
+byte	"X_PINS_ON"|m,			type_con,		fvar	$0080 << 16
+
+byte	"X_WRITE_OFF"|m,		type_con,		fvar	$0000 << 16
+byte	"X_WRITE_ON"|m,			type_con,		fvar	$0080 << 16
+
+byte	"X_ALT_OFF"|m,			type_con,		fvar	$0000 << 16
+byte	"X_ALT_ON"|m,			type_con,		fvar	$0001 << 16
+
+
+byte	"INT_OFF"|m,			type_con,		fvar	0		'interrupt constants
+byte	"INT_CT1"|m,			type_con,		fvar	1
+byte	"INT_CT2"|m,			type_con,		fvar	2
+byte	"INT_CT3"|m,			type_con,		fvar	3
+byte	"INT_SE1"|m,			type_con,		fvar	4
+byte	"INT_SE2"|m,			type_con,		fvar	5
+byte	"INT_SE3"|m,			type_con,		fvar	6
+byte	"INT_SE4"|m,			type_con,		fvar	7
+byte	"INT_PAT"|m,			type_con,		fvar	8
+byte	"INT_FBW"|m,			type_con,		fvar	9
+byte	"INT_XMT"|m,			type_con,		fvar	10
+byte	"INT_XFI"|m,			type_con,		fvar	11
+byte	"INT_XRO"|m,			type_con,		fvar	12
+byte	"INT_XRL"|m,			type_con,		fvar	13
+byte	"INT_ATN"|m,			type_con,		fvar	14
+byte	"INT_QMT"|m,			type_con,		fvar	15
+
+byte	0										'end of auto symbols

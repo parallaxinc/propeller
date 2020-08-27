@@ -1,0 +1,210 @@
+' Program reads 1..8 consecutive ADC pins and displays millivolts for each.
+' A terminate-stay-resident PASM program performs conversions in background.
+' Samples are always available via REG[samples][{0..7}].
+
+CON
+  _clkfreq = 297_000_000		'set clock frequency
+  _pins    = 16 addpins 7		'do conversions on these pins
+
+OBJ
+  vga : "VGA_640x480_text_80x40"	'_clkfreq >= 50MHz
+' vga : "VGA_1280x1024_text_160x85"	'_clkfreq >= 216MHz
+' vga : "HDTV_1920x1080_text_240x90"	'_clkfreq >= 297MHz
+' vga : "HDTV_1920x1080_text_135x160"	'_clkfreq >= 297MHz
+
+PUB go() | i
+
+  vga.start(8)			'start vga
+
+  reg[pins] := _pins		'set 'pins' variable
+  regexec(@adc_pasm)		'launch PASM program (uses 'pins')
+
+  send := @vga.print		'set send pointer
+
+  repeat			'print samples set every 100ms
+    repeat i from 0 to _pins >> 6
+      send(dec4(reg[samples][i]), "mV ")
+    send(13)
+    waitms(100)
+
+PRI dec4(value) | digflag, negflag, place, digit
+
+  digflag~
+  negflag := value < 0
+  abs= value
+  place := 1_000
+  repeat
+    if digflag || (digit := value / place // 10) or place == 1
+      if not digflag~~
+        send(negflag ? "-" : " ")
+      send("0" + digit)
+    else
+      send(" ")
+    if place == 1_000
+      send(digflag ? "," : " ")
+  while place /= 10
+
+DAT
+
+'********************************************************
+'* PASM Program which launches via REGEXEC		*
+'* Sets up an interrupt and then runs in the background *
+'* Performs calibrated ADC measurements of up to 8 pins *
+'* Reports samples in millivolts			*
+'********************************************************
+'
+'
+' REGEXEC header words
+'
+adc_pasm	word	adc_start		'initial register to load
+		word	adc_end-adc_start-1	'additional registers to load
+
+		org	$B0			'put PASM code up high
+'
+'
+' ADC program setup
+'
+adc_start	fltl	pins			'set pins to ADC mode
+		wrpin	adc_modes,pins
+		wxpin	#9,pins			'#9 is 512-clock, 10-bit conversion (8 per sample)
+		drvl	pins			'start pins on same clock
+
+		mov	pin_base,pins		'get pin base
+		and	pin_base,#$3F
+
+		mov	pin_count,pins		'get pin count
+		shr	pin_count,#6
+		add	pin_count,#1
+
+		mov	level_base,#adc_levels	'prepare level_base altd pointer
+		sub	level_base,pin_base
+		bith	level_base,#9
+
+		mov	ijmp1,#adc_isr		'set interrupt jump
+
+		mov	x,pin_base		'set base pin IN-rise event
+		or	x,#%001<<6
+		setse1	x
+
+	_ret_	setint1	#event_se1		'enable interrupt on event, return to Spin2
+'
+'
+' ADC interrupt service routine - runs in background of Spin2 interpreter
+'
+adc_isr		akpin	pins			'ADC samples done, acknowledge pins
+
+		alts	cycle,#vio_levels	'lookup vio and gio levels for sample computation
+		mov	x,0
+		alts	cycle,#gio_levels
+		mov	y,0
+
+		sub	x,y			'(3300 << 12) / (vio_level - gio_level)
+		qdiv	##3300<<12,x		'cordic runs during REP
+
+		rep	#3,pin_count		'read ADC samples and sum into adc_levels
+		rdpin	x,pin_base
+		altd	pin_base,level_base
+		add	0,x
+
+		sub	pin_base,pin_count	'restore pin_base
+
+		getqx	x			'get QDIV quotient
+
+		alts	cycle,#pin_levels	'(quotient * (pin_level - gio_level)) >> 12
+		subr	y,0
+		muls	y,x
+		sar	y,#12
+
+		altd	cycle,#samples		'write finished sample
+		mov	0,y
+
+		incmod	cycle,#7	wc	'repeat for 8 cycles
+	if_nc	reti1				'return to Spin2
+
+
+		altd	state,#adc_modes	'end of 8th cycle, switch to next gio/vio/pin
+		wrpin	0,pins
+
+		resi1				'return to Spin2, resume on next interrupt
+
+
+		akpin	pins			'9th cycle, acknowledge pins
+
+		alts	state,#moves		'move adc_levels to gio/vio/pin_levels
+		mov	x,0
+		rep	#2,pin_count
+		alti	x,#%111_111
+		mov	0,0
+
+		resi1				'return to Spin2, resume on next interrupt
+
+
+		akpin	pins			'10th cycle, acknowledge pins
+
+		setd	x,#adc_levels		'clear adc_levels
+		rep	#2,pin_count
+		alti	x,#%111_000
+		mov	0,#0
+
+		incmod	state,#3		'increment state
+
+		mov	ijmp1,#adc_isr		'return to Spin2, start over on next interrupt
+		reti1
+'
+'
+' Defined data
+'
+cycle		long	0	'cycles {0..7, 0, 0} for each state
+state		long	0	'states {0..3}
+
+adc_modes	long	p_adc_gio | p_adc		'adc modes, by state
+		long	p_adc_1x  | p_adc
+		long	p_adc_vio | p_adc
+		long	p_adc_1x  | p_adc
+
+moves		long	pin_levels<<9 | adc_levels	'moves, by state
+		long	gio_levels<<9 | adc_levels
+		long	pin_levels<<9 | adc_levels
+		long	vio_levels<<9 | adc_levels
+
+adc_end				'end of PASM code to load into registers
+'
+'
+' Undefined data
+'
+pins		res	1	'initially set by Spin2 code to select the pins
+
+x		res	1
+y		res	1
+pin_base	res	1
+pin_count	res	1
+level_base	res	1
+
+adc_levels	res	8	'conversions are accumulated into this buffer
+gio_levels	res	8	'..and then copied to one of these three buffers
+vio_levels	res	8
+pin_levels	res	8
+
+samples		res	8	'final samples, available via REG[samples][{0..7}]
+'
+'
+'	cycle		operations
+'	------------------------------------------------------------------------------------
+'	0 (1st)		add conversions to levels, compute sample[0]
+'	1		add conversions to levels, compute sample[1]
+'	2		add conversions to levels, compute sample[2]
+'	3		add conversions to levels, compute sample[3]
+'	4		add conversions to levels, compute sample[4]
+'	5		add conversions to levels, compute sample[5]
+'	6		add conversions to levels, compute sample[6]
+'	7 (8th)		add conversions to levels, compute sample[7], switch to gio/vio/pin
+'	0 (9th)		move levels to gio/vio/pin_levels
+'	0 (10th)	clear levels, advance state
+'
+'	state		operations
+'	------------------------------------------------------------------------------------
+'	0		sample gio for calibration
+'	1		sample pin for signal
+'	2		sample vio for calibration
+'	3		sample pin for signal
+'

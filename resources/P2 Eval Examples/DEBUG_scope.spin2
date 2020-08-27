@@ -1,0 +1,39 @@
+_clkfreq = 200_000_000
+
+PUB go() | i, j, k, l, m
+
+  debug("`scope zzz size 400 300 samples 200 linesize 3")
+  debug("`zzz 'Cosine' -128 128 65 128 15")
+  debug("`zzz 'Sine' -128 128 65 32 15")
+  debug("`zzz 'Sawtooth' 0 63 64 220 12")
+  debug("`zzz trigger 1 20 30 100")
+
+  repeat
+    i += 1
+    j += $04200000
+    k += $03E00000
+    l,_ := polxy(128,j)
+    m,_ := polxy(128,k)
+    debug("`zzz ", sdec_(l, m, i & 63))
+    waitms(1)
+
+
+{
+SCOPE display
+
+config:	POS screen_x screen_y		'default is 0 0
+	SIZE scope_x_size scope_y_size	'default is 256 256
+	SAMPLES sample_depth		'default is 256
+	DOTSIZE dot_size_0_to_7		'default is 0
+	LINESIZE line_size_0_to_7	'default is 1
+	BACKCOLOR color_rrggbb		'default is black
+	GRIDCOLOR color_rrggbb		'default is grey
+	UPDATE				'sets 'update' mode, where display is only updated when 'update' is in feed
+
+feed:	ch0 ch1 ch2 ...			'numerical data for channels 0..7
+	'label' topvalue bottomvalue height offset_y gridsettings_4bits color_rrggbb	'assign channel, starting at channel 0
+	TRIGGER channel_0_to_7 arming_value triggering_value sample_offset		'set up triggering
+	CLEAR				'clear display
+	UPDATE				'update display in 'update' mode
+	SAVE 'filename'			'save display as filename.bmp
+}

@@ -1,0 +1,386 @@
+'**********************************************
+'*  HDTV 1920 x 1080 - 135 x 160 text driver  *
+'**********************************************
+
+CON
+
+  cols		= 135
+  rows		= 160
+
+  screen_size	= cols * rows
+  top_row	= rows - 1
+
+  s = 60	'scales DAC output (s = 0..128)
+
+  sync_color1	= $000000_00
+  sync_color2	= (-105*s/128) & $FF	'sync- on all three outputs
+  sync_color3	= (+105*s/128) & $FF	'sync+ on all three outputs
+
+  fpix		= 148_500_000
+
+
+VAR	cog		'status
+	flag
+	color
+
+	background0_	'data read by driver cog
+	foreground0_
+	background1_
+	foreground1_
+	screen_base_
+	av_base_pin_
+
+	row		'print position
+	col
+
+	byte screen[screen_size]	
+
+
+PUB start(av_board_base_pin) : okay
+
+'' Start VGA driver cog
+
+  stop()
+
+  flag := 0
+  print(0)
+
+  background0_ := $000000_00
+  foreground0_ := $FF8000_00
+  background1_ := $FF8000_00
+  foreground1_ := $000000_00
+  screen_base_ := @screen
+  av_base_pin_ := av_board_base_pin & $38
+
+  okay := cog := coginit(16, @driver, @background0_) + 1
+
+
+PUB stop()
+
+'' Stop VGA driver cog
+
+  if cog
+    cogstop(cog-1)
+    pinclear(av_base_pin_ addpins 4)
+
+
+PUB print(chr)
+
+'' Print a character to screen
+''
+''      0 = clear screen
+''      1 = home
+''      2 = set X position (X follows)
+''      3 = set Y position (Y follows)
+''      4 = set background0 color (color follows)
+''      5 = set foreground0 color (color follows)
+''      6 = set background1 color (color follows)
+''      7 = set foreground1 color (color follows)
+''      8 = backspace
+''      9 = tab (8 spaces per)
+''     10 = linefeed, ignored
+''     11 = select color0
+''     12 = select color1
+''     13 = return, new line
+'' others = printable characters
+
+  case flag
+    0: case_fast chr
+         0:     bytefill(@screen, " ", screen_size)
+                col := row := 0
+         1:     col := row := 0
+         2..7:  flag := chr
+                return
+         8:     if col
+                  col--
+         9:     repeat
+                  out(" ")
+                while col & 7
+         10:    return
+         11:    color := $00
+         12:    color := $80
+         13:    newline()
+         other: out(chr)
+
+    2:    col := chr // cols
+    3:    row := chr // rows
+    4..7: background0_[flag-$04] := chr << 8
+
+  flag := 0
+
+PRI out(chr)
+
+  screen[col * rows + top_row - row] := chr ^ color
+  if ++col == cols
+    newline()
+
+PRI newline() | i
+
+  col := 0
+  if ++row == rows
+    row--
+    bytemove(@screen + 1, @screen, screen_size - 1)	'scroll lines
+    repeat i from 0 to cols - 1				'clear bottom line
+      byte[@screen][i * rows] := " "
+'
+'
+' Driver
+'
+DAT		org
+
+driver		add	ptrb,#@font-@driver	'load font into LUT %000..$17F
+		setq2	#$200-1
+		rdlong	0,ptrb
+
+		rdlong	pa,#@clkfreq		'calculate streamer frequency
+		qfrac	##fpix,pa
+		getqx	pa
+		shr	pa,#1
+		setxfrq	pa
+
+		setcy	cy_			'Y	set colorspace for Y-Pb-Pr
+		setci	ci_			'Pb
+		setcq	cq_			'Pr
+
+		setcmod	#%01_1_111_0		'enable colorspace conversion
+
+		cogid	pa			'insert cogid into dac mode
+		setnib	dacmode,pa,#2
+
+		rdlong	av_base_pin,ptra[5]	'get av_base
+
+		xor	av_base_pin,#2<<6|1	'enable 75-ohm 2.0V dac mode in pins +3..1 for Y,Pb,Pr
+		wrpin	dacmode,av_base_pin
+		drvl	av_base_pin
+'
+'
+' Field loop
+'
+.field		setq	#5-1			'load settings
+		rdlong	background0,ptra
+
+		mov	ptrb,#$010		'point between $000/$020 color sets in LUT
+
+		wrlut	background0,ptrb[-16]	'set colors for chr msb = 0
+		wrlut	foreground0,ptrb[-15]
+		wrlut	background1,ptrb[+16]	'set colors for chr msb = 1
+		wrlut	foreground1,ptrb[+17]
+
+		callpa	#25+8,#blank		'top blanks (+8 gets first column on screen)
+
+
+.line		xcont	m_60,#sync_color1	'porch
+
+		rdfast	#0,screen_base		'set fifo to read from current screen column
+
+		rep	@.chr,#rows		'ready to output 12 pixels for each chr
+
+		rfbyte	pa		wc	'2	get chr
+		bitc	m_px,#16		'2	select colors using msb of chr
+		and	pa,#$7F			'2	trim chr to 7 bits
+		shl	pa,#2			'2	get base address of font
+		add	pa,font_base		'2	add offset for top/middle/bottom lines of chr
+		rdlut	pa,pa			'3	look up four lines of chr
+		shr	pa,font_line		'2	get line of interest into lower 8 bits
+		xcont	m_px,pa			'2 =17	output 12 single-bit pixels to streamer
+.chr
+		call	#hsync			'do hsync
+
+		add	font_line,#$10		'increment chr word selector
+		cmpsub	font_line,#$20	wz
+	if_z	incmod	font_base,#$03	wz	'increment chr long selector
+	if_z	add	screen_base,#rows	'increment screen pointer and column
+	if_z	incmod	colx,#cols-1	wz
+	if_nz	jmp	#.line			'loop until all rows output
+
+
+		callpa	#14-8,#blank		'bottom blanks (-8 gets first column on screen)
+
+		mov	pa,#10			'low vertical syncs
+.vsync1		xcont	m_880,#sync_color2
+		call	#hsync
+		djnz	pa,#.vsync1
+
+		mov	pa,#10			'high vertical syncs
+.vsync2		xcont	m_880,#sync_color1
+		call	#hsync
+		djnz	pa,#.vsync2
+
+		jmp	#.field			'loop
+'
+'
+' Subroutines
+'
+blank		xcont	m_60,#sync_color1
+		xcont	m_1920,#sync_color1
+		call	#hsync			'blank lines
+	_ret_	djnz	pa,#blank
+
+hsync		xzero	m_44,#sync_color1	'horizontal sync
+		xcont	m_44,#sync_color2
+		xcont	m_44,#sync_color3
+	_ret_	xcont	m_88,#sync_color1
+'
+'
+' Initialized data
+'
+cy_		long	((+27*s/128) & $FF) << 24 + ((+92*s/128) & $FF) << 16 + (( +9*s/128) & $FF) << 8 + 80
+ci_		long	((-15*s/128) & $FF) << 24 + ((-49*s/128) & $FF) << 16 + ((+64*s/128) & $FF) << 8 + 128
+cq_		long	((+64*s/128) & $FF) << 24 + ((-58*s/128) & $FF) << 16 + (( -6*s/128) & $FF) << 8 + 128
+
+dacmode		long	%0000_0000_000_1011100000000_01_00000_0		'Y/Pb/Pr are 75-ohm, 2.0V
+
+m_44		long	$7F010000+44		'syncs/blanks
+m_88		long	$7F010000+88
+m_60		long	$7F010000+60
+m_880		long	$7F010000+880
+m_1920		long	$7F010000+1920
+m_px		long	$0F000000+12		'12 single-bit pixels, colors in LUT $000/$001
+
+colx		long	0
+font_base	long	0
+font_line	long	0
+'
+'
+' Uninitialized data
+'
+background0	res	1
+foreground0	res	1
+background1	res	1
+foreground1	res	1
+screen_base	res	1
+av_base_pin	res	1
+'
+'
+' 12 x 8 font of 128 chrs
+'
+	orgh
+
+font	word	$000,$0C0,$1E0,$3F0,$0C0,$0C0,$0C0,$000
+	word	$000,$0C0,$0C0,$0C0,$3F0,$1E0,$0C0,$000
+	word	$000,$100,$300,$7FC,$7FC,$300,$100,$000
+	word	$000,$010,$018,$7FC,$7FC,$018,$010,$000
+	word	$1F0,$208,$404,$404,$404,$404,$208,$1F0
+	word	$1F0,$208,$4E4,$5F4,$5F4,$4E4,$208,$1F0
+	word	$7FC,$404,$404,$404,$404,$404,$404,$7FC
+	word	$7FC,$71C,$5B4,$4E4,$4E4,$5B4,$71C,$7FC
+	word	$000,$FFE,$7FC,$3F8,$1F0,$0E0,$040,$000
+	word	$000,$0E0,$1F0,$1F0,$1F0,$0E0,$000,$000
+	word	$000,$000,$000,$00F,$03F,$030,$060,$060
+	word	$060,$060,$030,$03F,$00F,$000,$000,$000
+	word	$000,$000,$000,$F00,$FC0,$0C0,$060,$060
+	word	$060,$060,$0C0,$FC0,$F00,$000,$000,$000
+	word	$060,$060,$060,$060,$060,$060,$060,$060
+	word	$000,$000,$000,$FFF,$FFF,$000,$000,$000
+	word	$060,$060,$060,$07F,$07F,$060,$060,$060
+	word	$060,$060,$060,$FE0,$FE0,$060,$060,$060
+	word	$000,$000,$000,$FFF,$FFF,$060,$060,$060
+	word	$060,$060,$060,$FFF,$FFF,$000,$000,$000
+	word	$060,$060,$060,$FFF,$FFF,$060,$060,$060
+	word	$666,$666,$666,$666,$666,$666,$666,$666
+	word	$666,$CCC,$999,$333,$666,$CCC,$999,$333
+	word	$000,$FFF,$FFF,$000,$000,$FFF,$FFF,$000
+	word	$AAA,$555,$AAA,$555,$AAA,$555,$AAA,$555
+	word	$FFF,$FFF,$FFF,$FFF,$03F,$03F,$03F,$03F
+	word	$FC0,$FC0,$FC0,$FC0,$03F,$03F,$03F,$03F
+	word	$FFF,$FFF,$FFF,$FFF,$000,$000,$000,$000
+	word	$FC0,$FC0,$FC0,$FC0,$000,$000,$000,$000
+	word	$03F,$03F,$03F,$03F,$03F,$03F,$03F,$03F
+	word	$000,$000,$000,$000,$03F,$03F,$03F,$03F
+	word	$03F,$03F,$03F,$03F,$000,$000,$000,$000
+	word	$000,$000,$000,$000,$000,$000,$000,$000	' '
+	word	$000,$000,$380,$7EC,$7EC,$380,$000,$000	'!'
+	word	$180,$780,$700,$000,$180,$780,$700,$000	'"'
+	word	$110,$7FC,$7FC,$110,$7FC,$7FC,$110,$000	'#'
+	word	$000,$198,$3D8,$E4E,$E4E,$378,$330,$000	'$'
+	word	$000,$18C,$198,$030,$060,$0CC,$18C,$000	'%'
+	word	$378,$7FC,$484,$7EC,$378,$03C,$064,$000	'&'
+	word	$000,$000,$180,$780,$700,$000,$000,$000	'''
+	word	$000,$0E0,$1F0,$318,$60C,$404,$000,$000	'('
+	word	$000,$404,$60C,$318,$1F0,$0E0,$000,$000	')'
+	word	$040,$150,$1F0,$0E0,$0E0,$1F0,$150,$040	'*'
+	word	$000,$040,$040,$1F0,$1F0,$040,$040,$000	'+'
+	word	$000,$000,$00D,$00F,$00E,$000,$000,$000	','
+	word	$000,$040,$040,$040,$040,$040,$040,$000	'-'
+	word	$000,$000,$00C,$00C,$00C,$000,$000,$000	'.'
+	word	$00C,$018,$030,$060,$0C0,$180,$300,$000	'/'
+	word	$3F8,$7FC,$434,$4E4,$584,$7FC,$3F8,$000	'0'
+	word	$000,$104,$104,$3FC,$7FC,$004,$004,$000	'1'
+	word	$000,$30C,$71C,$434,$464,$7CC,$38C,$000	'2'
+	word	$000,$208,$60C,$444,$444,$7FC,$3B8,$000	'3'
+	word	$060,$0E0,$1A0,$324,$7FC,$7FC,$024,$000	'4'
+	word	$000,$7C8,$7CC,$444,$444,$47C,$438,$000	'5'
+	word	$000,$1F8,$3FC,$644,$444,$47C,$038,$000	'6'
+	word	$700,$700,$41C,$43C,$460,$7C0,$780,$000	'7'
+	word	$000,$3B8,$7FC,$4C4,$464,$7FC,$3B8,$000	'8'
+	word	$000,$380,$7C4,$444,$44C,$7F8,$3F0,$000	'9'
+	word	$000,$000,$198,$198,$198,$000,$000,$000	':'
+	word	$000,$000,$0CD,$0CF,$0CE,$000,$000,$000	';'
+	word	$000,$040,$0E0,$1B0,$318,$60C,$404,$000	'<'
+	word	$000,$0A0,$0A0,$0A0,$0A0,$0A0,$0A0,$000	'='
+	word	$000,$404,$60C,$318,$1B0,$0E0,$040,$000	'>'
+	word	$000,$200,$600,$46C,$4EC,$780,$300,$000	'?'
+	word	$3F8,$7FC,$60C,$4E4,$4E4,$7E4,$3C0,$000	'@'
+	word	$000,$3FC,$7FC,$440,$440,$7FC,$3FC,$000	'A'
+	word	$404,$7FC,$7FC,$444,$444,$7FC,$3B8,$000	'B'
+	word	$1F0,$3F8,$60C,$404,$404,$71C,$318,$000	'C'
+	word	$404,$7FC,$7FC,$404,$60C,$3F8,$1F0,$000	'D'
+	word	$404,$7FC,$7FC,$444,$444,$4E4,$60C,$000	'E'
+	word	$404,$7FC,$7FC,$444,$440,$4E0,$600,$000	'F'
+	word	$1F0,$3F8,$60C,$404,$424,$73C,$33C,$000	'G'
+	word	$7FC,$7FC,$040,$040,$040,$7FC,$7FC,$000	'H'
+	word	$000,$000,$404,$7FC,$7FC,$404,$000,$000	'I'
+	word	$038,$03C,$004,$404,$7FC,$7F8,$400,$000	'J'
+	word	$404,$7FC,$7FC,$040,$1F0,$7BC,$60C,$000	'K'
+	word	$404,$7FC,$7FC,$404,$004,$01C,$03C,$000	'L'
+	word	$7FC,$7FC,$380,$1C0,$380,$7FC,$7FC,$000	'M'
+	word	$7FC,$7FC,$1C0,$0E0,$070,$7FC,$7FC,$000	'N'
+	word	$1F0,$3F8,$60C,$404,$60C,$3F8,$1F0,$000	'O'
+	word	$404,$7FC,$7FC,$444,$440,$7C0,$380,$000	'P'
+	word	$1F0,$3F8,$60C,$414,$61C,$3FE,$1F2,$000	'Q'
+	word	$404,$7FC,$7FC,$440,$460,$7FC,$39C,$000	'R'
+	word	$000,$398,$7DC,$444,$464,$73C,$318,$000	'S'
+	word	$000,$600,$404,$7FC,$7FC,$404,$600,$000	'T'
+	word	$000,$7F8,$7FC,$004,$004,$7FC,$7F8,$000	'U'
+	word	$000,$7F0,$7F8,$00C,$00C,$7F8,$7F0,$000	'V'
+	word	$7E0,$7FC,$01C,$060,$01C,$7FC,$7E0,$000	'W'
+	word	$000,$71C,$7BC,$0E0,$0E0,$7BC,$71C,$000	'X'
+	word	$000,$780,$7C4,$07C,$07C,$7C4,$780,$000	'Y'
+	word	$71C,$63C,$464,$4C4,$584,$70C,$61C,$000	'Z'
+	word	$000,$000,$7FC,$7FC,$404,$404,$000,$000	'['
+	word	$300,$180,$0C0,$060,$030,$018,$00C,$000	'\'
+	word	$000,$000,$404,$404,$7FC,$7FC,$000,$000	']'
+	word	$080,$180,$300,$600,$300,$180,$080,$000	'^'
+	word	$004,$004,$004,$004,$004,$004,$004,$004	'_'
+	word	$000,$000,$180,$1C0,$0E0,$060,$000,$000	'`'
+	word	$018,$0BC,$0A4,$0A4,$0F8,$07C,$004,$000	'a'
+	word	$404,$7FC,$7F8,$084,$084,$0FC,$078,$000	'b'
+	word	$000,$078,$0FC,$084,$084,$0CC,$048,$000	'c'
+	word	$078,$0FC,$084,$484,$7F8,$7FC,$004,$000	'd'
+	word	$000,$078,$0FC,$0A4,$0A4,$0EC,$068,$000	'e'
+	word	$000,$044,$3FC,$7FC,$444,$640,$200,$000	'f'
+	word	$072,$0FB,$089,$089,$07F,$0FE,$080,$000	'g'
+	word	$404,$7FC,$7FC,$040,$080,$0FC,$07C,$000	'h'
+	word	$000,$004,$084,$6FC,$6FC,$004,$004,$000	'i'
+	word	$000,$006,$007,$001,$081,$6FF,$6FE,$000	'j'
+	word	$404,$7FC,$7FC,$020,$070,$0DC,$08C,$000	'k'
+	word	$000,$404,$404,$7FC,$7FC,$004,$004,$000	'l'
+	word	$0FC,$0FC,$080,$0FC,$080,$0FC,$07C,$000	'm'
+	word	$000,$0FC,$0FC,$080,$080,$0FC,$07C,$000	'n'
+	word	$000,$078,$0FC,$084,$084,$0FC,$078,$000	'o'
+	word	$081,$0FF,$07F,$085,$084,$0FC,$078,$000	'p'
+	word	$078,$0FC,$084,$085,$07F,$0FF,$081,$000	'q'
+	word	$084,$0FC,$0FC,$024,$0C0,$0E0,$060,$000	'r'
+	word	$000,$048,$0EC,$0A4,$094,$0DC,$048,$000	's'
+	word	$000,$080,$1F8,$3FC,$084,$08C,$088,$000	't'
+	word	$0F8,$0FC,$004,$004,$0F8,$0FC,$004,$000	'u'
+	word	$000,$0F0,$0F8,$00C,$00C,$0F8,$0F0,$000	'v'
+	word	$0F0,$0FC,$00C,$030,$00C,$0FC,$0F0,$000	'w'
+	word	$084,$0CC,$078,$030,$078,$0CC,$084,$000	'x'
+	word	$000,$0F0,$0F9,$009,$00B,$0FE,$0FC,$000	'y'
+	word	$000,$0CC,$09C,$094,$0A4,$0E4,$0CC,$000	'z'
+	word	$000,$040,$0E0,$3B8,$71C,$404,$404,$000	'{'
+	word	$000,$000,$000,$7FC,$7FC,$000,$000,$000	'|'
+	word	$000,$404,$404,$71C,$3B8,$0E0,$040,$000	'}'
+	word	$300,$700,$400,$600,$300,$100,$700,$600	'~'
+	word	$000,$088,$088,$3E8,$3E8,$088,$088,$000

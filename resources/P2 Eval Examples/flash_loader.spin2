@@ -1,0 +1,276 @@
+' *** SPI FLASH PROGRAMMER AND BOOT LOADER
+' *** Writes loader and application to SPI flash, then reboots to execute.
+' *** All data is checksum-verified before programming and on each boot.
+'
+' Use:	1) Append application bytes at app_start, pad to long alignment
+'	2) Write negative sum of all longs to long at offset 4
+'	3) Download all longs to execute flash programmer
+'	4) After flash programmer finishes, chip reboots to application.
+'
+'
+'	Program/Boot performance using Winbond W25Q128 (RCFAST)
+'
+'			program		boot
+'	bytes		time		time
+'	-------------------------------------
+'	0..2KB		30ms		10ms
+'	   4KB		60ms		11ms
+'	   8KB		94ms		14ms
+'	  16KB		170ms		20ms
+'	  32KB		200ms		30ms
+'	  64KB		300ms		52ms
+'	 128KB		570ms		95ms
+'	 256KB		1.1s		184ms
+'	 512KB		2.2s		358ms
+'
+CON	spi_cs = 61
+	spi_ck = 60
+	spi_di = 59
+	spi_do = 58
+
+
+'****************
+'*  Programmer  *
+'****************
+'
+DAT		org
+
+s		skip	#1			'@0: skip checksum			(reused as s)
+v		long	0			'@4: negative sum of all longs		(reused as v, set by compiler)
+'
+'
+' Get number of bytes, add $400 zero bytes after download, verify checksum
+'
+		getptr	s			'get size of download in bytes
+
+		setq	#$400/4-1		'add $400 zeros after app to pad loader or last flash page
+		wrlong	#0,s
+
+		shr	s,#2			'get size of download in longs
+
+		rdfast	#0,#0			'verify checksum
+		rep	#2,s
+		rflong	v
+		add	@zeroa/4,v	wz	'(if checksum passes, @zeroa/4 = 0 afterwards)
+
+	if_nz	jmp	#@stop/4		'if checksum failed, float spi pins and stop clock
+'
+'
+' Write settings into loader
+'
+		loc	ptra,#\@app_longs	'point to loader settings
+
+		sub	s,#@app_start/4		'get size of application in longs
+
+		wrlong	s,ptra++		'write app_longs in loader
+		wrlong	s,ptra++		'write app_longs2 in loader
+
+		rdfast	#0,#@app_start		'calculate app checksum
+		rep	#2,s
+		rflong	v
+		sub	@zerob/4,v
+		wrlong	@zerob/4,ptra++		'write app_sum in loader
+
+		rdfast	#0,#@loader		'calculate loader checksum
+		rep	#2,#$100
+		rflong	v
+		sub	@zeroc/4,v
+		wrlong	@zeroc/4,ptra++		'write loader_sum in loader
+'
+'
+' Determine number of 256-byte pages to program to flash
+'
+		add	s,#app_start		'get size of flash data in longs
+		add	s,#$3F			'round upwards to next chunk of 64 longs
+		shr	s,#6			'get number of 256-byte pages of flash data
+		fge	s,#4			'a minimum of four pages are needed to cover loader
+'
+'
+' Get ready to program flash
+'
+		drvh	#spi_cs			'spi_cs high
+
+		fltl	#spi_ck			'reset smart pin spi_ck
+		wrpin	#%01_00101_0,#spi_ck	'set spi_ck for transition output, starts out low
+		wxpin	#1,#spi_ck		'set timebase to 1 clock per transition
+		drvl	#spi_ck			'enable smart pin
+
+		drvl	#spi_di			'spi_di low
+
+		setxfrq	@clk2/4			'set streamer rate to clk/2
+
+		rdfast	#0,#@loader		'start fifo read at loader
+'
+'
+' Main loop - erase 64KB/4KB blocks, program 256/16 sequential 256-byte pages, reboot when done
+'
+.block		cmp	s,#$40		wcz	'if pages <= $40, set 4KB erase @25ms
+	if_be	setd	.cmd,#$20		'(initially set for 64KB erase @140ms)
+	if_be	sets	.tst,#$0F
+
+		callpa	#$06,#spi_cmd1		'enable write
+.cmd		callpa	#$D8,#spi_cmd4		'erase 64KB/4KB block
+
+		call	#spi_wait		'wait for erase cycle to complete
+
+.page		callpa	#$06,#spi_cmd1		'enable write
+		callpa	#$02,#spi_cmd4		'program 256-byte page
+
+		xinit	rmode,pa		'2	start outputting 256*8 bits
+		wypin	tranp,#spi_ck		'2	start 256*8*2 clock transitions
+		waitxfi				'~4k	wait for streamer done
+
+		call	#spi_wait		'wait for program cycle to complete
+
+		djz	s,#.reboot		'decrement pages, reboot when done
+
+		add	@zeroa/4,#$0001		'if not 64KB/4KB block boundary, program next page
+.tst		test	@zeroa/4,#$00FF	wz
+	if_nz	jmp	#.page
+
+		jmp	#.block			'else, erase next block
+'
+'
+' Done, reboot chip to launch application
+'
+.reboot		hubset	##$1000_0000		'generate hardware reset
+'
+'
+' SPI command, 1 byte - use callpa
+'
+spi_cmd1	drvh	#spi_cs			'start new command
+		drvl	#spi_cs
+
+		xinit	bmode,pa		'2	start outputting 8 bits to spi_di
+		wypin	#16,#spi_ck		'2	start 16 spi_ck transitions
+	_ret_	waitxfi				'~16	wait for streamer to finish
+'
+'
+' SPI command, 4 bytes - use callpa
+'
+spi_cmd4	setword	pa,@zeroa/4,#1		'get page address into pa[31:16]
+		movbyts	pa,#%%1230		'rearrange bytes to get {8'h00, page[7:0], page[15:8], command[7:0]}
+
+		drvh	#spi_cs			'start new command
+		drvl	#spi_cs
+
+		xinit	lmode,pa		'2	start outputting 32 bits to spi_di
+		wypin	#64,#spi_ck		'2	start 64 spi_ck transitions
+	_ret_	waitxfi				'~64	wait for streamer to finish
+'
+'
+' SPI wait
+'
+spi_wait	callpa	#$05,#spi_cmd1		'read status register
+
+		wypin	#16,#spi_ck		'2	start 16 spi_ck transitions
+		waitx	#16+3			'2+19	align testp with last spi_ck transition
+		testp	#spi_do		wc	'2	sample spi_do to get busy bit
+
+	if_c	jmp	#spi_wait		'if busy, try again
+
+		ret
+'
+'
+' Data
+'
+tranp		long	256 * 8 * 2
+bmode		long	$4081_0008 + spi_di<<17	'streamer mode, 1-pin output, bytes-msb-first, 1 byte from s
+lmode		long	$4081_0020 + spi_di<<17	'streamer mode, 1-pin output, bytes-msb-first, 4 bytes from s
+rmode		long	$8081_0800 + spi_di<<17	'streamer mode, 1-pin output, bytes-msb-first, $100 bytes from hub
+
+
+'************
+'*  Loader  *
+'************
+'
+' The ROM booter reads this code from the 8-pin SPI flash from $000000..$0003FF, into cog
+' registers $000..$0FF. If the booter verifies the 'Prop' checksum, it does a 'JMP #0' to
+' execute this loader code.
+'
+' The initial application data trailing this code in registers app_start..$0FF are moved to
+' hub RAM, starting at $00000. Then, any additional application data are read from the flash
+' and stored into the hub, continuing from where the initial application data left off.
+'
+' On entry, both spi_cs and spi_ck are low outputs and the flash is outputting bit 7 of the
+' byte at address $400 on spi_do. By cycling spi_ck, any additional application data can be
+' received from spi_do.
+'
+' Once all application data is in the hub, an application checksum is verified, after which
+' cog 0 is restarted by a 'COGINIT #0,#$00000' to execute the application. If that checksum
+' fails, due to some data corruption, the SPI pins will be floated and the clock stopped
+' until the next reset. As well, a checksum is verified upon initial download of all data,
+' before programming the flash. This all ensures that no errant application code will boot.
+'
+		org
+'
+'
+' First, move application data in cog app_start..$0FF into hub $00000+
+'
+loader		setq	#$100-app_start-1	'move code from cog app_start..$0FF to hub $00000+
+		wrlong	app_start,#0
+
+		sub	app_longs,#$100-app_start  wcz	'if app longs met or exceeded, run application
+	if_be	coginit	#0,#$00000			'(small applications verified by 'Prop' checksum)
+'
+'
+' Read in remaining application longs
+'
+		wrpin	#%01_00101_0,#spi_ck	'set spi_ck smart pin for transitions, drives low
+		fltl	#spi_ck			'reset smart pin
+		wxpin	#1,#spi_ck		'set transition timebase to clk/1
+		drvl	#spi_ck			'enable smart pin
+
+		setxfrq	clk2			'set streamer rate to clk/2
+
+		wrfast	#0,##$400-app_start*4	'ready to write to hub at application continuation
+
+.block		bmask	x,#10			'try max streamer block size for longs ($7FF)
+		fle	x,app_longs		'limit to number of longs left
+		sub	app_longs,x		'update number of longs left
+
+		shl	x,#5			'get number of bits
+		setword	wmode,x,#0		'insert into streamer command
+		shl	x,#1			'double for number of spi_ck transitions
+
+		wypin	x,#spi_ck		'2	start spi_ck transitions
+		waitx	#3			'2+3	align spi_ck transitions with spi_do sampling
+		xinit	wmode,#0		'2	start inputting spi_do bits to hub, bytes-msb-first
+		waitxfi				'?	wait for streamer to finish
+
+		tjnz	app_longs,#.block	'if more longs left, read another block
+
+		wrpin	#0,#spi_ck		'clear spi_ck smart pin mode
+'
+'
+' Verify application checksum
+'
+		rdfast	#0,#0			'sum all application longs
+		rep	#2,app_longs2
+		rflong	x
+		add	app_sum,x	wz	'z=1 if verified
+
+stop	if_nz	fltl	#spi_di addpins 2	'if checksum failed, float spi_cs/spi_ck/spi_di pins
+	if_nz	hubset	#%0010			'..and stop clock until next reset
+
+		coginit	#0,#$00000		'checksum verified, run application
+'
+'
+' Data
+'
+clk2		long	$4000_0000		'clk/2 nco value for streamer
+wmode		long	$C081_0000 + spi_do<<17	'streamer mode, 1-pin input, bytes-msb-first, bytes to hub
+
+zeroa						'(used by programmer as long 0)
+app_longs	long	0			'number of longs in application		(set by programmer)
+zerob						'(used by programmer as long 0)
+app_longs2	long	0			'number of longs in application		(set by programmer)
+zeroc						'(used by programmer as long 0)
+app_sum		long	0			'-sum of application longs		(set by programmer)
+x						'(used by loader as variable)
+loader_sum	byte	-"P",!"r",!"o",!"p"	'"Prop" - sum of $100 loader longs	(set by programmer)
+'
+'
+' Application start
+'
+app_start					'append application bytes after this label

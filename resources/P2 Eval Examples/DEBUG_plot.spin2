@@ -1,0 +1,11 @@
+_clkfreq = 10_000_000
+
+PUB go() | i, j
+
+  debug("`plot myplot update")
+
+  i~
+  repeat 50
+    i += 4
+    debug("`myplot clear polyfill 10 10 110 10 60 100 text 60 ", udec_(i), " 'BOOM!!' update")
+    waitms(100)

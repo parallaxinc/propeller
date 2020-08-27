@@ -1,0 +1,5 @@
+pub go() | x
+
+  repeat
+    pinwrite(56 addpins 7, getrnd())
+    waitms(100)

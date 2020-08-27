@@ -1,0 +1,247 @@
+'**********************************************************************
+'*  Use microphone on A/V board to demonstrate spectrograph in DEBUG  *
+'**********************************************************************
+
+CON		av_base		= 8		'must be a multiple of 8
+		hdmi_base	= 48		'must be a multiple of 8
+
+		mic_pin		= av_base + 5
+		hdmi_pins	= hdmi_base + 7<<6
+
+		sample_buff	= $1000				'Microphone samples buffer (1024 words)
+		real_imag_buff	= sample_buff	 + 1024*2	'FFT (real,imaginary) buffer (1024*2 longs)
+		powr_angl_buff	= real_imag_buff + 1024*2*4	'FFT powers buffer (512*2 longs)
+		bitmap		= powr_angl_buff + 512*2*4	'HDMI bitmap (512 bytes)
+
+		_clkfreq	= 250_000_000
+
+
+DAT		org
+
+		asmclk						'set clock
+
+		setq	##($7FFFF - @end_of_pgm)/4		'clear hub RAM
+		wrlong	#0,##@end_of_pgm
+
+		coginit	#1,#@pgm_mic		'launch Microphone
+		coginit	#2,#@pgm_spectro	'launch Spectrograph
+
+		debug("`bitmap b pos 0 0 size 400 300 luma8 %000 packedlongs_8bit")
+
+		debug("`scope s pos 0 320 size 400 128 samples 100 packedlongs_8bit")
+		debug("`s 'FFT' 0 255 128")
+
+
+.loop		debug("`b scroll -1 0 setxy 399 299 6")
+		debug("`b ", uhex_long_array_(#bitmap+2,#300/4))
+		debug("`s ", uhex_long_array_(#bitmap+2,#100/4))
+		waitx	##clkfreq_ / 50
+		jmp	#.loop
+
+
+'****************
+'*  Microphone  *
+'****************
+
+DAT		org
+
+pgm_mic		wrpin	##%100111_0000000_00_11000_0,#mic_pin	'set mic for 100x-mag and 14-bit SINC2 sampling
+		wxpin	#13,#mic_pin
+		dirh	#mic_pin
+
+.wait		testp	#mic_pin	wc	'wait for sample
+	if_nc	jmp	#.wait
+
+		rdpin	.x,#mic_pin		'get sample and convert to signed word (acknowledges pin)
+		shl	.x,#2
+		bitnot	.x,#15
+
+		setq2	#512-1			'load sample buffer in hub into lut at single-sample offset
+		rdlong	0,##sample_buff+2
+
+		rdlut	.y,.lastlut		'install sample in last word of buffer
+		setword	.y,.x,#1
+		wrlut	.y,.lastlut
+
+		setq2	#512-1			'write buffer back with new sample (scrolls buffer)
+		wrlong	0,##sample_buff
+
+		jmp	#.wait			'next sample
+
+' Data
+
+.lastlut	long	$1FF
+
+.x		res	1
+.y		res	1
+
+
+'******************
+'*  Spectrograph  *
+'******************
+
+DAT		org
+
+pgm_spectro	call	#fft			'do fft on current samples
+
+		mov	i1,#0			'ready to scroll screen and insert new pixel column
+		mov	i2,##bitmap
+
+.line		mov	i3,i1			'get power sample
+		shl	i3,#3
+		add	i3,powr_angl_ptr
+		rdlong	i3,i3
+
+		shr	i3,#10			'scale power sample down and clamp it for luma8 pixel use
+		fle	i3,#$FF
+
+		wrbyte	i3,i2			'write pixel to bitmap
+		add	i2,#1
+
+		incmod	i1,#512-1	wc
+	if_nc	jmp	#.line		
+
+		jmp	#pgm_spectro
+'
+'
+' Fast Fourier Transform, 1024-point
+'
+' on entry:	sample_buff must hold 1024 signed word samples
+' on exit:	powr_angl_buff holds 512 long (power,angle) pairs
+'
+
+' Load 1024 signed-word samples into 1024 signed-long (real,imaginary) coordinate pairs
+
+fft		mov	i1,#0			'reset index
+		mov	ptra,sample_ptr		'ready to read from sample_buff
+		wrfast	#0,real_imag_ptr	'ready to write to real_imag_buff
+
+.load		mov	i2,i1			'apply 1-minus-cosine window to samples
+		shl	i2,#32-(encod 1024)
+		qrotate	##$3FFF,i2
+		rdword	ax,ptra++		'read sample while waiting for window value
+		getqx	i2	
+		subr	i2,##$4000
+		muls	ax,i2			'scale sample by window value
+		sar	ax,#15
+		wflong	ax			'store windowed sample as (real=sample,imaginary=0)
+		wflong	#0
+		incmod	i1,##1024-1		'loop until all samples stored as (real,imaginary) pairs
+		tjnz	i1,#.load
+
+
+' Perform 1024-point FFT
+
+		decod	i1,#encod(1024 >> 1)	'init counters
+		mov	i2,#1
+
+
+.loop1		mov	i3,#0
+		mov	i4,i1
+		mov	c1,i2
+		bmask	angle,#30		'set angle to init to 0
+
+
+.loop2		rev	angle			'increment bit-reverse angle
+		add	angle,#2
+		rev	angle
+
+		mov	ptra,i3			'point to (ax,ay)
+		shl	ptra,#3
+		add	ptra,real_imag_ptr
+
+		mov	ptrb,i1			'point to (bx,by)
+		shl	ptrb,#3
+		add	ptrb,ptra
+
+		mov	c2,i4			'set loop3 iterations
+		sub	c2,i3
+
+
+.loop3		setq	#2-1			'read (bx,by)
+		rdlong	bx,ptrb
+
+		setq	by			'rotate (bx,by) by angle
+		qrotate	bx,angle
+
+		setq	#2-1			'read (ax,ay)
+		rdlong	ax,ptra
+
+		mov	bx,ax			'copy (ax,ay) to (bx,by)
+		mov	by,ay
+
+		getqx	rx			'get rotated (bx,by) into (rx,ry)
+		getqy	ry
+
+		add	ax,rx			'(ax,ay) = (ax+rx,ay+ry)
+		add	ay,ry
+
+		sub	bx,rx			'(bx,by) = (ax-rx,ay-ry)
+		sub	by,ry
+
+		setq	#2-1			'write (ax,ay)
+		wrlong	ax,ptra++
+
+		setq	#2-1			'write (bx,by)
+		wrlong	bx,ptrb++
+
+		djnz	c2,#.loop3
+
+
+		add	i3,i1
+		add	i3,i1
+		add	i4,i1
+		add	i4,i1
+
+		djnz	c1,#.loop2
+
+
+		shr	i1,#1
+		shl	i2,#1
+
+		tjnz	i1,#.loop1
+
+
+' Convert 1024-point FFT results to 512 (power,angle) pairs
+
+		wrfast	#0,powr_angl_ptr	'ready to store (power,angle) pairs, i1=0
+
+.convert	mov	ptra,i1			'get bit-reverse index for (real,imaginary) pair
+		rev	ptra
+		shr	ptra,#32 - (encod 1024) - 3	'(-3 for two longs per pair)
+		add	ptra,real_imag_ptr
+		setq	#2-1			'read (real,imaginary)
+		rdlong	ax,ptra
+
+		qvector	ax,ay			'convert (real,imaginary) to (power,angle)
+
+		getqx	ax			'store (power,angle)
+		wflong	ax
+		getqy	ay
+		wflong	ay
+
+		incmod	i1,#512-1		'loop until conversions done
+	_ret_	tjnz	i1,#.convert
+'
+'
+' Data
+'
+sample_ptr	long	sample_buff
+real_imag_ptr	long	real_imag_buff
+powr_angl_ptr	long	powr_angl_buff
+
+c1		res	1
+c2		res	1
+i1		res	1
+i2		res	1
+i3		res	1
+i4		res	1
+angle		res	1
+ax		res	1	'(ax,ay) must be contiguous
+ay		res	1
+bx		res	1	'(bx,by) must be contiguous
+by		res	1
+rx		res	1
+ry		res	1
+
+end_of_pgm

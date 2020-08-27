@@ -1,0 +1,43 @@
+CON _clkfreq = 297_000_000
+
+OBJ
+  vga : "VGA_640x480_text_80x40"	'_clkfreq >= 50MHz
+' vga : "VGA_1280x1024_text_160x85"	'_clkfreq >= 216MHz
+' vga : "HDTV_1920x1080_text_240x90"	'_clkfreq >= 297MHz
+' vga : "HDTV_1920x1080_text_135x160"	'_clkfreq >= 297MHz
+
+PUB go() | i, t
+
+  vga.start(8)			'start vga
+
+  send := @vga.print		'set send pointer
+
+  send(4, $004040, 5, $00FFFF)	'cyan on dark cyan
+
+  t := getct()			'capture time
+
+  i := @text			'print file
+  repeat @textend-i
+    send(byte[i++])
+
+  i := getct()			'capture time
+
+  t := muldiv64(i - t, 1_000_000, clkfreq)	'get delta in microseconds
+
+  send(12, "Elapsed time during printing was ", dec(t), " microseconds.")
+
+PRI dec(value) | flag, place, digit
+
+  flag~
+  place := 1_000_000_000
+  repeat
+    if flag ||= (digit := value / place // 10) or place == 1
+      send("0" + digit)
+      if lookdown(place : 1_000_000_000, 1_000_000, 1_000)
+        send(",")
+  while place /= 10
+
+DAT
+
+text	file	"vga_text_demo.spin2"
+textend
