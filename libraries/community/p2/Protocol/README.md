@@ -1,5 +1,7 @@
 [JM 1-Wire](../All/jm_1-wire)
 
+[JM EZ SPI](../All/jm_ez_spi)
+
 [JM Full Duplex Serial](../All/jm_full_duplex_serial)
 
 [JM I2C](../All/jm_i2c)

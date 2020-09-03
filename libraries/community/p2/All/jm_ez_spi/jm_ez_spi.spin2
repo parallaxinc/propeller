@@ -1,0 +1,206 @@
+'' =================================================================================================
+''
+''   File....... jm_ez_spi.spin2
+''   Purpose.... Smart pin Mode 0 SPI routines
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 01 SEP 2020
+''
+''   {$P2} 
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }
+
+
+con
+
+  #0, LSBFIRST, MSBFIRST                                          
+
+
+var
+
+  long  setup
+  
+  long  sdi                                                     ' smart pin #s (-1 if not used)
+  long  sdo
+  long  sck
+
+
+pub null()
+
+'' This is not a top object                                                        
+                                                                 
+          
+pub start(sdipin, sdopin, sckpin, khz) : result | m, x
+
+'' Configure P2 smart pins for SPI coms
+'' -- sdipin is input from external device (-1 if not used)
+'' -- sdopin is output to external device  (-1 if not used)
+'' -- sckpin is clock output
+'' -- khz is clock frequence in kilohertz  (1000 = 1MHz)                                                        
+                                                                 
+  stop()
+
+  if ((sdipin == sdopin) || (sckpin < 0))                       ' validate pins
+    return false
+
+  longmove(@sdi, @sdipin, 3)                                    ' save pins
+
+  if (sdi >= 0)
+    m := P_SYNC_RX                                              ' spi rx mode                         
+    m |= ((sck-sdi) & %111) << 24                               ' add SCK offset (B pin)              
+    x := %0_00000 | (8-1)                                       ' sample ahead of b pin rise, 8 bits  
+    pinstart(sdi, m, x, 0)                                      ' configure smart pin                                                                   
+    pinf(sdi)                                                   ' disable until used
+
+  if (sdo >= 0)
+    m := P_OE | P_SYNC_TX                                       ' spi tx mode
+    m |= ((sck-sdo) & %111) << 24                               ' add SCK offset (B pin)
+    x := %1_00000 | (8-1)                                       ' start/stop mode, 8 bits
+    pinstart(sdo, m, x, 0)                                      ' configure smart pin  
+    pinf(sdo)                                                   ' disable until used 
+
+  m := P_OE | P_PULSE                                           ' pulses for spi clock   
+  x.word[0] := 2 #> (clkfreq / (khz*1000)) <# $FFFF             ' ticks in period        
+  x.word[1] := x.word[0] >> 1                                   ' ticks in low cycle (50%)      
+  pinstart(sck, m, x, 0)                                        ' configure smart pin                                                         
+
+  setup := true
+
+  return setup
+                      
+
+pub stop()
+
+'' Clears SPI smart pins if configured
+
+  if (setup)                                                    ' configured?
+    if (sdi >= 0)                                               ' clear smart pins
+      pinclear(sdi)
+    if (sdo >= 0)
+      pinclear(sdo)
+    pinclear(sck)      
+    setup := false
+    
+  longfill(@sdi, -1, 3)                                         ' mark pins as unused
+
+
+pub shiftin(mode, bits) : value
+
+'' Shift data in from a synchronous serial device
+'' -- mode is bit order: LSBFIRST or MSBFIRST
+'' -- bits in the number of bits to shift
+
+  if (sdi < 0)                                                  ' abort if di not defined
+    return 0
+
+  pinf(sdi)                                                     ' reset di
+  wxpin(sdi, %0_00000 | (bits-1))                               ' configure di sampling/bits
+  pinl(sdi)                                                     ' enable di
+  wypin(sck, bits)                                              ' start clocking data
+  repeat until pinr(sck)                                        ' wait until clocks finished
+
+  value := rdpin(sdi)                                           ' get value
+
+  if (mode == LSBFIRST)
+    value >>= (32-bits)                                         ' align lsb
+  else
+    value rev= 31                                               ' flip to align lsb
+    if (bits < 32)                                              ' clear unused bits
+      value zerox= (bits-1)
+
+
+pub shiftout(mode, value, bits)
+
+'' Shift data out to a synchronous serial device 
+'' -- mode is bit order: LSBFIRST or MSBFIRST 
+'' -- value is shifted out
+'' -- bits in the number of bits to shift
+
+  if (sdo < 0)                                                  ' abort if do not defined
+    return
+
+  if (mode == MSBFIRST)                                         ' flip to output from LSB end
+    if (bits < 32)                                              ' adjust alignment if needed
+      value <<= (32-bits)      
+    value rev= 31
+
+  wxpin(sdo, %1_00000 | (bits-1))                               ' configure do bits
+  wypin(sdo, value)                                             ' load value
+  pinl(sdo)                                                     ' enable do
+  wypin(sck, bits)                                              ' start clocking data
+  repeat until pinr(sck)                                        ' wait for clocking to finish
+  pinf(sdo)                                                     ' disable do 
+
+
+pub shiftio(mode, outval, bits) : inval
+
+'' Shift outval to a synchronous serial device while receiving inval
+'' -- mode is bit order: LSBFIRST or MSBFIRST 
+'' -- bits in the number of bits to shift
+
+  if ((sdi < 0) || (sdo < 0))                                   ' abort if di and do not defined
+    return 0
+
+  if (mode == MSBFIRST)                                         
+    if (bits < 32)                                              ' adjust alignment if needed
+      outval <<= (32-bits)      
+    outval rev= 31                                              ' flip to output from LSB end   
+
+  wxpin(sdo, %1_00000 | (bits-1))                               ' configure do bits
+  wypin(sdo, outval)                                            ' load value
+  pinl(sdo)                                                     ' enable do
+  pinf(sdi)                                                     ' reset di
+  wxpin(sdi, %0_00000 | (bits-1))                               ' configure di sampling/bits
+  pinl(sdi)                                                     ' enable di
+  wypin(sck, bits)                                              ' start clocking data
+  repeat until pinr(sck)                                        ' wait for clocking to finish
+  pinf(sdo)                                                     ' disable do 
+
+  inval := rdpin(sdi)                                           ' get inval
+
+  if (mode == LSBFIRST)
+    inval >>= (32-bits)                                         ' align lsb
+  else
+    inval rev= 31                                               ' flip to align lsb
+    if (bits < 32)                                              ' clear unused bits
+      inval zerox= (bits-1)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
