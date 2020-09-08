@@ -1,0 +1,111 @@
+﻿11:13:54 Marcelo Simoes : Jeff I do not see your shared screen
+11:13:57 duztynn eisenga : camera is still on you, not the desktop
+11:25:08 Whit Stodghill : GREAT tip - Never knew this!
+11:25:41 Jim Granville : Notepad++ has exactly that, plus it will allow enter of text cross many columns 
+11:28:00 Roy Eltham : Notepad++ is deluxe!  I use it daily
+11:32:18 Roy Eltham : have we converted Chip to spaces instead of tabs! :D
+11:33:03 Samuel Lourenço : Cr Lf works for linux too.
+11:34:24 Bob Lawrence : Docker
+11:35:16 Jim Granville : Notepad++ has Edit.EOL conversion button, that has 3 choices. 
+11:35:33 Bob Lawrence : https://www.docker.com/
+11:37:37 Bob Lawrence : From the Docker site: Docker Containers Are Everywhere: Linux, Windows, Data center, Cloud, Serverless, etc.
+11:38:07 Bob Lawrence : Limux
+11:40:01 Bob Lawrence : Free pascal and Lazarus runs on a Rasberry pi
+11:41:15 Bob Lawrence : Delphi currently supports Linux
+11:43:56 Colin Fox : VS Code would be an interesting basis as well
+11:44:01 Colin Fox : It's based on Google Chrome
+11:44:09 Colin Fox : And it's cross platform
+11:44:55 Colin Fox : It's based on Electron, if that helps
+11:45:36 Colin Fox : Though I suppose that would involve porting the Prop IDE from Pascal to Javascript. :)
+11:46:58 Jeff Martin : "Notepad++ is deluxe!  I use it daily"  -  Yes, Notepad++ is very nice!
+11:48:57 Whit Stodghill : WiFi WX is fantastic!
+11:49:39 Michael Green : Can the adapter be used with a 'B' eval board?
+11:49:57 Jeff Martin : re: "Notepad++ has Edit.EOL conversion button" - Ideally, if we can handle it naturally for the Propeller Tool user, it would be best; with option for advanced users to "opt into."
+11:50:21 Samuel Lourenço : I would guess so. The ROM is the same.
+11:50:46 Whit Stodghill : I have a WiFi WX on all my robots now, even the S3. It is so handy to be able to program wirelessly.
+11:51:35 Whit Stodghill : Thanks Jeff - I have the RevB board.
+11:52:24 Stephen Moraco : Maybe post instructions for doing so somewhere as a number of us do have the RevB board.  ;-)
+11:52:25 Jon McPhalen : Can we manually connect the WiFi module to a Rev B board?
+11:53:33 Whit Stodghill : WiFi WX can be renamed too.
+11:54:20 Whit Stodghill : It is done on the screen currently shown.
+11:54:41 Jeff Martin : Good idea; we'll post directions.
+11:57:03 Whit Stodghill : Awesome!
+11:57:56 Jeff Martin : We'll make this work directly with the Propeller Tool too, so later no drag-n-drop will be necessary (but will still work)... similar to how we've done it with PropLoader and Blockly Prop Launcher.
+11:58:04 Jeff Martin : ...for P1
+11:58:42 Stephen Moraco : Looks Great! good work!
+12:13:23 Stephen Moraco : What firmware are these running?
+12:14:15 Whit Stodghill :         I never thought of that!                                                 
+12:15:12 Whit Stodghill : I think that is correct.
+12:19:33 Whit Stodghill : Yes - the docs recommend that.
+12:21:55 Whit Stodghill : "Golden Egg" - love that name! I'm stealing that one.
+12:22:35 Whit Stodghill : Same on S3 through a hole on the case
+12:22:55 Samuel Lourenço : Sorry for the audio.
+12:23:17 Samuel Lourenço : I'm mobile Fi-wi. Not great.
+12:23:34 Samuel Lourenço : The connection drops.
+12:24:13 Whit Stodghill : Great demo Michael!
+12:24:40 Stephen Moraco : Understood, thanks for the Answer
+12:25:51 Jeff Martin : Thanks Samuel.  I hope we were able to answer all your questions.
+12:27:46 Whit Stodghill : I think I did that one time also - took a while for me to figure out.
+12:30:39 Whit Stodghill : I used the WX Badge to communicate with an ActivityBot with WiFi WX mod - like a remote control.
+12:31:02 Whit Stodghill : It had lag, but worked pretty well.
+12:40:06 Whit Stodghill : WOW!
+12:41:48 Jim Granville : FTDI have HS-USB UARTS that can go to 12MBd but speeds above 12MBd are hard to find. The CP2102 can go to 3MBd and the UB3 can be set up to 8M.8.n.2, but sustains averages of 3~4MBd over FS-USB
+12:42:06 Michael Mulholland : https://drive.google.com/drive/folders/188PblnQ-5OKdqazT4UtQen0qxX-tZGRg?usp=sharing
+12:42:31 Michael Mulholland : P2 Loader firmware edition for Parallax WX ESP8266 module
+12:45:19 duztynn eisenga : each student could program the teachers prop over the net?
+12:46:12 duztynn eisenga : Cool!
+12:48:14 Jim Granville :  One limit here will be the storage on the preconfigured WiFi module ? Most of those are modest flash sizes to keep prices down, but you could make a custom variant ? 
+12:48:30 Whit Stodghill : COOL!
+12:49:02 duztynn eisenga : in a cash strapped environment or "3rd world country" a student could timeshare a prop2, see the results over zoom. Sounds like a twitch channel could do the same "try programming this P2, goto this webpage and see results on stream"
+12:49:08 Stephen Moraco : https://www.typescriptlang.org/
+12:49:10 Bob Lawrence : Chip try this: https://www.typescriptlang.org/
+12:49:27 Stephen Moraco : (like minds)
+12:49:48 Bob Lawrence : avaScript and More TypeScript is an open-source language which builds on JavaScript, one of the world's most used tools, by adding static type definitions.
+         Types provide a way to describe the shape of an object, providing better documentation, and allowing TypeScript to validate that your code is working correctly.
+         Writing types can be optional in TypeScript, because type inference allows you to get a lot of power without writing additional code.
+12:52:59 Dario (dMajo) Majovsky : Chip I don't know if you would like it: its developed by microsoft
+12:53:10 Bob Lawrence : The guy that invented Delphi , Anders Hejlsberg, also wrote TypeScript 
+12:53:49 Roy Eltham : He was also involved in C#
+12:54:09 Roy Eltham : C# is kinda sorta Delph++
+12:54:26 Jeff Martin : That's a nice example, duztynn
+12:54:51 Dario (dMajo) Majovsky : it is a super-set of javascript
+12:55:03 Samuel Lourenço : C# is proprietary, if I recall correctly.
+12:55:16 Roy Eltham : no, it's a standard language
+12:55:29 Stephen Moraco : https://github.com/ironsheep/lovelace-lightning-detector-card/blob/master/src/lightning-detector-card.ts
+12:55:42 Samuel Lourenço : Indeed, C++ was converted to C.
+12:55:51 Colin Fox : C# is basically Microsoft Java
+12:55:58 Roy Eltham : not really
+12:56:19 Roy Eltham : Java is still controlled by Oracle, it's not a public standards language
+12:56:23 Roy Eltham : C# is 
+12:56:27 Samuel Lourenço : C# is basically owned by M$.
+12:56:34 Roy Eltham : it's not though
+12:56:44 Roy Eltham : intentionally so
+12:57:02 Samuel Lourenço : There are proprietary languages that are standard.
+12:57:06 Roy Eltham : The have also open source .NET Core
+12:57:22 Samuel Lourenço : The standard part is a matter of adoption.
+12:57:23 Colin Fox : The open source version of C# is Mono
+12:57:26 Roy Eltham : no
+12:57:39 Roy Eltham : there is .NET core now which is open source
+12:57:45 Roy Eltham : mono is separate
+12:58:00 Dario (dMajo) Majovsky : since java requires a VM that has been made free only to private users by oracle
+12:58:03 Colin Fox : .NET certainly wasn't originally open source, which is why mono was started
+12:58:16 Roy Eltham : right, but it is now
+12:58:25 Dario (dMajo) Majovsky : the package to be used in companies requires licensing now
+12:58:33 Roy Eltham : and with .NET 5, there will just be Code
+12:58:36 Roy Eltham : Core*
+12:58:54 Roy Eltham : so no more separate .NET vs .NET core
+12:59:05 Colin Fox : Well, that's certainly an improvement.
+12:59:27 Colin Fox : MS has certainly changed their Linux/OpenSource standing massively.
+13:00:41 Roy Eltham : C# is an ISO standard language: https://www.iso.org/standard/36768.html
+13:01:15 Bob Lawrence : Web USB API
+         Draft Community Group Report, 18 August 2020https://wicg.github.io/webusb/
+13:01:29 Colin Fox : That says it's withdrawn
+13:01:33 Colin Fox : The C# standard
+13:01:33 Whit Stodghill : Jeff showed that filter, didn't you?
+13:02:47 Roy Eltham : sorry, updated: https://www.iso.org/standard/75178.html
+13:03:39 Roy Eltham : anyway the point is that it's open, anyone can make a C# compiler and runtime, not so with Java
+13:03:43 Samuel Lourenço : Take the ISO part with a grain of salt. The same with their OOXML.
+13:03:46 Roy Eltham : Oracle has a stranglehold on it
+13:04:08 Bob Lawrence : The USB interface of the WebUSB API provides attributes and methods for finding and connecting USB devices from a web page.
+         https://developer.mozilla.org/en-US/docs/Web/API/USB
+13:04:10 Stephen Moraco : Slightly off topic, work in progress: https://github.com/ironsheep/RPi-P2D2-Support
