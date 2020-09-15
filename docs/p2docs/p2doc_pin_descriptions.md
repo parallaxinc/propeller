@@ -1,4 +1,4 @@
-<img src="assets/P2Pinout.jpg" alt="P2 Pinout" height="856" width="854">
+<img src="assets/P2Pinout.jpg" alt="P2 Pinout" height="642" width="640">
 
 ### PIN DESCRIPTIONS
 
@@ -17,7 +17,7 @@
 ### MEMORIES
 There are three memory regions: cog RAM, lookup RAM, and hub RAM.  Each cog has its own cog RAM and lookup RAM, while the hub RAM is shared by all cogs.
 
-|Memory<br/>Region|Memory<br/>Width|Memory<br/>Depth|Instruction D/S<br/>Address Ranges|Program Counter<br/>Address Ranges|
+|Memory</br>Region|Memory</br>Width|Memory</br>Depth|Instruction D/S</br>Address Ranges|Program Counter</br>Address Ranges|
 |---|---|---|---|---|
 |COG|32 bits|512|$000..$1FF|$00000..$001FF|
 |LOOKUP|32 bits|512|$000..$1FF|$00200..$003FF|
