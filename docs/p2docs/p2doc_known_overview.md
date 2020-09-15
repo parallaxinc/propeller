@@ -19,20 +19,19 @@ The P2X8C4M64P Engineering Sample Rev B silicon contains 8 cogs, 512 KB of hub R
 
 Each cog has:
 
-<ul>
-  <li>Access to all I/O pins, plus four fast DAC output channels and four fast ADC input channels</li>
-  <li>512 longs of dual-port register RAM for code and fast variables</li>
-  <li>512 longs of dual-port lookup RAM for code, streamer lookup, and variables</li>
-  <li>Ability to execute code directly from register RAM, lookup RAM, and hub RAM</li>
-  <li>~350 unique instructions for math, logic, timing, and control operations</li>
-  <li>2-clock execution for all math and logic instructions, including 16 x 16 multiply</li>
-  <li>6-clock custom-bytecode executor for interpreted languages</li>
-  <li>Ability to stream hub RAM and/or lookup RAM to DACs and pins or HDMI modulator</li>
-  <li>Ability to stream pins and/or ADCs to hub RAM</li>
-  <li>Live colorspace conversion using a 3 x 3 matrix with 8-bit signed/unsigned coefficients</li>
-  <li>Pixel blending instructions for 8:8:8:8 data</li>
-  <li>16 unique event trackers that can be polled and waited upon</li>
-  <li>3 prioritized interrupts that trigger on selectable events</li>
-  <li>Hidden debug interrupt for single-stepping, breakpoint, and polling</li>
-  <li>8-deep stack for subroutine call return address + flags or data (32 bits wide)</li>
-  <li>Carry and Zero flag</li>
+  * Access to all I/O pins, plus four fast DAC output channels and four fast ADC input channels
+  * 512 longs of dual-port register RAM for code and fast variables
+  * 512 longs of dual-port lookup RAM for code, streamer lookup, and variables
+  * Ability to execute code directly from register RAM, lookup RAM, and hub RAM
+  * ~350 unique instructions for math, logic, timing, and control operations
+  * 2-clock execution for all math and logic instructions, including 16 x 16 multiply
+  * 6-clock custom-bytecode executor for interpreted languages
+  * Ability to stream hub RAM and/or lookup RAM to DACs and pins or HDMI modulator
+  * Ability to stream pins and/or ADCs to hub RAM
+  * Live colorspace conversion using a 3 x 3 matrix with 8-bit signed/unsigned coefficients
+  * Pixel blending instructions for 8:8:8:8 data
+  * 16 unique event trackers that can be polled and waited upon
+  * 3 prioritized interrupts that trigger on selectable events
+  * Hidden debug interrupt for single-stepping, breakpoint, and polling
+  * 8-deep stack for subroutine call return address + flags or data (32 bits wide)
+  * Carry and Zero flag
