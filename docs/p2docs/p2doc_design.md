@@ -1,7 +1,8 @@
 ### Design Status
-|Data|Progress|
-|----|--------|
+| Data | Progress |
+|------|----------|
 |2018_04_25|Verilog design files sent to On Semi for Rev A silicon<br/>(8 cogs, 512KB hub, 64 smart pins)|
+
 |2018_05_29|Final ROM data sent to On Semi|
 |2018_07_09|Final Sign-off with On Semi, reticles being made|
 |2018_09_11|Wafers done! Only took 9 weeks, instead of 14.|
