@@ -9,7 +9,7 @@ OBJ blocks are used to instantiate child objects into the current (parent) objec
 <ul>
 <br/>
 
-|OBJ<br/><br/>Child-Object<br/>Instantiations|```OBJ  vga       : "VGA_Driver"     'instantiate "VGA_Driver.spin2" as "vga"```<br/><br/>```     mouse     : "USB_Mouse"      'instantiate "USB_Mouse.spin2" as "mouse"```<br/><br/>```     v[16]     : "VocalSynth"     'instantiate an array of 16 objects```<br/>```                                  '..v[0] through v[15]```
+|OBJ<br/><br/>Child-Object<br/>Instantiations|```OBJ  vga       : "VGA_Driver"     'instantiate "VGA_Driver.spin2" as "vga"```<br/><br/>```     mouse     : "USB_Mouse"      'instantiate "USB_Mouse.spin2" as "mouse"```<br/><br/>```     v[16]     : "VocalSynth"     'instantiate an array of 16 objects```<br/>```                                  '..v[0] through v[15]```|
 |---|:---|
 From within a parent-object method, a child-object method can be called by using the syntax:
 
