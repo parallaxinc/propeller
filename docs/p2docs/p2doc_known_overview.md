@@ -12,8 +12,8 @@ The Propeller 2 is a microcontroller architecture consisting of 1, 2, 4, 8, or 1
 
 The P2X8C4M64P Engineering Sample Rev B silicon contains 8 cogs, 512 KB of hub RAM, and 64 smart I/O pins in an exposed-pad 100-pin TQFP package.
 
-|P2X|8C|4M|64P|ES|
-|---|--|--|---|--|
+|P2X |8C |4M |64P |ES |
+|:---|:--|:--|:---|:--|
 |Propeller 2|8 cogs (processors)|4 Mb hub RAM (512 KB)|64 smart I/O pins|Engineering Sample|
 
 
