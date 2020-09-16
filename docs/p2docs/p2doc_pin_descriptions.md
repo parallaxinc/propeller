@@ -17,10 +17,9 @@
 ### MEMORIES
 There are three memory regions: cog RAM, lookup RAM, and hub RAM.  Each cog has its own cog RAM and lookup RAM, while the hub RAM is shared by all cogs.
 
-|Memory<br/>Region|Memory<br/>Width|Memory<br/>Depth|Instruction D/S<br/>Address Ranges|Program Counter<br/>Address Ranges|
-|---|---|---|---|---|
-|COG|32 bits|512|$000..$1FF|$00000..$001FF|
-|LOOKUP|32 bits|512|$000..$1FF|$00200..$003FF|
-|HUB|8 bits|1,048,576 (*)|$00000..$FFFFF|$00400..$FFFFF|
-
+|Memory<br/>Region|Memory<br/>Width|Memory<br/>Depth|Instruction D/S<br/>Address Ranges|Program Counter<br/>Address Ranges|  
+|---|---|---|---|---|  
+|COG|32 bits|512|$000..$1FF|$00000..$001FF|  
+|LOOKUP|32 bits|512|$000..$1FF|$00200..$003FF|  
+|HUB|8 bits|1,048,576 (*)|$00000..$FFFFF|$00400..$FFFFF|  
 (*) 1,048,576 bytes is the maximum size supported.  However, some variants may have less available.  See the Hub Memory section below for more details.
