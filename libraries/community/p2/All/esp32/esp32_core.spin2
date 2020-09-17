@@ -1,0 +1,374 @@
+'' ************************************************************************
+'' ** ESP32 AT Firmware Controller                                       **
+'' ** By Riley August (riley@robots-everywhere.com)                      **
+'' ** Copyright Robots Everywhere 2020                                   **
+'' ** License: The MIT License (MIT)                                     **
+'' ** https://mit-license.org/                                           **
+'' ************************************************************************
+
+'' THIS IS THE CORE OBJECT. All other objects in the ESP32 controller import this object.
+'' ************************************************************************
+'' GENERAL NOTE: when using this object, if you send a command, it will clear the input buffer first.
+'' This allows it to receive the command response. Use getMessage() to retrieve it.
+'' In general use, use PollMessage() to retrieve asynchronous serial inputs. Command responses are
+'' synchronous and will be handled by the command methods themselves.
+'' ************************************************************************
+'' USAGE: Call init() to set up the ESP32 object(s); all other ESP32 objects will use this object's DAT memory
+'' import other ESP32 objects in your program object in order to use other functionality like wifi, tcp/ip, etc.
+'' use the methods in this object to retrieve or manipulate response data
+'' ************************************************************************
+' DESIGN NOTE: do not use "var" for anything here; use DAT for retained variables and scratch for everything else
+' this core object may be loaded multiple times, as a shared object, in a single cog.
+
+' DEVELOPER NOTE: there is an extreme edge case where you can receive a +IPD packet on the clock tick you tell serial to start sending a command, since it is
+' full duplex serial. This can cause serious chaos right now, but it is such a tiny edge case we have chosen not to cover it.
+' The solution to this edge case is to modify waitForResp significantly to check for +IPD, log the length, and move that part of the incoming message to the
+' async buffer. Currently we recommend not sending AT commands dependent on response parsing while waiting for packets.
+
+' TODO: In the future it may be desired to add a semaphore implementation so that multiple cogs can talk to the ESP32 at once, and do secondary processing
+' but at this time it is rather silly. We should be fine using a polling loop to handle the input buffer for now.
+CON
+'' CONSTANTS
+'' timeoutms is the timeout between characters when waiting for a synchronous response, NOT a message timeout
+'' BUF_SIZE is the size for both the synchronous and the asynchronous message buffers; add a second constant if you need to handle large async packets to save memory
+  timeoutms = 10
+  BUF_SIZE = 255
+
+DAT
+  atbaud long 115200
+  txpin byte 0
+  rxpin byte 0
+  syncbuf byte 0[BUF_SIZE] ' synchronous buffer for handling command responses
+  msgbuf byte 0[BUF_SIZE] ' async buffer for handling polling messages.
+  msgptr byte 0 ' pointer for the message buffer
+  active byte 0
+  echoflag byte 0 
+OBJ
+com: "dat_fullduplexserial"
+ints: "nextint"
+strings: "strings"
+
+PUB init(serrx, sertx): okay
+'' Set up the ESP32 object.
+'' PARAMS: serrx - receive pin (corresponds to TX pin on ESP32)
+'' sertx - transmit pin (corresponds to RX pin on ESP32)
+'' RETURNS: false if there was an error and the connection is not set up, true otherwise
+  txpin := sertx
+  rxpin := serrx
+  com.start(serrx, sertx, %0000, atbaud)
+  waitms(10)
+  okay := sendAndGetOkay(string("ATE0", 13, 10))
+  active := okay
+  echoflag := false
+  return
+
+PUB echo(on) : okay
+'' Turns command echo on or off. This can be dangerous for response parsing, so it is recommended to leave it off. Init always sets echo off.
+'' PARAMS: echo: true for echo on, false for echo off.
+  echoflag := on
+  if(on == true)
+    okay := sendAndGetOkay(string("ATE1", 13, 10))
+  else
+    okay := sendAndGetOkay(string("ATE0", 13, 10))
+
+PUB isEcho() : ec
+'' Returns true if command echo is turned on, false if it is turned off. This may be incorrect if the ESP32 has been restarted without an init state change from
+'' the propeller. Echo is recommended to only be used for debugging and testing.
+  ec := echoflag  
+
+PUB isActive() : okay
+'' Returns true if the ESP32 object is active and has an initialized serial port
+  okay := active
+  return
+
+PUB reset() : okay
+'' Resets the ESP32 module via RST command. If the ESP32 acknowledges the reset, it waits for "ready" on the serial port until the default timeout.
+'' RETURNS: true if the ESP32 acknowledges the reset, false otherwise
+  okay := sendAndGetOkay(string("AT+rst", 13, 10))
+  waitUntilReceiveMessage(9, 10000)
+
+PUB forceReset() : okay
+'' Force resets the ESP32 module via sending RST command capitalized. If the ESP32 acknowledges the reset, it waits for "ready" on the serial port until the default timeout.
+'' RETURNS: true if the ESP32 acknowledges the reset, false otherwise
+  okay := sendAndGetOkay(string("AT+RST", 13, 10))
+  waitUntilReceiveMessage(9, 10000)
+
+
+PUB getVersion(): atVersPtr, sdkVersPtr, compileTime
+'' Returns the version information for the AT firmware being used
+'' RETURNS: atVersPtr: string pointer to a string containing the AT firmware version
+'' sdkVersPtr: string pointer to a string containing the SDK version the firmware was built on
+'' compileTime: string pointer to a string containing the time it took to compile the AT firmware
+  com.str(string("AT+GMR", 13, 10))
+  if(waitForResp(timeoutms) == false) ' we get atvers, sdkvers, compiletime delimited by crlf then an OK
+    atVersPtr := -1
+    sdkVersPtr := -1
+    compileTime := -1
+    return           
+  atVersPtr := @syncbuf
+  if(echoflag)
+    atVersPtr +=9                 
+  sdkVersPtr := atVersPtr + strings.firstIndexOf(atVersPtr, 10) + 1
+  compileTime := sdkVersPtr + strings.firstIndexOf(sdkVersPtr, 10) + 1
+  ' replace AFTER so it doesn't hit limit first!!  
+  strings.replaceAll(atVersPtr, 13, 0)
+     
+  return  
+  
+
+PUB deepSleep(time): okay
+'' Sleeps the device for a given number of milliseconds
+'' PARAMS: time - time in milliseconds to sleep for
+'' RETURN: resp - TRUE if the device went to sleep FALSE if there was an error
+  com.str(string("AT+GSLP="))
+  com.dec(time)
+  com.tx(13)
+  com.tx(10)
+  okay := waitForResp(timeoutms)
+  return okay
+
+PUB modemSleep(): okay
+'' Puts the device into modem sleep
+'' RETURNS: true if successful, false otherwise
+  okay := sendAndGetOkay(string("AT+SLEEP=1", 13, 10))
+
+
+PUB modemWake(): okay
+'' Wakes the device from modem sleep
+'' RETURNS: true if successful, false otherwise
+  okay := sendAndGetOkay(string("AT+SLEEP=0", 13, 10))
+
+PUB getAvailableRam(): ram | okay                 
+'' Gets the amount of remaining available system RAM on the ESP32
+'' RETURNS: pointer to a string containing the amount of memory if successful; -1 if error
+
+  okay := sendAndGetOkay(string("AT+SYSRAM?", 13, 10))
+  if(okay == false)
+    ram := -1
+  else
+    ram := @syncbuf + 8 ' address + "+SYSRAM:"
+    strings.replaceAll(ram, 13, 0) ' nuke the clrf so its just a number
+  return
+PUB getCurrentUARTConfig(): baudrate, databits, stopbits, parity, flow | tempptr
+'' Retrieve the current UART configuration saved in RAM
+'' RETURNS: baudrate, databits, stopbits, parity, and flow as bytes. baudrate as -1 if error.
+  tempptr := sendAndGetOkay(string("AT+UART_CUR?", 13, 10))
+  if(tempptr == FALSE)
+    baudrate := -1 ' error
+  else
+    tempptr := @syncbuf
+    if(echoflag)
+      tempptr += 12      
+    baudrate, tempptr := ints.parseNextInt(tempptr) 
+    databits, tempptr := ints.parseNextInt(tempptr)
+    stopbits, tempptr := ints.parseNextInt(tempptr)
+    parity, tempptr := ints.parseNextInt(tempptr)
+    flow, tempptr := ints.parseNextInt(tempptr)
+    return
+    
+
+PUB getSavedUARTConfig(): baudrate, databits, stopbits, parity, flow | tempptr
+'' Retrieve the on-boot UART configuration saved in flash memory
+'' RETURNS: baudrate, databits, stopbits, parity, and flow as bytes. baudrate as -1 if error.
+  tempptr := sendAndGetOkay(string("AT+UART_DEF?", 13, 10))
+  if(tempptr == FALSE)
+    baudrate := -1 ' error
+  else
+   ' do split string and parse int stuff
+    tempptr := @syncbuf
+    if(echoflag)
+      tempptr += 12
+    baudrate, tempptr := ints.parseNextInt(tempptr)
+    databits, tempptr := ints.parseNextInt(tempptr)
+    stopbits, tempptr := ints.parseNextInt(tempptr)
+    parity, tempptr := ints.parseNextInt(tempptr)
+    flow, tempptr := ints.parseNextInt(tempptr)
+    return
+PUB setUARTBaudRate(baud) : okay
+'' Sets the current UART baud rate (not saved in flash). Sets other UART parameters to match the P2
+'' PARAMS: baud (baud rate as long)
+'' RETURN: true if successful, false otherwise   
+  if(isMessageWaiting())
+    pollMessage() ' clear the serial port buffer first, then send
+  com.str(string("AT+UART_CUR="))
+  com.dec(baud)
+  com.tx(",")
+  com.dec(8)
+  com.tx(",")
+  com.dec(1)
+  com.tx(",")
+  com.dec(0)
+  com.tx(",")
+  com.dec(1)
+  com.tx(13)
+  com.tx(10)
+  okay := (waitForResp(timeoutms))
+  if(okay)
+   setExpectedBaudRate(baud)
+  return okay
+PUB setSavedUARTBaudRate(baud): okay
+'' Sets the saved UART baud rate in flash. Sets other UART parameters to match the P2
+'' PARAMS: baud (baud rate as long)
+'' RETURN: true if successful, false otherwise
+   if(isMessageWaiting())
+    pollMessage() ' clear the serial port buffer first, then send   
+   com.str(string("AT+UART_DEF="))
+   com.dec(baud)
+   com.tx(",")
+   com.dec(8)
+   com.tx(",")
+   com.dec(1)
+   com.tx(",")
+   com.dec(0)
+   com.tx(",")
+   com.dec(1)
+   com.tx(13)
+   com.tx(10)
+   okay := (waitForResp(timeoutms))
+   return okay
+PUB setExpectedBaudRate(baud)
+'' Sets the UART baud rate the Propeller will use to communicate with the ESP32.
+'' PARAMS: baud (baud rate as long)
+  com.stop()
+  atbaud := baud
+  com.start(rxpin, txpin, %0000, atbaud)  
+
+PUB getSyncResponse(): str
+'' Used for debugging and inheritance. Returns the current string buffer used by the object.
+  str := @syncbuf
+
+PRI waitForResp(timems): done | scratchbyte, endptr ' wait for a response ending in OK or nothing for a while
+' note that the timeout here is a BYTE TIMEOUT, not a command timeout; this is the max time between bytes.
+  done := FALSE
+  scratchbyte := com.rxtime(timems)
+  if(scratchbyte < 0)
+    return ' just return false, notdone
+  else ' read in bytes until rxcheck = false for another timems
+    endptr := 0
+    repeat while (scratchbyte > -1) && (!done) && (endptr < BUF_SIZE)
+      if(scratchbyte == 0) || (scratchbyte == 255)
+        next ' just eat 0 and 255, dont' increment
+      syncbuf[endptr] := scratchbyte
+      if(syncbuf[endptr] == 75) ' check for "OK"; if we get OK, we're done. Eat CRLFs and finish.
+          done := (syncbuf[endptr-1] == 79)          
+      scratchbyte := com.rxtime(timems)
+      endptr++  
+
+    syncbuf[endptr] := 0 ' add a 0 to delimit string at the end
+    ' for debugging
+    if(endptr >= BUF_SIZE)
+      syncbuf[BUF_SIZE] := 0
+  return done
+
+PUB sendAndGetOkay(str) : okay                                                         
+'' Sends a given string and gets the OK response from the ESP32
+'' PARAMS: str: pointer to a string to be sent to the ESP32. Must be terminated with CRLF
+'' RETURNS: true if "OK" returned at the end of response, false otherwise
+  if(isMessageWaiting())
+    pollMessage() ' clear the serial port buffer first, then send
+  com.str(str)
+  okay := waitForResp(timeoutms)
+
+PUB sendAndGetOkayWithTimeout(str, timeout) : okay
+'' Sends a given string and gets the OK response from the ESP32. Used for internal commands. Used for longer timeouts.
+'' PARAMS: str: pointer to a string to be sent to the ESP32. Must be terminated with CRLF
+'' timeout: max time between bytes; this is NOT a packet timeout.
+'' RETURNS: true if "OK" returned at the end of response, false otherwise
+  if(isMessageWaiting())
+    pollMessage() ' clear the serial port buffer first, then send
+  com.str(str)
+  okay := waitForResp(timeout) 
+
+PUB sendOnly(str)
+'' Sends a given string, does not touch the serial buffer. Use SendAndGetOkay to finish.
+'' Just used by nested objects.
+  com.str(str)
+
+PUB sendDec(dec)
+'' as SendOnly except sends a decimal number instead of a string
+  com.dec(dec)
+
+PUB clearMessage()
+'' Clears the asynchronous message buffer. Used internally.
+  bytefill(@msgbuf, 0, BUF_SIZE)
+  msgptr~
+
+PUB getMessage() : resp
+'' Gets the last message in the asynchronous input buffer, and clears the buffer. This method will overwrite the synchronous response buffer.
+  pollMessage()
+  bytemove(@syncbuf, @msgbuf, BUF_SIZE)
+  syncbuf[msgptr] := 0
+  resp := @syncbuf
+  clearMessage()
+  return
+  
+PUB debugMessage() : resp, ptr
+'' Returns the asynchronous message buffer and its pointer, used internally for development.
+  resp := @msgbuf
+  ptr := ptr
+  
+PUB pollMessage() : resp | inbyte ' DEV NOTE: we don't merge this with waitUntilReceiveMessage() because we don't want the extra compare
+'' Polls the rx buffer for messages other than command responses; these can be packets or asynchronous system messages. Does not wait.
+'' RETURNS: msgPtr: string pointer to the message received. -1 if nothing.
+  inbyte := com.rxcheck()
+  if(inbyte == -1)
+    resp := inbyte
+    return
+  else
+    repeat while (inbyte <> -1)
+      msgbuf[msgptr++] := inbyte
+      inbyte := com.rxcheck()
+    msgbuf[msgptr] := 0
+    resp := @msgbuf
+    return
+
+PUB waitUntilReceiveMessage(length, timeout) : resp | inbyte, counter, msgend, bytes
+'' Waits until the prop receives an asynchronous message from the ESP32 or a timeout is reached.
+'' PARAMS: length: min # of bytes to wait for (to allow more time for a full msg to come in if it has no terminator)
+'' timeoutms: timeout to stop waiting for a message, in ms
+'' RETURNS: msgPtr: string pointer to the message received. -1 if nothing.
+  msgend := msgptr
+  bytes := 0
+  counter := 0
+  inbyte := com.rxcheck()
+  repeat while (bytes < length) && (counter < 10) ' repeat until we time out or get X bytes    
+    if(inbyte <> -1)
+      bytes++      
+      msgbuf[msgptr++] := inbyte
+      inbyte := com.rxcheck()
+    else      
+      waitms(timeout / 10)
+      counter++
+      inbyte := com.rxcheck()
+  msgbuf[msgptr++] := 0                 
+  resp := @msgbuf
+  return
+       
+PUB isMessageWaiting() : avail
+'' RETURNS: true if there is anything in the UART buffer
+  avail := com.available()
+con { license }
+
+{{
+
+  Terms of Use: MIT License 
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}

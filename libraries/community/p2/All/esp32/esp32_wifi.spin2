@@ -1,0 +1,291 @@
+'' ************************************************************************
+'' ** ESP32 AT Firmware Controller                                       **
+'' ** By Riley August (riley@robots-everywhere.com)                      **
+'' ** Copyright Robots Everywhere 2020                                   **
+'' ** License: The MIT License (MIT)                                     **
+'' ** https://mit-license.org/                                           **
+'' ************************************************************************
+
+'' ESP32 WiFi OBJECT - ESTABLISHES AND CONFIGURES LAYER 1 WiFi CONNECTIONS
+'' esp32_core must be initialized in order to use this object
+
+CON
+'' WiFi mode constants for getWifiMode. Turning wifi off is unsupported by AT firmware.
+  wifiOff = 0
+  stationMode = 1
+  softAPMode = 2
+  softAPAndStationMode = 3  
+  
+OBJ
+  core: "esp32_core"
+  ints: "nextint"
+  strings: "strings"
+PUB null()
+  '' THIS IS NOT A TOP LEVEL OBJECT
+  return
+                                           
+PUB setWifiStationMode() : okay 
+'' Sets wifi to station (client) mode
+'' RETURNS: true if return success, false otherwise
+  okay:= core.sendAndGetOkay(string("AT+CWMODE=", stationMode+"0", 13, 10)) 
+
+PUB setWifiSoftAPMode() : okay 
+'' Sets wifi to soft AP (access point) mode
+'' RETURNS: true if return success, false otherwise
+  okay:= core.sendAndGetOkay(string("AT+CWMODE=", softAPMode+"0", 13, 10))
+
+PUB setWifiSoftAPAndStationMode() : okay 
+'' Sets wifi to be in both Station and Soft AP modes
+'' RETURNS: true if return success, false otherwise
+  okay:= core.sendAndGetOkay(string("AT+CWMODE=", softAPAndStationMode+"0", 13, 10))
+                         
+PUB getWifiMode() : mode | resp
+'' Queries the wifi mode set on the ESP32; use constants provided for compare
+'' RETURNS: the wifi mode - 0, 1, 2, or 3 for off, station, AP, or both
+  mode := core.sendAndGetOkay(string("AT+CWMODE?", 13, 10))
+  if(mode)
+    resp := core.getSyncResponse()
+    mode, _ := ints.ParseNextInt(resp)
+  else
+    mode := -1
+     
+
+PUB connectToAP(ssid, password) : errcode | resp
+'' Connects to a given access point; wifi must be in station mode.
+'' PARAMS: ssid: SSID string to connect to
+'' password: password for the network to connect to; send 0 byte if no password
+'' RETURNS: An error code if the connection failed; if the connection succeeds, returns 0
+  core.sendOnly(string("AT+CWJAP=", 34))
+  core.sendOnly(ssid)
+  core.sendOnly(string(34, ",", 34))
+  core.sendOnly(password)
+  errcode := core.sendAndGetOkay(string(34, 13, 10))
+  if(errcode) ' will be true because it checks ok first
+    errcode := 0
+    return
+  else
+    resp := core.getSyncResponse() ' get str ptr
+    if(core.isEcho() == true)
+      resp += 17 + strsize(ssid) + strsize(password)
+    errcode, _ := ints.ParseNextInt(resp) ' just get the code
+    return
+PUB getConnectedAP(): ssid, bssid, channel, rssi | resp
+'' Queries the name and parameters of the currently connected access point
+'' RETURNS: ssid: string pointer to the ssid of the access point, or -1 if error
+'' bssid: string pointer to the mac address of the access point
+'' channel: wifi channel number (long)
+'' rssi: signal strength (long)
+'' WARNING: ESP32 will not correctly return SSIDs with commas "," in their names.
+  ssid := core.sendAndGetOkay(string("AT+CWJAP?", 13, 10))
+  if(ssid)
+    resp := core.getSyncResponse()
+    if(core.isEcho() == true)
+      resp += 12
+    ssid := resp
+    bssid := strings.firstIndexOf(resp, ",")+1
+    channel, rssi := ints.ParseNextInt(strings.firstIndexOf(bssid, ",")+1)
+    rssi, _ := ints.ParseNextInt(rssi)
+    strings.replaceAll(resp, ",", 0) 'delimit all strings
+    return
+  else
+    ssid := -1
+    return
+
+PUB configureAPList(sort, ecn, ssid, rssi, mac, channel) : okay | mask
+'' Configures the access point list command to restrict the responses it can return.
+'' PARAMS: sort: if true, sort by rssi, otherwise unordered
+'' ecn: if true show encryption method
+'' ssid: if true show ssid (name)
+'' rssi: if true show rssi  (signal strength)
+'' mac: if true show mac address
+'' channel: if true show channel number
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CWLAPOPT="))
+  if(sort)
+    core.sendOnly(string("1,"))
+  else
+    core.sendOnly(string("0,"))
+  mask := 0
+  if(ecn)
+    mask := mask + 1
+  if(ssid)
+    mask := mask + 2
+  if(rssi)
+    mask := mask + 4
+  if(mac)
+    mask := mask + 8
+  if(channel)
+    mask := mask + 16
+  core.sendDec(mask)
+  okay := core.sendAndGetOkay(string(13, 10))
+
+PUB getResponse(): strPtr
+  strPtr := core.getSyncResponse()
+
+PUB listAPs() : strPtr | okay
+'' Returns a list of all available APs with a lot of information in it; ECN, SSID, signal strength, MAC, and channel. Returns -1 if error.
+'' RETURNS: String pointer to the start of the list of APs. If it exceeds the synchronous string buffer, use pollMessage() to query the async buffer for the rest.
+'' WARNING: This can very easily overflow the serial buffer in areas with a lot of wifi access points. High clock speed recommended.
+  okay := core.sendAndGetOkay(string("AT+CWLAP", 13, 10))
+  strPtr := core.getSyncResponse()
+  if(core.isEcho() == true)
+      strPtr += 11   
+  if(okay == true) || (strings.startsWith(strPtr, string("+CWLAP")) == true)
+    strPtr += 7 ' cut off the +CWLAP:
+  else
+    strPtr := -1
+  return                         
+
+PUB disconnect() : okay
+'' Disconnects from the currently-connected access point.
+'' RETURNS: true if disconnect successful, false if any error returned
+  okay := core.sendAndGetOkay(string("AT+CWQAP", 13, 10))
+
+PUB configureSoftAP(ssid, password, channel, encryption, maxconn, hidden): okay
+'' Configures a soft access point. Must be in SoftAP mode to run this command.
+'' PARAMS: ssid: the ssid of the network being broadcast
+'' password: password for network
+'' channel: WiFi channel for the AP
+'' encryption: encryption mode to use; 0 for none, 1 for WPA, 2 for WPA2, 3 for WPA_WPA2.
+'' maxconn: max connections allowed; from 1 to 10. Any other number selects 10
+'' hidden: true if the AP should be hidden, false if the SSID should be broadcast as normal
+'' RETURNS: true if success is returned, false otherwise 
+  core.sendOnly(string("AT+CWSAP=", 34))
+  core.sendOnly(ssid)      
+  core.sendOnly(string(34, ",", 34))
+  core.sendOnly(password)
+  core.sendOnly(string(34, ","))
+  core.sendDec(channel)
+  core.sendOnly(string(","))
+  core.sendDec(encryption)
+  core.sendOnly(string(","))
+
+  if(maxconn > 10) || (maxconn < 1)
+    if(hidden)
+      maxconn := 10
+      core.sendDec(maxconn)
+      core.sendOnly(string(",1"))
+  else
+    core.sendDec(maxconn)
+          
+    if(hidden)
+      core.sendOnly(string(",1"))
+  okay := core.sendAndGetOkay(string(13, 10)) ' end with clrf
+  return
+PUB getSoftAPConfiguration() : ssid, password, channel, encryption, maxconn, hidden
+'' Retrieves the configuration for soft AP. Will return even if not in soft AP mode.
+'' RETURNS: ssid: string pointer to the ssid of the network being broadcast, or -1 if error
+'' password: string pointer to the password for network
+'' channel: WiFi channel for the AP
+'' encryption: encryption mode to use; 0 for none, 1 for WPA, 2 for WPA2, 3 for WPA_WPA2.
+'' maxconn: max connections allowed; from 1 to 10. Any other number selects 10
+'' hidden: true if the AP should be hidden, false if the SSID should be broadcast as normal
+  ssid := core.sendAndGetOkay(string("AT+CWSAP?", 13, 10))
+  if(ssid == true)
+    ssid := core.getSyncResponse()
+    if(core.isEcho() == true)
+      ssid += 12
+    password := strings.firstIndexOf(ssid, ",") + 1
+    channel, encryption := ints.ParseNextInt(strings.firstIndexOf(password, ",") +1)
+    encryption, maxconn := ints.ParseNextInt(encryption)
+    maxconn, hidden := ints.ParseNextInt(maxconn)
+    hidden, _ := ints.ParseNextInt(hidden)
+    if(hidden > 0)
+      hidden := true
+    else
+      hidden := false
+    strings.replaceAll(ssid, ",", 0)
+    return
+  else
+    ssid := -1
+    return
+
+PUB getStationIPs() : strPtr
+'' Retrieves a list of all station IPs and MAC addresses the soft AP is connected to
+'' RETURNS: a string pointer to a list returned by the ESP32. -1 if error.
+  strPtr := core.sendAndGetOkay(string("AT+CWLIF", 13, 10))
+  if(strptr == true)
+    strPtr := core.getSyncResponse()
+  return
+
+PUB enableDHCP(station, softAP): okay, temp
+'' Enables DHCP for station or softAP modes
+'' PARAMS: station: if true, enable for station mode
+'' softAP: if true, enable for softAP mode
+'' RETURNS: true on command success, false otherwise
+  if((station || softAP) == false)
+    okay := false
+    return
+  core.sendOnly(string("AT+CWDHCP=1,"))
+  temp := 0
+  if(station)
+    temp++
+  if(softAP)
+    temp := temp + 2
+  core.sendDec(temp)
+  okay:=core.sendAndGetOkay(string(13, 10))
+
+PUB disableDHCP(station, softAP): okay | temp
+'' Disables DHCP for station or softAP modes
+'' PARAMS: station: if true, disable for station mode
+'' softAP: if true, disable for softAP mode
+'' RETURNS: true on command success, false otherwise
+  if((station || softAP) == false)
+    okay := false
+    return
+  core.sendOnly(string("AT+CWDHCP=0,"))
+  temp := 0
+  if(station)
+    temp++
+  if(softAP)
+    temp := temp + 2
+  core.sendDec(temp)
+  okay:=core.sendAndGetOkay(string(13, 10))
+
+
+PUB getDHCPRange(): leasetime, startip, endip
+'' Retrieves the range of IPs the access point can lease with DHCP
+'' RETURNS: leasetime: lease time in minutes, as a long, -1 if error
+'' startIP: string pointer to starting IP address in range
+'' endIP: string pointer to ending IP address in range
+'' WARNING: ESP32 can only handle a small range of addresses; if unusual errors come up when more than 10 IPs are in the range, reduce the size of the range.
+  leasetime := core.sendAndGetOkay(string("AT+CWDHCPS?", 13, 10))
+  if(leasetime)
+    leasetime := core.getSyncResponse()
+    if(core.isEcho() == true)
+      leasetime += 14
+    leasetime, startip := ints.ParseNextInt(leasetime)
+    startip := startip++ ' there is a ,
+    endip := strings.firstIndexOf(startip, ",")
+    strings.replaceAll(leasetime, ",", 0)
+  else
+    leasetime := -1 ' return -1
+
+PUB setDHCPRange(leasetime, startip, endip): okay
+'' Sets the IP range the access point can lease with DHCP
+'' PARAMS: leasetime: lease time in minutes, as a long
+'' startIP: string pointer to starting IP address in range
+'' endIP: string pointer to ending IP address in range
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CWDHCPS=1,"))
+  core.sendDec(leasetime)
+  core.sendOnly(string(",", 34))
+  core.sendOnly(startip)
+  core.sendOnly(string(34 ,",", 34))
+  core.sendOnly(endip)
+  okay := core.sendAndGetOkay(string(34, 13, 10)) 
+
+PUB setDefaultDHCPRange():okay
+'' Sets the IP range the access point can lease with DHCP to factory default
+'' Refer to the manual for the model of ESP32 in use for defaults; they may vary and are not documented
+  okay:= core.sendAndGetOkay(string("AT+CWDHCPS=0", 13, 10))
+  
+
+PUB enableAutoConnect(): okay
+  okay:= core.sendAndGetOkay(string("AT+CWAUTOCONN=1", 13, 10))
+  
+
+PUB disableAutoConnect(): okay
+  okay:= core.sendAndGetOkay(string("AT+CWAUTOCONN=0", 13, 10))
+  
+  
