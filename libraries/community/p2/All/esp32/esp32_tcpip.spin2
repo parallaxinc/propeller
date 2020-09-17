@@ -1,0 +1,453 @@
+'' ************************************************************************
+'' ** ESP32 AT Firmware Controller                                       **
+'' ** By Riley August (riley@robots-everywhere.com)                      **
+'' ** Copyright Robots Everywhere 2020                                   **
+'' ** License: The MIT License (MIT)                                     **
+'' ** https://mit-license.org/                                           **
+'' ************************************************************************
+''
+'' THIS IS THE TCP/IP HANDLER. USE TO SEND PACKETS.
+'' To Receive, use esp32_core.pollMessage() as received packets are asynchronous
+'' esp32_core must be initialized in order to use this object.
+
+OBJ
+  core: "esp32_core"
+  ints: "nextint"
+  strings: "strings"
+var tempPtr ' temp value used to store a synchronous pointer, so that "next" calls can be used to handle multiple returns.
+PUB getStationStatus(): status, linkid, type, remoteip, remoteport, localport, tetype
+'' Gets the status of the TCP/IP connection to an access point. May have unpredictable results with different ESP32 models.
+'' RETURN: status: status number 2-5 for connected w/IP, transmitting, transmission disconnected, not connected to AP, or -1 if command error
+'' linkid: the local link id (0-4) for multiple connections from the esp32
+'' type: string pointer to "TCP" or "UDP" if a transmission is in progress
+'' remoteip: remote IP address
+'' remoteport: remote port number being used for transmission
+'' localport: ESP32 port number being used for transmission
+'' tetype: 0 if ESP32 thinks its a server, 1 if it thinks its a client
+  tempPtr := core.sendAndGetOkay(string("AT+CIPSTATUS", 13, 10))
+  if(tempPtr == false)
+
+    status := -1
+    return
+  tempPtr := core.getSyncResponse()
+  if(core.isEcho())
+    tempPtr += 12
+  status, tempPtr := ints.ParseNextInt(tempPtr)
+  linkid, type, remoteip, remoteport, localport, tetype := getNextStationStatus() ' get next from sync buffer
+  return
+PUB getNextStationStatus(): linkid, type, remoteip, remoteport, localport, tetype
+'' Gets the status of the next TCP/IP link returned.
+'' RETURNS: linkid: the local link id (0-4) for multiple connections from the esp32, or -1 if there aren't anymore status to return
+'' type: string pointer to "TCP" or "UDP" if a transmission is in progress
+'' remoteip: remote IP address
+'' remoteport: remote port number being used for transmission
+'' localport: ESP32 port number being used for transmission
+'' tetype: 0 if ESP32 thinks its a server, 1 if it thinks its a client
+  linkid, tempPtr := ints.ParseNextInt(tempPtr+12) ' trim newline and +CIPSTATUS:
+  type := tempPtr + 1
+  byte[type+3] := 0 ' delimit string with 0, type is always 3 bytes
+  tempPtr := remoteip := type+5
+  tempPtr := strings.firstIndexOf(tempPtr, ",") + remoteip ' need another pointer this returns an index!
+  byte[tempPtr] := 0
+  remoteport, tempPtr := ints.ParseNextInt(tempPtr+1)
+  localport, tempPtr := ints.ParseNextInt(tempPtr)
+  tetype, tempPtr := ints.ParseNextInt(tempPtr)
+  return
+PUB dnsLookup(domain) : ip | temp
+'' Performs DNS lookup for a given domain string
+'' PARAMS: domain: string pointer to a domain name
+'' RETURNS: string pointer to ip address for that domain, or -1 if command error 
+  core.sendOnly(string("AT+CIPDOMAIN=", 34))
+  core.sendOnly(domain)
+  temp := core.sendAndGetOkay(string(34, 13, 10))
+  if(temp == false)
+    ip := -1
+    return
+  temp := core.getSyncResponse()
+  if(core.isEcho())
+    temp := temp + strsize(domain) + 18
+  ip := temp+11 ' trim +CIPDOMAIN:
+  return
+
+PUB disableUserDefinedDNS() : okay
+'' Turns off user-defined DNS.
+'' RETURNS: true if command success, false otherwise
+  okay := core.sendAndGetOkay(string("AT+CIPDNS=0"))
+
+PUB setDNSServer(serverlist) : okay
+'' Sets a list of DNS servers to be used for domain lookup. The entire list must be set at once.
+'' PARAMS: serverlist: string pointer to a comma-delimited list of IP addresses for DNS server. IP addresses must be contained in double quotes.
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPDNS=1,"))
+  core.sendOnly(serverlist)
+  okay:= core.sendAndGetOkay(string(13,10))
+
+PUB getDNSServerList() : list
+'' Retrieves the list of DNS servers used for domain lookup.
+'' RETURNS: string pointer to the list of DNS servers. Each entry will start with +CIPDNS and end with a CLRF. String will end in OK. -1 if command error.
+  list := core.sendAndGetOkay(string("AT+CIPDNS?", 13, 10))
+  if(list == false)
+    list := -1
+    return
+  list := core.getSyncResponse()
+  if(core.isEcho())
+    list := list + 13
+
+PUB setStationMacAddress(mac) : okay
+'' Sets the MAC address for the ESP32 when in station mode. Errors if not in station mode. Station and AP can have different MACs when both active.
+'' PARAMS: mac: string pointer to mac address
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPSTAMAC=", 34))
+  core.sendOnly(mac)
+  okay:=core.sendAndGetOkay(string(34, 13, 10))
+
+PUB getStationMacAddress() : mac
+'' Gets the MAC address used by the ESP32 station mode.
+'' RETURNS: string pointer to MAC address, or -1 if command error.
+  mac := core.sendAndGetOkay(string("AT+CIPSTAMAC?", 13, 10))
+  if mac == false
+    mac := -1
+  mac := core.getSyncResponse() + 11 ' trim +CIPSTAMAC
+  if(core.isEcho())
+    mac := mac + 16  
+
+PUB setAPMacAddress(mac) : okay
+'' Sets the MAC address for the ESP32 when in AP mode. Errors if not in AP mode. Station and AP can have different MACs when both active.
+'' PARAMS: mac: string pointer to mac address
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPAPMAC=", 34))
+  core.sendOnly(mac)
+  okay:=core.sendAndGetOkay(string(34, 13, 10))
+
+
+PUB getAPMacAddress() : mac
+'' Gets the MAC address used by the ESP32 AP mode.
+'' RETURNS: string pointer to MAC address, or -1 if command error.
+  mac := core.sendAndGetOkay(string("AT+CIPAPMAC?", 13, 10))
+  if mac == false
+    mac := -1
+  mac := core.getSyncResponse() + 10 ' trim +CIPAPMAC
+  if(core.isEcho())
+    mac := mac + 15
+
+PUB setStationIPAddress(ip, gateway, mask) : okay
+'' Sets the IP address for the ESP32 when in station mode. Errors if not in station mode. Station and AP can have different IP when both active.
+'' PARAMS: ip: string pointer to ip address
+'' gateway: string pointer to the gateway IP, or -1 if default
+'' mask: string pointer to subnet mask, or -1 if default. Gateway MUST be set for subnet mask to be used, this is an ESP32 limitation.
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPSTA=", 34))
+  core.sendOnly(ip)
+  if(gateway > -1)
+    core.sendOnly(string(34, ",", 34))
+    core.sendOnly(gateway)
+    if(mask > -1)
+      core.sendOnly(string(34, ",", 34))
+      core.sendOnly(mask)
+  okay:=core.sendAndGetOkay(string(34, 13, 10))
+
+PUB getStationIPAddress() : ip
+'' Gets the IP address used by the ESP32 station mode.
+'' RETURNS: string pointer to IP address, or -1 if command error.
+  ip := core.sendAndGetOkay(string("AT+CIPSTA?", 13, 10))
+  if ip == false
+    ip := -1
+  ip := core.getSyncResponse() + 8
+  if(core.isEcho())
+    ip := ip + 13  
+
+PUB getAPIPAddress() : ip
+'' Gets the IP address used by the ESP32 AP mode.
+'' RETURNS: string pointer to IP address, or -1 if command error.
+  ip := core.sendAndGetOkay(string("AT+CIPAP?", 13, 10))
+  if ip == false
+    ip := -1
+  ip := core.getSyncResponse()+7
+  if(core.isEcho())
+    ip := ip + 12
+
+PUB setAPIPAddress(ip, gateway, mask) : okay
+'' Sets the IP address for the ESP32 when in AP mode. Errors if not in AP mode. Station and AP can have different IP when both active.
+'' PARAMS: ip: string pointer to ip address
+'' gateway: string pointer to the gateway IP, or -1 if default
+'' mask: string pointer to subnet mask, or -1 if default. Gateway MUST be set for subnet mask to be used, this is an ESP32 limitation.
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPAP=", 34))
+  core.sendOnly(ip)
+  if(gateway > -1)
+    core.sendOnly(string(34, ",", 34))
+    core.sendOnly(gateway)
+    if(mask > -1)
+      core.sendOnly(string(34, ",", 34))
+      core.sendOnly(mask)
+  okay:=core.sendAndGetOkay(string(34, 13, 10))
+
+PUB startTCPTransmission(linkid, ip, port, keepalive)
+'' Establishes a TCP connection with a destination. Does not return OK; CONNECT message will appear asynchronously when connection established.
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' ip: string pointer to IP address
+'' port: remote port number
+'' keepalive: TCP keepalive, in seconds. 0 to disable.
+  core.sendOnly(string("AT+CIPSTART="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendOnly(string(34, "TCP", 34, ",", 34))
+  core.sendOnly(ip)
+  core.sendOnly(string(34, ","))
+  core.sendDec(port)
+  core.sendOnly(string(","))
+  core.sendDec(keepalive)
+  core.sendAndGetOkay(string(13,10))
+PUB waitForConnect(timeout): okay | temp
+'' waits for a TCP or SSL link to be established (the CONNECT message appears) or timeout is reached. Waits synchronously with (timeout/10) period, and occupies the cog.
+'' PARAMS: timeout: timeout in ms, after which the method will stop waiting.
+'' RETURNS: true if connection established, false if timed out
+  temp := core.waitUntilReceiveMessage(9, timeout)
+  if(temp > -1) ' we have a message, parse it
+    okay := strings.contains(temp, string("CONNECT"))
+    if(okay > 0) ' we have CONNECT
+      okay := true
+    else ' we got something else
+      okay := strings.contains(temp, string("CLOSED"))
+      if(okay > 0)
+        okay := false 'we have CLOSED
+  else ' we timed out
+    okay := false    
+PUB startUDPTransmission(linkid, ip, port, udpport, udpmode)
+'' Starts a UDP transmission to a destination. Does not return OK; CONNECT message will appear asynchronously when connection established.
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' ip: string pointer to remote IP
+'' port: remote port number
+'' udpport: local UDP port, or -1 if use default. MUST be set for udpmode to be used, this is an ESP32 limitation
+'' udpmode: how to handle destination peers: 0, 1, or 2 for change never, change once, change any number of times. 0 is default.
+  core.sendOnly(string("AT+CIPSTART="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendOnly(string(34, "UDP", 34, ",", 34))
+  core.sendOnly(ip)
+  core.sendOnly(string(34, ","))
+  core.sendDec(port)
+  if(udpport > -1)
+    core.sendOnly(string(","))
+    core.sendDec(udpport)
+    if(udpmode > 0)
+      core.sendOnly(string(","))
+      core.sendDec(udpmode)
+  core.sendAndGetOkay(string(13,10))
+
+PUB startSSLTransmission(linkid, ip, port, keepalive)
+'' Establishes a SSL connection with a destination. Does not return OK; CONNECT message will appear asynchronously when connection established.
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' ip: string pointer to IP address
+'' port: remote port number
+'' keepalive: TCP keepalive, in seconds. 0 to disable.
+'' WARNING: SSL may exceed available memory on many ESP32 models. If this occurs, the ESP32 system will reboot. SSL in most AT firmwares is beta or unsupported.
+  core.sendOnly(string("AT+CIPSTART="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendOnly(string(34, "SSL", 34, ",", 34))
+  core.sendOnly(ip)
+  core.sendOnly(string(34, ","))
+  core.sendDec(port)
+  core.sendOnly(string(","))
+  core.sendDec(keepalive)
+  core.sendAndGetOkay(string(13,10)) ' are we nomming the result here?
+
+PUB configureSSLClient(linkid, type, certkeyid, ca) | okay
+'' Configures the SSL client with typeID, and the ID of a stored certification key and certification authority. Refer to ESP32 AT documentation for how to load
+'' binary files for certification keys and CAs, and how their IDs are mapped.
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' type: byte for type ID 0, 1, 2, or 3; see ESP32 documentation.
+'' certkeyid: ID for the stored certification key binary.
+'' ca: ID for the CA bin file
+'' RETURNS: true if command success, false otherwise
+'' WARNING: THIS COMMAND IS IN BETA ON THE ESP32 AT FIRMWARE. IT MAY NOT WORK ON ALL FIRMWARES. SSL REQUIRES A LOT OF MEMORY AND SOME HARDWARE MAY FAIL.
+
+  core.sendOnly(string("AT+CIPSSLCCONF="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendDec(type)
+  core.sendOnly(string(","))
+  core.sendDec(certkeyid)
+  core.sendOnly(string(","))
+  core.sendDec(ca)
+  okay := core.sendAndGetOkay(string(13,10))
+
+PUB startSending(linkid, length)
+'' Starts sending data over an established TCP or SSL connection or UDP transmission.
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' length: length in bytes of the entire packet being sent.
+'' NOTE: remember the ESP32 uses two byte CRLF; make sure you count your transmission length correctly if sending multiple strings!
+  core.sendOnly(string("AT+CIPSEND="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendDec(length)
+  core.sendAndGetOkay(string(13, 10)) ' need to clear the rx buffer in case of echoback
+  
+                              
+PUB startSendToNewURL(linkid, length, remoteip, remoteport)
+'' Starts sending UDP data to a new remote IP and port. Will establish transmission. If in TCP or SSL mode, all send attempts with this will result in ERROR. 
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' length: length in bytes of the entire packet being sent.
+'' remoteip: string pointer to the new destination IP
+'' remoteport: destination port number 
+'' NOTE: remember the ESP32 uses two byte CRLF; make sure you count your transmission length correctly if sending multiple strings!
+  core.sendOnly(string("AT+CIPSEND="))
+  if(linkid > -1)
+    core.sendDec(linkid)
+    core.sendOnly(string(","))
+  core.sendDec(length)
+  core.sendOnly(string(","))
+  core.sendOnly(remoteip)
+  core.sendOnly(string(","))
+  core.sendDec(remoteport)
+  core.sendAndGetOkay(string(13, 10)) ' there is no response
+  
+
+PUB startSendingTransparent()
+'' Starts sending data in transparent transmission mode. See ESP32 documentation. Use send() to send data and > to end messages.
+  core.sendAndGetOkay(string("AT+CIPSEND", 13, 10))
+
+PUB endSendingTransparent()
+  core.sendAndGetOkay(string("+++", 13, 10))
+PUB sendPartial(data)
+'' Sends part of a data packet for transmission; call this after one of the startSending methods. Call endSending to finish transmission.
+'' PARAMS: data - string pointer to the data you wish to send. This does not have to be the complete data.
+'' Nothing is sent over the network, or returned from the ESP32, until endSending is called
+  core.sendOnly(data) ' all this does is send to the ESP32, this method is only for ease of use.
+
+PUB endSending(data) : resp
+'' Sends data and finishes sending the transmission with ">".
+'' PARAMS: data: string pointer to the data you wish to send. This is the last data to be sent in this transmission. -1 to finish with no further data.
+'' RETURNS: resp: the send response as a byte - -1 for ERROR, 0 for FAIL, 1 for OK
+  core.sendOnly(data)
+  resp := core.sendAndGetOkay(string(">", 13, 10))
+  if(resp)
+    resp := 1
+  else
+    resp := core.getSyncResponse() ' get the text and look for ERROR or FAIL
+    if(strings.firstIndexOf(resp, "R") > -1)
+      resp := -1 ' error
+    else
+      resp := 0 ' fail does not contain the letter R
+  return
+PUB sendHTTPRequest(linkid, passthrough, method, url, httpversion, header, body): resp | length, crlf
+'' method for sending HTTP request, since it is common. Note that this does not establish the link, and the specified linkid must match that of an established TCP connection or UDP transmission.
+'' See ESP32 documentation on transmissions. 
+'' PARAMS: linkid: ID of link if multiple links (AT+CIPMUX) is enabled; -1 if it is disabled.
+'' passthrough: True if you want to use passthrough mode, false if you want to specify length
+'' method : string pointer to request method - GET, POST, PUT, etc.
+'' url: string pointer to the full url to request, including url params
+'' port: port number to send the request to; while HTTP default is 80, many services use nondefault ports
+'' httpversion: string pointer to full HTTP version string. Should match "HTTP/1.1" format.
+'' header: string pointer to the full  header. -1 for empty.
+'' body: string pointer to the full request body. -1 for empty.
+'' RETURNS: resp: the send response as a byte - -1 for ERROR, 0 for FAIL, 1 for OK
+  if(passthrough == false)
+    length := strsize(method) + 1 + strsize(url) + 2 + strsize(httpversion) + 2
+    if(header > -1)
+      length := length + strsize(header) + 2
+    if(body > -1)
+      length := length + strsize(body) + 2  
+    startSending(linkid, length)
+  else
+    startSendingTransparent()
+  sendPartial(method)
+  sendPartial(string(" "))
+  sendPartial(url)
+  sendPartial(string(13, 10))
+  
+  sendPartial(httpversion)
+
+  
+  sendPartial(string(13, 10))
+  
+  if(header > -1)
+    sendPartial(header)
+    sendPartial(string(13, 10))
+    waitms(10)
+  
+  if(body > -1)
+    sendPartial(body)
+    sendPartial(string(13, 10))
+    waitms(10) 
+  resp := endSending(-1)
+PUB close(linkid)
+'' Closes a TCP or SSL connection, or terminates a UDP transmission, on a given link ID. Does not return ok; CLOSED message will appear asynchronously if connection terminated.
+'' PARAMS: linkid: link ID (0-4) if multiple links are enabled, -1 otherwise. 5 will close all connections.
+  core.sendOnly(string("AT+CIPCLOSE"))
+  if(linkid > -1)
+    core.sendOnly(string("="))
+    core.sendDec(linkid)
+  core.sendAndGetOkay(string(13, 10))
+
+PUB enableMultipleConnections() : okay
+'' Enables multiple connections(numbered 0 through 4)
+'' RETURNS: true if command success, false otherwise
+  okay := core.sendAndGetOkay(string("AT+CIPMUX=1", 13, 10))
+
+PUB disableMultipleConnections() : okay
+'' Disables multiple connections, setting the ESP32 to only use one
+'' RETURNS: true if command success, false otherwise
+  okay := core.sendAndGetOkay(string("AT+CIPMUX=0", 13, 10))
+PUB isMultipleConnections() : multi | temp
+'' Queries if multiple connections are currently enabled by the ESP32
+'' RETURNS: true if yes, false if not, or if error.
+  multi := core.sendAndGetOkay(string("AT+CIPMUX?", 13, 10))
+  if(multi == false)
+    return
+  temp := core.getSyncResponse()
+  if(core.isEcho())
+    temp+=13
+  multi, _ := ints.ParseNextInt(temp)
+  multi := (multi > 0)
+
+PUB setNormalXmit(): okay
+'' Turns off Wi-Fi Passthrough and puts the ESP32 into normal transmission mode.
+'' RETURNS: true if command success, false otherwise
+  okay := core.sendAndGetOkay(string("AT+CIPMODE=0", 13, 10))
+
+PUB setPassThroughXmit() : okay
+'' Turns on Wi-Fi Passthrough and puts the ESP32 into Transparent Transmission mode. See the ESP32 documentation.
+'' RETURNS: true if command success, false otherwise
+  okay := core.sendAndGetOkay(string("AT+CIPMODE=1", 13, 10))
+  
+PUB isPassThrough() : pass | temp
+'' Queries if Wi-Fi Passthrough (ESP32 Transparent Transmission) is currently enabled by the ESP32. See ESP32 documentation.
+'' RETURNS: true if yes, false if not, or if error.
+  pass := core.sendAndGetOkay(string("AT+CIPMODE?", 13, 10))
+  if(pass == false)
+    return
+  temp := core.getSyncResponse()
+  if(core.isEcho())
+    temp+=14
+  pass, _ := ints.ParseNextInt(temp)
+  pass := (pass > 0)
+
+PUB enableIPDInfo() : okay
+'' Enables displaying the inbound IP address and port on incoming packets (+IPD)
+'' RETURNS: true if command success, false otherwise.
+  okay := core.sendAndGetOkay(string("AT+CIPDINFO=1", 13, 10))
+
+PUB disableIPDInfo() : okay                                          
+'' Disables displaying the inbound IP address and port on incoming packets (+IPD)
+'' RETURNS: true if command success, false otherwise.
+  okay := core.sendAndGetOkay(string("AT+CIPDINFO=0", 13, 10))
+
+PUB ping(ip) : time
+'' Sends ICMP ping to a given IP address. Response is SYNCHRONOUS, ESP32 will wait until ping timeout.
+'' WARNING: Some AT firmwares will not support ping, and will always return error (-1) with message of ERROR Code 0x109 (crc check fail)
+'' PARAMS: ip: string pointer to IP address to ping.
+'' RETURNS: time in ms the ping took to respond, or -1 if ping timed out or if error.
+  core.sendOnly(string("AT+PING=", 34))
+  core.sendOnly(ip)
+  time := core.sendAndGetOkayWithTimeout(string(34, 13, 10), 1500) '1s ping timeout with allowance for ESP32
+  if(time == false)
+     time := -1
+  time := core.getSyncResponse()
+  time, _ := ints.ParseNextInt(time+6) ' trim the +PING:
