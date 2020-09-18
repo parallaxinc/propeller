@@ -5,7 +5,9 @@
 '' ** License: The MIT License (MIT)                                     **
 '' ** https://mit-license.org/                                           **
 '' ************************************************************************
-
+'' This group of modular objects is designed to interface with an ESP32 microcontroller using a 2 pin serial UART.
+'' It is designed for the default ESP32 "AT firmware", by Espressif, which is the default on most modules.
+'' ************************************************************************
 '' ESP32 WiFi OBJECT - ESTABLISHES AND CONFIGURES LAYER 1 WiFi CONNECTIONS
 '' esp32_core must be initialized in order to use this object
 

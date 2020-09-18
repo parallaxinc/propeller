@@ -1,0 +1,90 @@
+'' ************************************************************************
+'' ** ESP32 AT Firmware Controller                                       **
+'' ** By Riley August (riley@robots-everywhere.com)                      **
+'' ** Copyright Robots Everywhere 2020                                   **
+'' ** License: The MIT License (MIT)                                     **
+'' ** https://mit-license.org/                                           **
+'' ************************************************************************
+''
+'' BETA COMMAND EXTENSION FOR TCPIP. HANDLES TCP SERVERS.
+'' To Receive, use esp32_core.pollMessage() as received packets are asynchronous
+'' esp32_core must be initialized in order to use this object.
+'' this object is an extension of esp32_tcpip for beta commands.
+
+OBJ
+  core: "esp32_core"
+  ints: "nextint"
+  strings: "strings"
+  tcpip: "esp32_tcpip"
+PUB startTCPServer(port): okay
+'' configures the ESP32 as a TCP server, letting it receive incoming connections. This command requires a lot of memory and may not work on all implementations.
+'' must call enableMultipleConnections() successfully in order to run a server. Each connection will take up one of the five link IDs for the ESP32 (0 through 4).
+'' PARAMS: port: port number for server
+'' RETURNS: true if server start successfully, otherwise false
+  core.sendOnly(string("AT+CIPSERVER=1,"))
+  core.sendDec(port)
+  okay := core.sendAndGetOkay(string(13, 10))
+
+PUB getServerStatus(): server, port, ssl, ca | temp
+'' Retrieves the TCP/SSL server status from the ESP32.
+'' RETURNS: server: true if server is running, otherwise false
+'' port: port number for server, or -1 if command error.
+'' ssl: true if SSL enabled
+'' ca: true if certification authority enabled, otherwise false
+  server := core.sendAndGetOkay(string("AT+CIPSERVER?", 13, 10))
+  if(server == false)
+    port := -1
+    return
+  temp := core.getSyncResponse() + 11 ' trim +CIPSERVER:
+  if(byte[temp] == "0")
+    server := false
+  elseif(byte[temp] == "1")
+    server := true
+  else
+    port := -1
+    return ' ERROR
+  port, ssl := ints.ParseNextInt(temp+2)
+  if(byte[ssl] == 0)
+    ssl := false
+    return ' all done
+  elseif(strings.startsWith(ssl, string(34, "SSL", 34)) == true)
+    ssl := true
+    ca := ssl + 6 ' there's a comma too
+    if(byte[ca] == "1")
+      ca := true
+    else
+      ca := false
+PUB setMaxServerConnections(conns) : okay
+'' Sets the maximum number of connections allotted to server mode; limit 5
+'' PARAMS: conns: the number of connections to be allotted
+'' RETURNS: true if command success, false otherwise
+  core.sendOnly(string("AT+CIPSERVERMAXCONN="))
+  core.sendDec(conns)
+  okay:=core.sendAndGetOkay(string(13, 10))
+
+PUB getMaxServerConnections() : conns
+'' Gets the maximum number of connections allotted to server mode.
+'' RETURNS: the number of connections the server mode is allowed to use.
+  conns := core.sendAndGetOkay(string("AT+CIPSERVERMAXCONN?", 13, 10))
+  if(conns == true)
+    conns := core.getSyncResponse()
+  else
+    conns := -1
+    return
+  if(core.isEcho())
+    conns += 23 ' trim echo
+  conns += 18 ' trim +cipservermaxconn:
+  conns, _ := ints.ParseNextInt(conns)
+PUB startSSLServer(port, ca): okay
+'' configures the ESP32 as a SSL server, letting it receive incoming connections. This command requires a lot of memory and may not work on all implementations.
+'' must call enableMultipleConnections() successfully in order to run a server. Each connection will take up one of the five link IDs for the ESP32 (0 through 4).
+'' PARAMS: port: port number for server
+'' ca: if true, enable CA, false otherwise
+'' RETURNS: true if server start successfully, otherwise false
+  core.sendOnly(string("AT+CIPSERVER=1,"))
+  core.sendDec(port)
+  core.sendOnly(string(",", 34, "SSL", 34))
+  if(ca == true)
+    core.sendOnly(string(","))
+    core.sendDec(1)
+  okay := core.sendAndGetOkay(string(13, 10))
