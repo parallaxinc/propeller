@@ -12,30 +12,23 @@ CON
 
  
   
-OBJ
-  
-  pins: "Pins.spin2"    
-
-
-
-
-PUB Main | r, c, speed
+PUB Main() | r, c, speed
  
   speed := 10
 
   repeat
 
-   pins.Toggle(56) ' Toggle P2-EVAL LED to indicate test is running
+   pintoggle(56) ' Toggle P2-EVAL LED to indicate test is running
 
    speed:= speed + 1000
 
    if speed > 10000
-	speed := 100
+        speed := 100
 
    
    repeat r from 0 to 7
 
-        pins.High(basepin + r)
+        pinhigh(basepin + r)
 
         repeat c from 0 to 7
 
@@ -45,12 +38,11 @@ PUB Main | r, c, speed
             if r==7 and c==7
                 next
 
-            pins.Low(basepin + c)
+            pinlow(basepin + c)
 
-	    'waitcnt(clkfreq / 100000 + cnt) ' Minimal delay for mfg test, to get all LEDs visible at once (very dim)
-	    waitcnt(clkfreq / speed + cnt)   ' Use longer delay to see some scroll action; changing speed value for demo
+            'waitct(clkfreq / 100000 + getct()) ' Minimal delay for mfg test, to get all LEDs visible at once (very dim)
+            waitct(clkfreq / speed + getct())  ' Use longer delay to see some scroll action; changing speed value for demo
 
-            pins.In(basepin + c)
+            pinfloat(basepin + c)
             
-
-        pins.In(basepin + r)
+        pinfloat(basepin + r)
