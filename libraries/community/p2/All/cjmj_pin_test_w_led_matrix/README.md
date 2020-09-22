@@ -6,7 +6,7 @@ Language: Spin2
 
 Created: September 21, 2020
 
-Category: tools
+Category: Tool
 
 Description:
 I use this code to test the pins on my P2ES Rev C Eval Board.  It uses the LED Matrix accessory board and a lookup table (LUT).
