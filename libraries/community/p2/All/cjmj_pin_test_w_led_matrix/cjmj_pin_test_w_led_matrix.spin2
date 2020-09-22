@@ -1,0 +1,52 @@
+{
+filename  :  cjmj_pin_test_w_led_matrix.spin2
+purpose   :  Testing the pins on Parallax's Propeller 2 Evaluation Board (Rev C) P/N 64000 using the LED Matrix board P/N 64006(c) RevB from the P2-ES Eval Board Accessory Set P/N 64006-ES.
+author    :  Carroll James Moore Jr (CJMJ) - see bottom of file for terms of use
+emails    :  carroll.j.moore.jr@gmail.com, cmoore@ieee.org, cjmj@cjmj.net
+date      :  September 21, 2020
+references:  Schematics - https://www.parallax.com/sites/default/files/downloads/64006-ES_P2-EVAL-AccessorySet_RevA_20190125-SCHEMATIC.pdf
+          :  Guide      - https://docs.google.com/document/d/1FTGV1Mn1hwayEaKut5Ej6vmWdjirVlP9TQqyA0wRs34/edit
+notes     :  The LED matrix board does not reflect the layout in the schematic.  Instead it is laid out according to the lookup table (LUT) in the guide.
+}
+
+con
+
+  basepin =   0 'basepins are 0, 8, 16, 24, 32, 40, 48 and sometimes 56.  I couldn't help myself, AEIOU and sometimes Y.
+  delay   = 500 'For me, this gives the brightest matrix without flicker [at default clock frequency] (ie >500 flickers, <500 dimmer)
+
+dat
+
+  lut BYTE $01,$02,$03,$04,$05,$06,$07,$10 'LED matrix lookup table per guide.
+      BYTE $12,$13,$14,$15,$16,$17,$20,$21 'Rows are top (1) to bottom (7)
+      BYTE $23,$24,$25,$26,$27,$30,$31,$32 'Columns are left (1) to right (7)
+      BYTE $34,$35,$36,$37,$40,$41,$42,$43 'Most significate 4 bits is HIGH pin
+      BYTE $45,$46,$47,$50,$51,$52,$53,$54 'least signifcate 4 bits is low pin
+      BYTE $56,$57,$60,$61,$62,$63,$64,$65
+      BYTE $67,$70,$71,$72,$73,$74,$75,$76
+
+pub go() | BYTE rc, BYTE row, BYTE col
+
+  repeat
+    repeat rc from 0 to 55
+      row := basepin + lut[rc].[%00011_00100] 'bitfield for upper 4 bits
+      col := basepin + lut[rc].[%00011_00000] 'bitfield for lower 4 bits
+      PINH(row)
+      PINL(col)
+      waitus(delay) 'Brighter the longer the LED is on.  Too long and they flicker.
+      PINF(row)
+      PINF(col)
+
+con {terms of use}
+
+{{
+The MIT License (MIT)
+Copyright (c) 2020 Carroll James Moore Jr (CJMJ)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+source:  https://mit-license.org/
+}}
