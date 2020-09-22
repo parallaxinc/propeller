@@ -1,14 +1,14 @@
-# P2ES Matrix
+# P2ES Rev C Pin Test Using the LED Matrix Accessory Board 
 
-By: Jon "JonnyMac" McPhalen
+By: Carroll J Moore Jr (CJMJ)
 
 Language: Spin2
 
-Created: 18-JUN-2020
+Created: September 21, 2020
 
-Category: display
+Category: tools
 
 Description:
-Runs P2ES matrix in cog for persistant display
+I use this code to test the pins on my P2ES Rev C Eval Board.  It uses the LED Matrix accessory board and a lookup table (LUT).
 
-License: MIT (see end of source code)
+License: MIT (see file)
