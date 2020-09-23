@@ -1,6 +1,6 @@
 # P2ES Rev C Pin Test Using the LED Matrix Accessory Board 
 
-By: Carroll J Moore Jr (CJMJ)
+By: Carroll J Moore Jr (forum: CJMJ)
 
 Language: Spin2
 
