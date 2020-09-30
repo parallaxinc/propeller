@@ -4,6 +4,9 @@ Community generated Propeller libraries for Propeller 1 microcontroller.
 ## Download Archive
 Download an [archive of the Propeller 1 libraries](https://github.com/parallaxinc/propeller/releases/download/OBEX-200930/P1-OBEX.zip).
 
+## Contribute
+Please [contribute your objects](https://github.com/parallaxinc/propeller/wiki/Contributing) to this community archive for the benefit of all!
+
 ## History
 Until 12/6/2019, Propeller 1 libraries were hosted on the Propeller Object Exchange, but are now contained in this repository.
 
