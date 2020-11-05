@@ -2,6 +2,12 @@
 
 [JM 1-Wire](../All/jm_1-wire)
 
+[JM Click DMX TX](../All/jm_click_dmx-tx)
+
+[JM Click RS485_3v3](../All/jm_click_rs485)
+
+[JM Click RTC](../All/jm_click_rtc)
+
 [JM EZ SPI](../All/jm_ez_spi)
 
 [JM Full Duplex Serial](../All/jm_full_duplex_serial)
