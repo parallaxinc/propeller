@@ -1,4 +1,4 @@
-# ISP Hub75
+# ISP Hub75 Matrix Driver
 
 By: Stephen M Moraco (Iron Sheep Productions, LLC)
 
