@@ -1,0 +1,392 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_scrollingText.spin2
+''   Purpose.... Manipulate a scrolling region on our display panel
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 18 Oct 2020
+''
+'' =================================================================================================
+
+CON { public control values }
+
+' scrolling support
+'  enum: scrolling direction
+#0, DIR_UNKNOWN, DIR_TO_LEFT, DIR_TO_RIGHT
+
+' enum: scrolling duration
+#0, SCROLL_UNKNOWN, SCROLL_FOREVER, SCROLL_ONCE, SCROLL_ONCE_TO_CLEAR
+
+MAX_SCROLL_CHARS_TO_BUFFER = 10 * 3     ' 3 lines wide, max 10 chars per line
+MAX_SCROLL_COLORS_TO_BUFFER = MAX_SCROLL_CHARS_TO_BUFFER    ' one color per character
+
+MAX_SCROLL_CHAR_BYTES = (((MAX_SCROLL_CHARS_TO_BUFFER + 3) / 4) * 4)
+MAX_SCROLL_CHAR_LONGS = (MAX_SCROLL_CHAR_BYTES / 4)
+
+MAX_SCROLL_COLOR_BYTES = ((((MAX_SCROLL_COLORS_TO_BUFFER * screen.DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4)
+MAX_SCROLL_COLOR_LONGS = (MAX_SCROLL_COLOR_BYTES / 4)
+    'DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
+
+MAX_LONGS_PER_CHAR_BITMAP = 2
+
+NO_LEADING_CHAR_DISPLAY = -1
+
+OBJ
+
+    screen      : "isp_hub75_screenAccess"
+    pixels      : "isp_hub75_screenUtils"
+    fonts       : "isp_hub75_fonts"
+
+DAT { initialized data - class-static variables }
+
+instanceNumber byte 0
+
+VAR { globals - instance variables }
+
+' our scrolling support - currently 1 scrolling region
+    long    scrollChars[MAX_SCROLL_CHAR_LONGS]
+'    long    scrollColors[MAX_SCROLL_COLOR_LONGS]
+    long    scrollTextColor
+    long    leftBitmap[MAX_LONGS_PER_CHAR_BITMAP]
+    long    rightBitmap[MAX_LONGS_PER_CHAR_BITMAP]
+    long    scrollCharOffset
+    byte    maxVisibleChars    ' set when scrolling text is specified
+    long    ctCharsToScroll    ' set when scrolling text is specified
+    long    remainingColumns    ' set when scrolling text is specified
+    long    bScrolling          ' set when scrolling text is specified
+    long    topRow              ' set when scrolling text is specified
+    long    leftColumn          ' set when scrolling text is specified
+    long    windowWidthInPix         ' set when scrolling text is specified
+
+    long    startTime
+
+    long    maxTextColumns      ' specs from display object
+    byte    charWidthInPix
+    byte    charHeightInPix
+    byte    leadingGapInPix
+    byte    horizontalGapInPix
+    byte    hBitmapOffsetInPix
+    byte    selectedTextFont
+
+    long    remainingPixToScroll
+    byte    charPixOffset       ' offset into "charWidthInPix + horizontalGapInPix" field
+    byte    firstVisCharIndex       ' index into list of scrolling chars, head of left-scrolling or window-tail of right-scrolling
+
+    byte    scrollMode          ' configure before use!
+    byte    scrollDirection     ' configure before use!
+    byte    isSetup
+    byte    instanceID
+
+PUB null()
+    '' This is NOT a top level object
+
+PUB initialize()
+    '' call once before use to init this scroller
+    isSetup := FALSE
+    bScrolling := FALSE
+    ctCharsToScroll := 0
+    scrollMode := SCROLL_UNKNOWN
+    instanceID := instanceNumber++
+    remainingPixToScroll := 0
+    isSetup := TRUE ' yes, now we are!
+    debug("stx:initialize() ", udec(instanceID))
+
+PUB setFontInfo(nbrTextColumns, charWidth, charHeight, leadingGap, horizontalGap, hBitmapOffset, textFont)
+    '' call any time font changes - so we can keep up
+    'debug("stx:setFontInfo() ", udec(instanceID), ", TCol=", udec_(nbrTextColumns), ", fnt=", udec_(textFont), ", wxh=(", udec_(charWidth), ", ", udec_(charHeight), "), ltGap=", udec_(leadingGap), ", hGap=", udec_(horizontalGap))
+    maxTextColumns := nbrTextColumns
+    charWidthInPix := charWidth
+    charHeightInPix := charHeight
+    leadingGapInPix := leadingGap
+    horizontalGapInPix := horizontalGap
+    hBitmapOffsetInPix := hBitmapOffset
+    selectedTextFont := textFont
+
+' EXAMPLES
+'    scrollText(row, column, widthInChars, "hello world", display.DIR_LEFT, rgbColor)
+PUB isIdle() : statusValue
+    statusValue := isSetup && isScrollingComplete()
+    'debug("stx:isIdle(", udec_(instanceID), ") RET=", sdec_(statusValue))
+
+PUB scrollText(loopMode) | bValidRequest
+    '' specify scrolling text duration (forever, once, twice, etc.)
+    bValidRequest := TRUE
+    case loopMode
+        SCROLL_FOREVER:
+        SCROLL_ONCE:
+        SCROLL_ONCE_TO_CLEAR:
+            bValidRequest := TRUE
+        other:
+            bValidRequest := FALSE
+
+    if bValidRequest
+        scrollMode := loopMode
+
+    if loopMode <> SCROLL_FOREVER
+        if loopMode == SCROLL_ONCE_TO_CLEAR
+            remainingPixToScroll := (ctCharsToScroll * (charWidthInPix + horizontalGapInPix))
+            ' bug 3 chars short font8A
+        else 
+            remainingPixToScroll := ((ctCharsToScroll * (charWidthInPix + horizontalGapInPix)) - horizontalGapInPix) - windowWidthInPix
+            ' bug 1 char short font 8A
+    debug("stx:scrlTxt() ", udec(instanceID), ", ", udec(remainingPixToScroll), udec(ctCharsToScroll), udec(maxVisibleChars), udec(charWidthInPix), udec(horizontalGapInPix))
+
+
+PUB scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor) | nextToAppearIndex, colIndex, charColumn
+    '' place scolling text at R,C, of pZString scrolling in direction using rgbColor
+    if isIdle()
+        scrollTextColor := rgbColor
+        ' our string length is smaller of length given or our receiving buffer length
+        ctCharsToScroll := min(strsize(pZString), MAX_SCROLL_CHAR_BYTES)
+        ' visible chars is our window size constrained by our font max text columns
+        maxVisibleChars := 1 #> widthInChars <# maxTextColumns
+        ' our pix length is char-width + gap-between-chars
+        windowWidthInPix := (maxVisibleChars * (charWidthInPix + horizontalGapInPix)) - horizontalGapInPix
+        ' remaining is our number of pix yet off screen to right (or to left if scrolling that direction)
+        remainingPixToScroll := ((ctCharsToScroll * (charWidthInPix + horizontalGapInPix)) - horizontalGapInPix) - windowWidthInPix
+        ' if our string is shorter than our window then right is string-end, else right is window-end
+        nextToAppearIndex := min(maxVisibleChars, ctCharsToScroll)
+        
+        debug("- scrollTxAtRCOfClr() ", udec(instanceID), ", RC=(", udec_(row), udec_(column), "), ", zstr(pZString), ", CT=", udec_(ctCharsToScroll), ", VIS=", udec_(maxVisibleChars), ", NTAI=", udec_(nextToAppearIndex))
+        if ctCharsToScroll > 0
+            bytemove(@scrollChars, pZString, ctCharsToScroll)
+            topRow := row
+            leftColumn := column
+            case direction
+                DIR_TO_LEFT:
+                    ' showing left-most chars first
+                    scrollDirection := direction
+                    firstVisCharIndex := 0
+                    charPixOffset := 0
+                DIR_TO_RIGHT:
+                    ' showing right-most chars first
+                    scrollDirection := direction
+                    firstVisCharIndex := ctCharsToScroll - maxVisibleChars
+                    charPixOffset := charWidthInPix + horizontalGapInPix - 1
+                other:
+                    scrollDirection := DIR_UNKNOWN
+                    debug("bad scroll direction, abort")
+                    abort
+        '
+        ' place window chars on screen
+        '
+        ' reset scroll offset to beginning
+        if direction == DIR_TO_LEFT
+            placeCharsAtRCWithColor(topRow, leftColumn, charPixOffset, windowWidthInPix, firstVisCharIndex, scrollTextColor)
+            charPixOffset++  ' we showed first window content just now
+        else    
+            placeCharsAtRCWithColor(topRow, leftColumn, charPixOffset, windowWidthInPix, firstVisCharIndex, scrollTextColor)
+            charPixOffset--  ' we showed first window content just now
+            if charPixOffset < 0
+                charPixOffset := charWidthInPix + horizontalGapInPix - 1
+                firstVisCharIndex--
+
+    else
+        debug("stx:scrollTxAtRCOfClr() - NOT IDLE!")
+
+
+PUB animateScroll() 
+    '' Do one scroll step, if one is pending
+    if not isScrollingComplete()
+        'startTime := getct() 
+        'debug("stx:AS()")
+        ' if scrolling left then head is next loosing left most pixel (offset dictates)
+        '   and tail if moving left most pixel onscreen
+        ' else (moving right) then head is moving rightmost pixel on screen
+        '   while tail is loosing right most pixel (offset dictates)
+        ' all chars are in the char buffer "scrollChars"
+        'if instanceID == 0
+        debug("stx:as(", udec_(instanceID), ") ", udec(charPixOffset), udec(firstVisCharIndex), udec(remainingPixToScroll))
+
+        ' place char bits
+        if scrollDirection == DIR_TO_LEFT
+            placeCharsAtRCWithColor(topRow, leftColumn, charPixOffset, windowWidthInPix, firstVisCharIndex, scrollTextColor)
+            charPixOffset++  ' we showed one just now
+            ' if finished scrolling first char offscreen then reset to show head of next char
+            if charPixOffset > charWidthInPix + horizontalGapInPix - 1
+                charPixOffset := 0
+                firstVisCharIndex++
+                if firstVisCharIndex > ctCharsToScroll - 1 && scrollMode <> SCROLL_ONCE_TO_CLEAR
+                    firstVisCharIndex := 0
+        else    
+            placeCharsAtRCWithColor(topRow, leftColumn, charPixOffset, windowWidthInPix, firstVisCharIndex, scrollTextColor)
+            charPixOffset--  ' we showed one just now
+            ' if finished scrolling first char offscreen then reset to show head of next char
+            if charPixOffset < 0
+                charPixOffset := charWidthInPix + horizontalGapInPix - 1
+                firstVisCharIndex--
+                if firstVisCharIndex < 0 && scrollMode <> SCROLL_ONCE_TO_CLEAR
+                    firstVisCharIndex := ctCharsToScroll - 1
+
+        if scrollMode <> SCROLL_FOREVER
+            remainingPixToScroll--
+            'debug("stx:AS ", udec(remainingPixToScroll))
+
+        'showDuration(startTime, string("stx:AS"))
+
+PUB isScrollingComplete() : doneStatus
+    '' Return T/F where T means that all movement for this segment is complete
+    'if instanceID == 0
+    '    debug("stx:isc(", udec_(instanceID), ") ", udec(remainingPixToScroll))
+    doneStatus := (remainingPixToScroll > 0) ? FALSE : TRUE
+    ' if 'foreever' we are never done!
+    if scrollMode == SCROLL_FOREVER
+        doneStatus := FALSE
+
+
+PRI placeCharsAtRCWithColor(row, column, charOffset, windowWidth, startCharIndex, rgbColor) | charIndex, maxCharIndex, headWidthInPix, tailWidthInPix, remainWindowPix, endColumn, cChar, actCharIndex, insetInPix, pCharBitmap
+    ' write char bitmaps to screen with possible fractional first and last chars
+    maxCharIndex := (charOffset > 0) ? maxVisibleChars : maxVisibleChars - 1
+    headWidthInPix := charWidthInPix + horizontalGapInPix - charOffset
+    tailWidthInPix := 0
+    remainWindowPix := windowWidth
+    endColumn := column
+    insetInPix := charOffset
+    debug("stx:plcC() ", udec(maxCharIndex), udec(headWidthInPix), udec(remainWindowPix), udec(endColumn), udec(insetInPix))
+
+    ' for width of visible window
+    repeat charIndex from 0 to maxCharIndex
+        ' calc index of next char to display
+        actCharIndex := charIndex + startCharIndex
+        ' correct the index on wrap-around
+        if actCharIndex > ctCharsToScroll - 1 && scrollMode <> SCROLL_ONCE_TO_CLEAR
+            actCharIndex -= ctCharsToScroll
+        ' if we have only a trailing char left
+        if remainWindowPix < charWidthInPix
+            ' set char-to-paint width to size of remaining window width
+            tailWidthInPix := remainWindowPix
+            headWidthInPix := 0    ' kill all head display
+
+        cChar := byte[@scrollChars][actCharIndex]
+        ' if we are scrolling end of text off screen then chars beyond text are ' ' chars
+        if actCharIndex > ctCharsToScroll - 1
+            cChar := $20  '  TEST use $30 ' space char (zero for TESTing)
+        ' get pointer to character bitmap
+        pCharBitmap := fonts.getCharAddrForFont(selectedTextFont, cChar)
+        ' if we've some character to show, then draw full or partial character
+        'debug("stx:plcChr ", udec(charIndex), udec(endColumn), udec(headWidthInPix), udec(tailWidthInPix))
+        if headWidthInPix > 0
+            ' place full/partial first char
+            endColumn := placeBitmapFrontAtRCWithColor(row, endColumn, insetInPix, headWidthInPix, pCharBitmap, rgbColor)
+            ' count this many pix placed
+            remainWindowPix -= headWidthInPix
+            ' form here on (until last char) we do full char width placements
+            headWidthInPix := (charIndex == maxCharIndex) ? charWidthInPix : charWidthInPix + horizontalGapInPix
+            insetInPix := 0  ' reset this to full char
+        if tailWidthInPix > 0
+            ' place partial last char
+            endColumn := placeBitmapBackAtRCWithColor(row, endColumn, insetInPix, tailWidthInPix, pCharBitmap, rgbColor)
+            ' count this many pix placed
+            remainWindowPix -= tailWidthInPix
+
+
+PRI min(a, b) : smallerNumber
+    ' return the smaller of two numbers
+    smallerNumber := (a < b) ? a : b
+
+
+PRI placeSpaceAtRC(row, column, widthInPix) : endColumn | colIndex, rowIndex
+    ' write single column of blank space (between chars)
+    'if widthInPix <> 1
+    'debug("stx:ps ", udec(widthInPix))
+    repeat colIndex from column to widthInPix - 1 + column
+        repeat rowIndex from row to charHeightInPix - 1 + row
+            pixels.drawPixelAtRC(rowIndex, colIndex, $000000)
+
+    endColumn := column + widthInPix
+
+
+PRI placeBitmapFrontAtRCWithColor(row, column, bitInset, nbrFieldBits, pCharBitmap, rgbColor) : endColumn | cBitIdx, cByteIdx, cRowBits, pixColor, colOffset, pixColumn, pixRow, cBitOffset, nbrCharBits
+    ' Write cChar to display R,C using rgbColor using given bitmap 
+    'startTime := getct() 
+    nbrCharBits := (nbrFieldBits > 0) ? nbrFieldBits - horizontalGapInPix : 0
+    'debug("stx:pbF ", udec(column), udec(bitInset), udec(nbrFieldBits), udec(nbrCharBits), uhex_long(pCharBitmap))
+    ' if we have some but not all char bits then we are leading char
+    'if nbrCharBits <> charWidthInPix    ' TESTING                        
+    '    rgbColor := $00ff00             ' TESTING color our leading char green
+    endColumn := column + nbrCharBits   ' point to gap locn
+    if nbrCharBits > 0
+        repeat cByteIdx from 0 to charHeightInPix - 1
+            cRowBits := byte[pCharBitmap][cByteIdx]
+            pixRow := row + cByteIdx
+            ' from right edge of char to left
+            colOffset := 0
+            repeat cBitIdx from bitInset to bitInset + charWidthInPix - 1   ' 4-0, 4-1, 4-2, 4-3, 4-4
+                cBitOffset := (charWidthInPix - 1) - cBitIdx
+                pixColor := cRowBits & (1 << cBitOffset) > 0 ? rgbColor : $000000
+                pixColumn := column + colOffset
+                ' dont paint beyond our left edge
+                if pixColumn >= leftColumn
+                    pixels.drawPixelAtRC(pixRow, pixColumn, pixColor)
+                colOffset++
+
+    if horizontalGapInPix > 0 && nbrFieldBits > 0
+        ' place vert space after 1st char
+        endColumn := placeSpaceAtRC(row, endColumn, horizontalGapInPix)
+
+    'debug("stx:pBMf() ", udec(instanceID), udec(row), udec(column), udec(bitInset), udec(nbrCharBits), udec(endColumn))
+    'showDuration(startTime, string("stx:pbF"))
+
+
+PRI placeBitmapBackAtRCWithColor(row, column, bitInset, nbrCharBits, pCharBitmap, rgbColor) : endColumn | cBitIdx, cByteIdx, cRowBits, pixColor, colOffset, pixColumn, pixRow, cBitOffset
+    ' Write cChar to display R,C using rgbColor using given bitmap 
+    'startTime := getct() 
+    'debug("stx:pbB ", udec(column), udec(bitInset), udec(nbrCharBits), uhex_long(pCharBitmap))
+    'rgbColor := $ffff00 ' TESTING color our trailing char yellow
+    endColumn := column + nbrCharBits
+    if nbrCharBits > 0
+        repeat cByteIdx from 0 to charHeightInPix - 1
+            cRowBits := byte[pCharBitmap][cByteIdx]
+            pixRow := row + cByteIdx
+            ' from right edge of char to left
+            colOffset := nbrCharBits - 1
+            repeat cBitIdx from bitInset to bitInset + nbrCharBits - 1  ' 4-0, 4-1, 4-2, 4-3, 4-4
+                cBitOffset := (charWidthInPix - 1) - cBitIdx
+                pixColor := cRowBits & (1 << cBitOffset) > 0 ? rgbColor : $000000
+                pixColumn := column + (nbrCharBits - 1) - colOffset
+                ' dont paint off edge of matrix
+                if pixColumn < screen.MAX_PHYSICAL_COLUMNS
+                    pixels.drawPixelAtRC(pixRow, pixColumn, pixColor)
+                colOffset--
+
+    'debug("stx:pBMb() ", udec(instanceID), udec(row), udec(column), udec(bitInset), udec(nbrCharBits), udec(endColumn))
+    'showDuration(startTime, string("stx:pbB"))
+
+PRI showDuration(startTimeValue, pFuncTitle) | duration, converted
+    duration := getct() - startTimeValue
+    converted := muldiv64(duration, 1_000_000, clkfreq)
+    'debug("- elapsed ", zstr_(pFuncTitle), ": ", udec_(converted), " uSec")
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+}}
+

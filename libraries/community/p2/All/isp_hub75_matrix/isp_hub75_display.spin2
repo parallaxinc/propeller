@@ -1,0 +1,424 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_display.spin2
+''   Purpose.... control text placement on HUB75 RGB Matrix
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 17 Oct 2020
+''
+'' =================================================================================================
+
+CON { Object Interface: PUBLIC ENUMs }
+
+NOT_FOUND = -1
+
+' supported Text Fonts
+
+TEXT_FONT_DEFAULT = fonts.TEXT_FONT_DEFAULT
+TEXT_FONT_5x7 = fonts.TEXT_FONT_5x7
+TEXT_FONT_8x8A = fonts.TEXT_FONT_8x8A
+TEXT_FONT_8x8B = fonts.TEXT_FONT_8x8B
+
+' scrolling support
+'  enum: scrolling direction
+DIR_UNKNOWN     = scroller.DIR_UNKNOWN
+DIR_TO_LEFT     = scroller.DIR_TO_LEFT
+DIR_TO_RIGHT    = scroller.DIR_TO_RIGHT
+
+' enum: scrolling duration
+SCROLL_UNKNOWN      = scroller.SCROLL_UNKNOWN
+SCROLL_FOREVER      = scroller.SCROLL_FOREVER
+SCROLL_ONCE         = scroller.SCROLL_ONCE
+SCROLL_ONCE_TO_CLEAR = scroller.SCROLL_ONCE_TO_CLEAR
+
+MAX_SCROLLING_REGIONS = 3
+
+DAT { one or more screens of pixels of 24bit color }
+' our screen bitmap of RGB colors (pwm bit lengths ;-)
+screen0             long    0[screen.DISPLAY_SIZE_IN_LONGS]  ' 6kB buffer (4 bytes / long)
+
+OBJ { Objects Used by this Object }
+
+    screen      : "isp_hub75_screenAccess"
+    pixels      : "isp_hub75_screenUtils"
+    color       : "isp_hub75_color"
+    panel       : "isp_hub75_panel"
+    fonts       : "isp_hub75_fonts"
+    scroller[MAX_SCROLLING_REGIONS] : "isp_hub75_scrollingText"
+
+VAR { Object Instance Variables }
+    long    currTextColor
+    long    cursorLine
+    long    cursorColumn
+    long    maxTextLines
+    long    maxTextColumns
+
+    long    cog
+
+    byte    selectedTextFont
+    byte    topOffsetInPix
+    byte    leftOffsetInPix
+    byte    charHeightInPix
+    byte    charWidthInPix
+    byte    horizontalGapInPix
+    byte    verticalGapInPix
+    byte    hBitmapOffsetInPix
+
+PUB start() : ok | scrollerIndex
+    '' Start the underlying driver(s)
+
+    'debug("`term temp size 80 50 textsize 10")
+
+    debug("- TEXT: start()")
+    ok := cog := panel.start()   ' send buffer to driver
+    if ok == -1
+        debug("- TEXT: underlying drivers failed!")
+        abort
+
+    ' tell all about location of screen buffer
+    screen.setScreen(@screen0)
+
+    ' configure our scrollers for first use
+    repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
+        scroller[scrollerIndex].initialize()
+    ' now set text font - which also tell scrollers!
+    setTextFont(TEXT_FONT_DEFAULT)
+
+    homeCursor()
+    setTextColor($AAAAAA)
+    clearScreen()
+
+PUB stop()
+    '' Stop the underlying driver(s)
+    if cog
+        panel.stop()
+        cog := 0
+
+PUB clearScreen()
+    '' Clear the panel to BLACK
+    longfill(@screen0, 0, screen.DISPLAY_SIZE_IN_LONGS)
+    commitScreenToPanel()
+
+PUB fillScreen(rgbColor) | row, column
+    '' Fill the display with 24-bit color value
+    repeat row from 0 to screen.MAX_DISPLAY_ROWS - 1
+        repeat column from 0 to screen.MAX_DISPLAY_COLUMNS - 1
+            pixels.drawPixelAtRC(row, column, rgbColor)
+
+PUB fillPanel(threeBitColor)
+    '' fill screen but without PWM (for testing underlying driver)
+    panel.fillPanel(threeBitColor)
+
+PUB commitScreenToPanel()
+    '' Write sceen to panel driver
+    'debug("- DISP: commit!")
+    panel.loadScreen(@screen0)
+
+
+{ --------------     Text Handling     -------------- }
+
+PUB setCursor(line, column)
+    '' Position the text cursor to row, column on our display
+    ' TODO emit error on bad column/row?
+    cursorLine := 0 #> line <# maxTextLines - 1
+    cursorColumn := 0 #> column <# maxTextColumns - 1
+    
+PUB homeCursor()
+    '' return the cursor to top left corner of our display
+    setCursor(0, 0)
+
+PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
+    '' Select font and update text grid size 
+    ' currently we only support our 8x8 and 5x7 fonts
+    case newFont
+        TEXT_FONT_DEFAULT..TEXT_FONT_5x7:
+            charHeightInPix := 7
+            charWidthInPix := 5
+            hBitmapOffsetInPix := 0
+            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 1))
+            maxTextColumns := (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 1))
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
+            verticalGapInPix := vUnusedPix / maxTextLines
+            horizontalGapInPix := hUnusedPix / maxTextColumns
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
+            topOffsetInPix := (vUnusedPix + 1) >> 1
+            leftOffsetInPix := (hUnusedPix + 1) >> 1
+
+        TEXT_FONT_8x8A:
+            charHeightInPix := 7
+            charWidthInPix := 7
+            hBitmapOffsetInPix := 1
+            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
+            maxTextColumns :=  (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
+            verticalGapInPix := vUnusedPix / maxTextLines
+            horizontalGapInPix := hUnusedPix / maxTextColumns
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
+            topOffsetInPix := (vUnusedPix + 1) >> 1
+            leftOffsetInPix := (hUnusedPix + 1) >> 1
+
+        TEXT_FONT_8x8B:
+            charHeightInPix := 8
+            charWidthInPix := 8
+            hBitmapOffsetInPix := 0
+            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
+            maxTextColumns :=  (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
+            verticalGapInPix := vUnusedPix / maxTextLines
+            horizontalGapInPix := hUnusedPix / maxTextColumns
+            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
+            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
+            topOffsetInPix := (vUnusedPix + 1) >> 1
+            leftOffsetInPix := (hUnusedPix + 1) >> 1
+
+        OTHER:
+            debug("*ERROR* unknown text size*")
+            abort
+
+    selectedTextFont := newFont
+
+    debug("dsp:font ", udec(charHeightInPix), udec(charWidthInPix), udec(maxTextLines), udec(maxTextColumns), udec(verticalGapInPix), udec(horizontalGapInPix), udec(topOffsetInPix), udec(leftOffsetInPix))
+
+    ' configure our scrollers for font choice
+    repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
+        scroller[scrollerIndex].setFontInfo(maxTextColumns, charWidthInPix, charHeightInPix, leftOffsetInPix, horizontalGapInPix, hBitmapOffsetInPix, selectedTextFont)
+
+PUB setTextColor(rgbColor)  
+    '' Set 24-bit color for subsequent text display
+    currTextColor := rgbColor
+
+PUB setTextAtCursor(zString) 
+    '' Place text 'zero terminated' at our current cursor position using current text color
+    setColoredTextAtLnCol(cursorLine, cursorColumn, zString, currTextColor)
+
+PUB setColoredTextAtLnCol(line, column, pString, rgbColor) | charIndex
+    '' Place text at specific cursor position using current text color
+    setCursor(line, column)
+    charIndex := 0
+    repeat 
+        if byte[pString][charIndex] <> 0
+            setColorCharAtCursor(byte[pString][charIndex++], rgbColor)
+    while byte[pString][charIndex] <> 0
+
+PUB setCharAtCursor(cChar)
+    '' Write char to curr cursor position usi g curr text color, increment the cursor position with line wrap
+    setColorCharAtCursor(cChar, currTextColor)
+
+PUB setColorCharAtCursor(cChar, rgbColor)
+    '' Write char to curr cursor position with given text color, increment the cursor position with line wrap
+    setColoredCharAtLnCol(cursorLine, cursorColumn, cChar, rgbColor)
+    incrCursorWithWrap()
+
+PUB setCharAtLnCol(line, column, cChar)
+    '' Write character to display at R,C using current text color
+    setColoredCharAtLnCol(line, column, cChar, currTextColor)
+
+PUB setColoredCharAtLnCol(line, column, cChar, rgbColor) | pCharBitMap, tlScreenOffset, tlCharOffset, cLineIndex, cColumnIndex, sRowPixIndex, sColumnPixIndex, cBitIdx, cByteIdx, cRowBits, pixColumn
+    '' Write cChar to display R,C using rgbColor
+    'debug("dsp:setCharAtCursor @LnCol(", udec_(line), ",", udec_(column), "), char=", uhex_(cChar), ", RGB=", uhex_long_(rgbColor), udec(topOffsetInPix), udec(leftOffsetInPix))
+    cLineIndex := 0 #> line <# maxTextLines - 1
+    cColumnIndex :=  0 #> column <# maxTextColumns - 1
+    ' get pointer to character bitmap
+    pCharBitMap := fonts.getCharAddrForFont(selectedTextFont, cChar)
+    'debug("- pChar=", uhex_long(pCharBitMap))
+    ' NOTE: cursor is 0-relative so add in our top/left offset to get row/col and mult by char size in pix
+    sRowPixIndex := topOffsetInPix + (cLineIndex * (charHeightInPix + verticalGapInPix))
+    sColumnPixIndex := leftOffsetInPix + (cColumnIndex * (charWidthInPix + horizontalGapInPix))
+
+    repeat cByteIdx from 0 to charHeightInPix - 1
+        cRowBits := byte[pCharBitMap][cByteIdx]
+        'debug("- char row(", udec_(cByteIdx), ") ", ubin(cRowBits))
+        repeat cBitIdx from charWidthInPix - 1 to 0
+            pixColumn := sColumnPixIndex + cBitIdx
+            if (cRowBits & (1 << ((charWidthInPix - 1) - cBitIdx))) > 0
+                pixels.drawPixelAtRC(sRowPixIndex + cByteIdx, pixColumn, rgbColor)
+            'else
+            '    pixels.drawPixelAtRC(sRowPixIndex + cByteIdx, pixColumn, $ff0000)
+
+{ --------------     Scrolling Text     -------------- }
+' EXAMPLES
+'    scrollText(row, column, widthInChars, "hello world", display.DIR_LEFT, rgbColor)
+
+PUB scrollText(indexAllocated, loopCount)
+    'debug("dsp:scrollText() ", udec(indexAllocated))
+    '' specify scrolling text duration (forever, once, twice)
+    if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
+        scroller[indexAllocated].scrollText(loopCount)
+
+
+PUB scrollTextOnLine(line, pZString, direction) : indexAllocated 
+    '' place scolling text on line N, of pZString scrolling in direction using current text color
+    indexAllocated := scrollColoredTextOnLn(line, pZString, direction, currTextColor)
+
+
+PUB scrollColoredTextOnLn(line, pZString, direction, rgbColor) : indexAllocated  | cLineIndex, cColumnIndex, widthInChars, sRowPixIndex, sColumnPixIndex
+    '' place scolling text on line N [0 - N-1], of pZString scrolling in direction using rgbColor
+    'debug("dsp:scrollColoredTextOnLn()")
+    ' ensure we are asked to use a good location
+    cLineIndex := 0 #> line <# maxTextLines - 1
+    cColumnIndex :=  0
+    ' convert line info to row,col
+    ' NOTE: cursor is 0-relative so add in our top/left offset to get row/col and mult by char size in pix
+    widthInChars := maxTextColumns
+    sRowPixIndex := topOffsetInPix + (cLineIndex * (charHeightInPix + verticalGapInPix))
+    sColumnPixIndex := leftOffsetInPix + (cColumnIndex * (charWidthInPix + horizontalGapInPix))
+
+    indexAllocated := scrollTextAtRCOfColor(sRowPixIndex, sColumnPixIndex, widthInChars, pZString, direction, rgbColor)
+
+
+PUB scrollTextAtRC(row, column, widthInChars, pZString, direction) : indexAllocated 
+    '' place scolling text at absolute R,C, of pZString scrolling in direction using current text color
+    indexAllocated := scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, currTextColor)
+
+
+PUB scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor) : indexAllocated
+    '' place scolling text at absolute R,C, of pZString scrolling in direction using rgbColor
+    indexAllocated := nextFreeScroller()
+    'debug("dsp:scrollTextAtRCOfColor() ", udec(indexAllocated))
+    scroller[indexAllocated].scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor)
+
+
+PUB isScrollingComplete() : status | scrollerIndex
+    '' Return T/F where T means that all movement for screolling text regions is complete
+    status := TRUE
+    ' if one or more scrollers are still moving we are not done!
+    repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
+        if NOT scroller[scrollerIndex].isScrollingComplete()
+            status := FALSE
+            quit    ' outta here we have our answer
+
+PUB animateScroll() | scrollerIndex
+    '' Do one scroll step, if one is pending
+    repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
+        if NOT scroller[scrollerIndex].isScrollingComplete()
+            scroller[scrollerIndex].animateScroll()
+
+PRI nextFreeScroller() : scrollerIndexToUse | scrollerIndex
+    scrollerIndexToUse := NOT_FOUND
+    repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
+        if scroller[scrollerIndex].isIdle()
+            scrollerIndexToUse := scrollerIndex
+            quit
+    if scrollerIndexToUse == NOT_FOUND
+        debug("Failed to locate free scroller!")
+        abort
+    debug("dsp:nextFreeScroller() ", udec(scrollerIndexToUse))
+
+{ --------------     Basic Graphics     -------------- }
+
+PUB drawBox(topRow, leftColumn, width, height, filled)
+    '' Draw draw box outline/filled of width x height at R,C (using current text color)
+    drawBoxOfColor(topRow, leftColumn, width, height, filled, currTextColor)
+
+PUB drawBoxOfColor(topRow, leftColumn, width, height, filled, rgbColor) | rightColumn, bottomRow, rowIndex
+    '' Draw draw box outline/filled of width x height at R,C using rgbColor
+    rightColumn := leftColumn + width - 1
+    bottomRow := topRow + height - 1
+    if filled == TRUE
+        repeat rowIndex from 0 to height - 1
+            drawLineOfColor(topRow + rowIndex, leftColumn, topRow + rowIndex, rightColumn, currTextColor)    ' horiz row
+    else
+        drawLineOfColor(topRow, leftColumn, topRow, rightColumn, currTextColor)    ' horiz top
+        drawLineOfColor(topRow, rightColumn, bottomRow, rightColumn, currTextColor)    ' vert right
+        drawLineOfColor(bottomRow, leftColumn, bottomRow, rightColumn, currTextColor)    ' horiz bottom
+        drawLineOfColor(topRow, leftColumn, bottomRow, leftColumn, currTextColor)    ' vert left
+
+
+PUB drawLine(fmRow, fmColumn, toRow, toColumn)
+    '' Draw line fromRC -> toRC using current text color (currently limited to horzontal/vertical lines)
+    drawLineOfColor(fmRow, fmColumn, toRow, toColumn, currTextColor)
+
+PUB drawLineOfColor(fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, dx, dy, ctr, incr
+    '' Draw line fromRC -> toRC using rgbColor (currently limited to horzontal/vertical lines)
+    'debug("seg:drwLn fmRC=(", udec_(fmRow), ",", udec_(fmColumn), "), toRC=(", udec_(toRow), ",", udec_(toColumn), "), RGB=(", uhex_long(rgbColor), ")")
+    fmRow :=  0 #> fmRow <# screen.MAX_DISPLAY_ROWS - 1
+    fmColumn :=  0 #> fmColumn <# screen.MAX_DISPLAY_COLUMNS - 1
+    toRow :=  0 #> toRow <# screen.MAX_DISPLAY_ROWS - 1
+    toColumn :=  0 #> toColumn <# screen.MAX_DISPLAY_COLUMNS - 1
+    if fmRow == toRow
+        ' draw Horizontal Line
+        repeat column from fmColumn to toColumn 
+            pixels.drawPixelAtRC(fmRow, column, rgbColor)
+    elseif fmColumn == toColumn
+        ' draw Vertical Line
+        repeat row from fmRow to toRow 
+            pixels.drawPixelAtRC(row, fmColumn, rgbColor)
+    else
+        dx := (toColumn - fmColumn)
+        dy := (toRow - fmRow)
+        if (abs(dx) >= abs(dy))
+            incr := abs(dx)
+        else
+            incr := abs(dy)
+        dx := dx / incr
+        dy := dy / incr
+        column := fmColumn
+        row := fmRow
+        ctr := 1
+        repeat while (ctr <= incr) 
+            pixels.drawPixelAtRC(row, column, rgbColor)
+            column += dx
+            row += dy
+            ctr += 1
+
+{ --------------     Misc Helpers     -------------- }
+
+PRI incrCursorWithWrap() | priorRow, priorCol
+    ' increment cursor position, wrapping at end of line when needed
+    priorRow := cursorLine
+    priorCol := cursorColumn
+    cursorColumn++
+    if cursorColumn > maxTextColumns - 1
+        cursorColumn := 0
+        cursorLine++
+        if cursorLine > maxTextLines - 1
+            cursorLine := 0
+    'debug("incr curPOS RC(", udec_(priorRow), ",", udec_(priorCol), ") -> RC(", udec_(cursorLine), ",", udec_(cursorColumn), ")")
+
+PRI isDebugLocn(nRow, nCol) : status
+    status := FALSE
+    if (nRow == 31 && nCol < 4) || (nRow < 2 && nCol < 3) || (nRow == 31 && nCol > 61) || (nRow < 2 && nCol > 61)
+    'if (nRow  > 29)
+        status := TRUE ' FALSE  ' turn off debug
+
+
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+ 
+}}
+

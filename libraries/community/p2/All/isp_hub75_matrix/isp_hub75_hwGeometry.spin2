@@ -1,0 +1,222 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_hwGeometry.spin2
+''   Purpose.... Describe layout of the attached RGB LED Matrix Panel-set
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 21 Oct 2020
+''
+'' =================================================================================================
+''
+''  NOTE: ADJUST THIS FILE TO DESCRIBE YOUR TYPE OF PANEL and if you have connected mmore than one.
+''
+''  (This FILE only containing hardware constants, NO CODE, is used by the HUB75 driver software)
+''
+'' -------------------------------------------------------------------------------------------------
+
+CON { Hardware Description }
+
+
+#0, CHIP_UNKNOWN, CHIP_FM6126A, CHIP_FM6124
+
+' =================================================================================================
+'  (1) Describe where your P2 EVAL HUB75 Adapter is plugged in
+' =================================================================================================
+#0[16], PINS_P0_P15, PINS_P16_P31, PINS_P32_P47, PINS_P48_P63
+
+	' my P2 EVAL Baord
+    'ADAPTER_BASE_PIN = PINS_P32_P47   ' PINS_P16_31
+    ADAPTER_BASE_PIN = PINS_P16_P31
+    
+    ' my JonnyMac Board
+    'ADAPTER_BASE_PIN = PINS_P0_P15   ' PINS_P0_P15
+    'ADAPTER_BASE_PIN = PINS_P32_P47   ' PINS_P0_P15
+    'ADAPTER_BASE_PIN = PINS_P48_P63   ' PINS_P0_P15
+    
+
+' =================================================================================================
+'  (2) Describe your desired effective color resolution (8-24 bit) more bits, more ram need!
+' =================================================================================================
+' number of pwm bits is number of PWM frames the driver needs to allocate
+' each PWM frame is (DISPLAY PIXEL COUNT / 2) bytes in size
+'
+' NOTE: we use 2 full PWM frame-sets so we can double buffer the screen generation
+
+'  NOTE: 16 or 20 seem useful without going crazy with ram usage
+'
+    MAX_PWM_WIDTH_IN_BITS = 16   ' use 8, 12, 16, 20, 23 or 24   NOTE: each bump uses more memory!
+
+' =================================================================================================
+'  (3) Describe the overall layout of your hardware panels:
+' =================================================================================================
+'
+' AUTHORs  1st configuration
+' -------------------------------------------------------------------------------------------------
+' PANEL: ---  P3-6432-121-16s-D1.0  ---
+'   panel theory  3 bits per pixel
+'   64 columns x 32 rows = 2048 pixels
+'   16 lines [0-15]: 64 pixels / line
+'   2 halves: 1024 pixels / half (top and bottom)
+'     EA half: 1024 pixels
+'     top half (lines 0-15) driven by R1,G1,B1 pins
+'     bottom half (lines 16-31) driven by R2,G2,B2 pins
+' ----------------------------------------------------------
+
+'  determine what form of signalling the driver should use
+    'PANEL_DRIVER_CHIP = CHIP_FM6124    ' CHIP_FM6126A 
+    PANEL_DRIVER_CHIP = CHIP_FM6126A 
+
+    ' electrical layout
+    MAX_PANEL_COLUMNS = 64
+    MAX_PANEL_ROWS = 32
+
+    ' panels organization: visual layout
+    '   [1]
+
+    ' logical/visual display layout
+    MAX_DISPLAY_COLUMNS = 64
+    MAX_DISPLAY_ROWS = 32
+
+    MAX_PANELS = 1
+'}
+
+
+' AUTHORs  2nd configuration
+' -------------------------------------------------------------------------------------------------
+' PANEL: ---  P3-6432-121-16s-D1.0  ---
+'   panel theory  3 bits per pixel
+'   64 columns x 32 rows = 2048 pixels
+'   16 lines [0-15]: 64 pixels / line
+'   2 halves: 1024 pixels / half (top and bottom)
+'     EA half: 1024 pixels
+'     top half (lines 0-15) driven by R1,G1,B1 pins
+'     bottom half (lines 16-31) driven by R2,G2,B2 pins
+' ----------------------------------------------------------
+{
+'  determine what form of signalling the driver should use
+    PANEL_DRIVER_CHIP = CHIP_FM6126A 
+
+    ' electrical layout
+    MAX_PANEL_COLUMNS = 256
+    MAX_PANEL_ROWS = 32
+
+    ' panels organization: visual layout
+    '   [1][2]      2 rows of 2 panels each
+    '   [3][4]
+
+    ' logical/visual display layout
+    MAX_DISPLAY_COLUMNS = 128
+    MAX_DISPLAY_ROWS = 64
+
+    MAX_PANELS = 4
+
+'}
+'
+' =================================================================================================
+' AUTHORs  3rd configuration
+' -------------------------------------------------------------------------------------------------
+' PANEL: ---  P3-6432-121-16s-D1.0  ---
+'   panel theory  3 bits per pixel
+'   64 columns x 32 rows = 2048 pixels
+'   16 lines [0-15]: 64 pixels / line
+'   2 halves: 1024 pixels / half (top and bottom)
+'     EA half: 1024 pixels
+'     top half (lines 0-15) driven by R1,G1,B1 pins
+'     bottom half (lines 16-31) driven by R2,G2,B2 pins
+' ----------------------------------------------------------
+{
+'  determine what form of signalling the driver should use
+    PANEL_DRIVER_CHIP = CHIP_FM6126A 
+
+    ' electrical layout
+    MAX_PANEL_COLUMNS = 256
+    MAX_PANEL_ROWS = 32
+
+    ' panels organization: visual layout
+    '   [1][2][3][4]    ' one row of 4 panels
+    '   
+    MAX_DISPLAY_COLUMNS = 256
+    MAX_DISPLAY_ROWS = 32
+    
+    MAX_PANELS = 4
+
+}
+'
+' =================================================================================================
+' AUTHORs  4th configuration
+' -------------------------------------------------------------------------------------------------
+' PANEL: ---  P3-6432-121-16s-D1.0  ---
+'   panel theory  3 bits per pixel
+'   64 columns x 32 rows = 2048 pixels
+'   16 lines [0-15]: 64 pixels / line
+'   2 halves: 1024 pixels / half (top and bottom)
+'     EA half: 1024 pixels
+'     top half (lines 0-15) driven by R1,G1,B1 pins
+'     bottom half (lines 16-31) driven by R2,G2,B2 pins
+' ----------------------------------------------------------
+{
+'  determine what form of signalling the driver should use
+    PANEL_DRIVER_CHIP = CHIP_UNKNOWN 
+
+    ' electrical layout
+    MAX_PANEL_COLUMNS = 64
+    MAX_PANEL_ROWS = 32
+
+    ' panels organization: visual layout
+    '   [1]     ' one panel
+    '   
+    MAX_DISPLAY_COLUMNS = 64
+    MAX_DISPLAY_ROWS = 32
+    
+    MAX_PANELS = 1
+
+
+}
+
+
+'              (remember to enable (uncomment) only one configuration above here)
+' -------------------------------------------------------------------------------------------------
+' ------------------------ Add your configurations ABOVE here -------------------------------------
+'
+'
+' now calculate values thare are common to all geometries of hardware
+'
+
+' ------------------------  Add ABOVE here --------------------------------------------------------
+' -------------------------------------------------------------------------------------------------
+
+PUB null()      '' This is not a top level object
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+ 
+}}
