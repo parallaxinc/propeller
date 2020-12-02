@@ -7,9 +7,9 @@
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
 ''   Started.... Oct 2020
-''   Updated.... 17 Oct 2020
+''   Updated.... 01 Dec 2020
 ''
-''  This object offers both .bmp file loading support as well as screen buffer 24bit loading support
+''  This object provides 24bit screen buffer to PWM buffers support
 '' =================================================================================================
 
 
@@ -29,20 +29,6 @@ DAT { pre-initialized }
     usePwmFrameset1     byte    TRUE
     didShow             byte    FALSE
     didShowCount        byte    2       ' just the first two screens
-
-' TEMP while figuring out code
-pwm12Bit
-                    word    $0fff, $07ff, $03ff, $01ff
-                    word    $00ff, $007f, $003f, $001f
-                    word    $000f, $0007, $0003, $0001
-                    word    0
-
-pwm16Bit
-                    word    $ffff, $7fff, $3fff, $1fff
-                    word    $0fff, $07ff, $03ff, $01ff 
-                    word    $00ff, $007f, $003f, $001f
-                    word    $000f, $0007, $0003, $0001
-                    word    $0000
 
 VAR
 
@@ -65,7 +51,7 @@ CON { RAM/FLASH }
 
 ' ----------------------------------------------------------
 
-PUB start() : ok 
+PUB start() : ok
     '' Start the backend pasm2 driver for the matrix
 
     debug("- PANEL: Start Matrix COG")
@@ -90,10 +76,10 @@ PRI waits(nSeconds)
         waitms(1000)    ' 1 seconds
 
 PUB fillPanel(threeBitColor)
-    '' fill screen but without PWM (for testing underlying driver)
+    '' Fill screen but without PWM (for testing underlying driver)
     matrix.fillPanel(threeBitColor)
 
-PUB loadScreen(p24bitScreen) | redByte, greenByte, blueByte, pPwmFrame, pPwmFrameSet, panelCol, panelRow, p24bitColor, colorValue, colorMask, bitCount, bitNumber, panelBGR, tmpVarA, tmpVarB
+PUB convertScreen2PWM(p24bitScreen) | redByte, greenByte, blueByte, pPwmFrame, pPwmFrameSet, panelCol, panelRow, p24bitColor, colorValue, colorMask, bitCount, bitNumber, panelBGR, tmpVarA, tmpVarB
     '' Load a 24-bit image into PWM frame buffers
     ' XYZZYpnl debug("- PANEL: loading screen at @", uhex_long_(p24bitScreen))
 
@@ -123,7 +109,7 @@ nextColumn
                     '
                     'nOffset := ((rowIndex * screen.MAX_PANEL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
                     'pixColorAddr := @byte[pScreenInMemory][nOffset]    ' add in offset to 24-bit color
-                    mov     p24bitColor, panelRow                            
+                    mov     p24bitColor, panelRow
                     sub     p24bitColor, #1                                  ' get rowIndex - 1 [32-1] -> [31-0]
                     mul     p24bitColor, #screen.MAX_DISPLAY_COLUMNS         ' x maxColumns
                     add     p24bitColor, panelCol                            ' + columnIndex
@@ -131,7 +117,7 @@ nextColumn
                     mul     p24bitColor, #screen.DISPLAY_BYTES_PER_COLOR    ' * bytes / 24-bit color
                     add     p24bitColor, p24bitScreen                         ' + base address of screen
                     rdlong  colorValue, p24bitColor
-                    ' red := byte[p24bitScreen][p24bitColor][0]   
+                    ' red := byte[p24bitScreen][p24bitColor][0]
                     GETBYTE tmpVarA, colorValue,#0
                     call    #cvtTmpA2pwm
                     mov     redByte, tmpVarA
@@ -149,18 +135,18 @@ nextColumn
                     ' write color information to our PWM buffers
                     ' expand 24-bit pixel into 8 pwm frames of 3-bit pixel
                     ' for ea. bit do...
-                    mov     bitCount, #screen.MAX_PWM_FRAMES        ' MAX_PWM_WIDTH_IN_BITS bits to scan in LONG
-                    mov     bitNumber, #0                           ' start with bit0 of [0-MAX_PWM_WIDTH_IN_BITS - 1]
+                    mov     bitCount, #screen.MAX_PWM_FRAMES        ' MAX PWM FRAME bits to scan in LONG
+                    mov     bitNumber, #0                           ' start with bit0 of [0-MAX_PWM_FRAMES - 1]
 nextBit
                     ' calculate offset to frame for this bit #
                     '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX 8 pwm frames so limit our index
                     '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
                     '   pPwmFrame := @long[getActivePwmBuffer()][nFrameOffset]
                     mov     pPwmFrame, bitNumber
-                    mul     pPwmFrame, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES 
+                    mul     pPwmFrame, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES
                     ' calculate pointer to frame for thic bit #
                     add     pPwmFrame, pPwmFrameSet
-                    ' build RGB1 or RGB2 bits to be stored in panel word 
+                    ' build RGB1 or RGB2 bits to be stored in panel word
                     '   rBit := red & (1 << bitNumber) > 0 ? 1 : 0
                     '   gBit := green & (1 << bitNumber) > 0 ? 1 : 0
                     '   bBit := blue & (1 << bitNumber) > 0 ? 1 : 0
@@ -177,7 +163,7 @@ nextBit
                     cmp     tmpVarA, #16       wc      ' loading top or bottom half of screen?
         if_c        mov     tmpVarB, #0                  ' NO, is RGB1 (top)
         if_nc       mov     tmpVarB, #1                  ' YES, is RGB2 (bottom)
-                    ' convert row number to row number of top-half of panel 
+                    ' convert row number to row number of top-half of panel
         if_nc       sub     tmpVarA, #16              ' 0-31 -> 0-15
                     ' is top-RGB1 or bottom-RGB2 color?
                     '    if tmpVarB
@@ -219,7 +205,7 @@ cvtTmpA2pwm
                     cmp     tmpVarA, #255       wz      ' special case: if $ff return all 1 bits
         if_z        not     tmpVarB, tmpVarB
         if_z        jmp     #noShift
-                    sub     tmpVarA, #1  
+                    sub     tmpVarA, #1
                     bmask   tmpVarB, tmpVarA          ' successively move CY into lower bits
                     mov     tmpVarA, tmpVarB            ' return our new value
 noShift
@@ -240,61 +226,11 @@ PRI dumpFrameSet(pPwmFrameSet) | pFrameBuffer, frameIndex
         repeat frameIndex from 0 to 7
             pFrameBuffer := @long [pPwmFrameSet][frameIndex * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
             dumpFrame(pFrameBuffer)
-    
+
 PRI dumpFrame(pFrameBuffer)
     dbgMemDump(@frameMessage, pFrameBuffer, 32)
 
-
-PUB loadBitmap(pBitmapFile) | nPanelCol, nPanelRow, blue, green, red, haveError, showDebug, bInvalidFileStatus, pPwmFrameSet
-    '' Load a 24-bit .bmp file image into PWM frame buffers
-    ' HEADS UP!!! 
-    '     this is currently limited to "single panel size" untill we rerite this code
-
-    ' save address of 24bit file image for use by called routines
-    pBitmapFileInMemory := pBitmapFile
-
-    ' XYZZYpnl debug("- Study BMP")
-    bInvalidFileStatus := validateBmpFile(pBitmapFile)
-    if bInvalidFileStatus == FALSE
-        ' TODO: how do we warn of this?
-        abort
-
-   ' clear buffer
-    pPwmFrameSet := clearPwmFrameBuffer()  ' clear PWM frames  and get pointer to buffer
-
-   ' fill buffer
-    repeat nPanelRow from 0 to screen.MAX_PANEL_ROWS - 1
-        repeat nPanelCol from 0 to screen.MAX_PANEL_COLUMNS - 1
-            'debug("loadBitmap() - RC=(", udec_(nPanelRow), ", ", udec_(nPanelCol), ")")
-            haveError := FALSE
-            if(nPanelRow > screen.MAX_PANEL_ROWS - 1) 
-                ' XYZZYpnl debug("- ERROR bad nPanelRow value [", udec_(nPanelRow), " > ", udec_(screen.MAX_PANEL_ROWS - 1), "]")
-                haveError := TRUE
-
-            if(nPanelCol > screen.MAX_PANEL_COLUMNS - 1) 
-                ' XYZZYpnl debug("- ERROR bad nPanelCol value [", udec_(nPanelCol), " > ", udec_(screen.MAX_PANEL_COLUMNS - 1), "]")
-                haveError := TRUE
-
-            if haveError == FALSE
-                showDebug := FALSE
-                if isDebugLocn(nPanelRow, nPanelCol) 
-                    showDebug := TRUE ' FALSE  ' turn off debug
-
-                red, green, blue := get24BitBMPColorForRC(nPanelRow, nPanelCol)
-
-                if showDebug
-                    ' XYZZYpnl debug(" - RC=(", udec_(nPanelRow), ", ", udec_(nPanelCol), "), RGB=(", uhex_(red), uhex_(green), uhex_(blue), ")")
-
-                setPixelForRC_OLD(nPanelRow, nPanelCol, RGB(red, green, blue))
-
-
-PRI RGB(red, green, blue) : r, g, b
-    'Blue byte first because that's how stored in bitmap...
-    r := color.correctedSingleColor(color.LED_RED, red)
-    g := color.correctedSingleColor(color.LED_GREEN, green)
-    b := color.correctedSingleColor(color.LED_BLUE, blue)
-
-PRI clearPwmFrameBuffer() : pPwmFrameSet              
+PRI clearPwmFrameBuffer() : pPwmFrameSet
     ' clear entire PWM buffer
     ' implement double buffering by alternating between our two pwm-frame-sets
     usePwmFrameset1 := !usePwmFrameset1
@@ -312,68 +248,13 @@ PRI getPwmFrameAddressForBit(nBitNumber) : pFrameBuffer | nFrameOffset, frameIdx
     pFrameBuffer := @long[getActivePwmBuffer()][nFrameOffset]
     'debug("- PWM frame(", udec_(frameIdx), "), ", uhex_long(pFrameBuffer))
 
-
-PRI setPixelForRC_OLD(nPanelRow, nPanelCol, red, green, blue) | rBit, gBit, bBit, pPwmFrame, bitNumber, rPwmBits, gPwmBits, bPwmBits
-    ' for each 24bit color write to PWM frames
-    ' ' XYZZYpnl debug("setPixel() - x,y=(", udec_(nPanelCol), ", ", udec_(nPanelRow), ")")
-    rPwmBits := dutyCycleForIntensity(red)
-    gPwmBits := dutyCycleForIntensity(green)
-    bPwmBits := dutyCycleForIntensity(blue)
-    ' expand 24-bit pixel into 8 pwm frames of 3-bit pixel
-    repeat bitNumber from screen.MAX_PWM_FRAMES - 1 to 0
-        pPwmFrame := getPwmFrameAddressForBit(bitNumber)
-        rBit := rPwmBits & (1 << bitNumber) > 0 ? 1 : 0
-        gBit := gPwmBits & (1 << bitNumber) > 0 ? 1 : 0
-        bBit := bPwmBits & (1 << bitNumber) > 0 ? 1 : 0
-        setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit)
-
-PRI dutyCycleForIntensity(hex8bit) : pwmBits
-    ' CALCULATE: proper duty cycle for intensity of 0-255
-    {         --- VERSION 1 - Bits spread throughout ---
-    if hex8bit >= 145
-        ' upper half
-        if hex8bit >= 218
-            ' upper half
-            pwmBits := (hex8bit == 255) ? $ff : $7f
-        else
-            ' lower half
-            pwmBits := (hex8bit >= 181) ? $77: $37
-    else
-        ' lower half
-        if hex8bit > 73
-            ' upper half
-            pwmBits := (hex8bit >= 109) ? $33 : $31
-        else
-            ' lower half
-            pwmBits := (hex8bit == 0) ? $00 : (hex8bit >= 36) ? $11 : $01
-    '}
-    '{          --- VERSION 2 - Bits grounded to right ---
-    if hex8bit >= 145
-        ' upper half
-        if hex8bit >= 218
-            ' upper half
-            pwmBits := (hex8bit == 255) ? $ff : $7f
-        else
-            ' lower half
-            pwmBits := (hex8bit >= 181) ? $3f: $1f
-    else
-        ' lower half
-        if hex8bit > 73
-            ' upper half
-            pwmBits := (hex8bit > 109) ? $0F : $07
-        else
-            ' lower half
-            pwmBits := (hex8bit == 0) ? $00 : (hex8bit >= 36) ? $03 : $01
-    '}
-
 VAR { buffer addresses }
 
     long    pBitmapFileInMemory
     long    pScreenInMemory
 
 PRI setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit) | nBffrR, nBffrC, isRGB2, byteIdx, maskBitsBGR, bitsBGR, currByte, showDebug
-    '  write color bits to a PWM frame at frame[r][c] 
-    ' FIXME: UNDONE PANEL GEOM ASSUMPTION
+    '  write color bits to a PWM frame at frame[r][c]
     nBffrR := 0 #> nPanelRow <# screen.MAX_DISPLAY_ROWS - 1
     nBffrC := 0 #> nPanelCol <# screen.MAX_DISPLAY_COLUMNS - 1
     isRGB2 := (nBffrR > 15) ? TRUE : FALSE
@@ -391,125 +272,15 @@ PRI setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit) | 
     currByte := byte[pPwmFrame][byteIdx] & !maskBitsBGR
     if byteIdx > 1023
         debug("ERROR! byte index calc failure have=(" , udec_(byteIdx), ") of [0-1023]")
-    else 
+    else
         byte[pPwmFrame][byteIdx] := currByte | bitsBGR
 
 
-PRI validateBmpFile(pBffr) : bValidStatus | p, i, iStart, iEnd, pLastByte
-    ' interpret .BMP header and return pointer to image
-
-    ' XYZZYpnl debug("- Studying in-memory file")
-    bValidStatus := TRUE
-    'analyze bitmap image
-    p:=pBffr
-    bytemove(@bfType,p,2) 'read bmp header
-    p+=2
-    bytemove(@bfSize,p,4) 'read bmp header
-    p+=4
-    bytemove(@bfReserved1,p,4) 'read bmp header
-    p+=4
-    bytemove(@bfOffBits,p,16) 'read bmp header
-    p+=16
-    bytemove(@biPlanes,p,4)
-    p+=4
-    bytemove(@biCompression,p,24)
-    p+=24
-
-    'calculate actual bytes in palette
-    i := bfOffBits-54
-    p += i
-
-    iStart := pBffr + bfOffBits
-    iEnd := iStart + biSizeImage - 1
-
-    ' return pointer to last byte in bitmap
-    pLastByte := p + (biHeight * biWidth * 3) - 1
-
-    ' XYZZYpnl debug("BitMap file @0x", uhex_(pBffr))
-    ' XYZZYpnl debug(" - size=", udec_(bfSize))
-    ' XYZZYpnl debug(" - OffsetBits=", udec_(bfOffBits))
-    'debug(" - #planes=", udec_(biPlanes))
-    ' XYZZYpnl debug(" - w,h=", udec_(biWidth), ",", udec_(biHeight))
-    ' XYZZYpnl debug(" - szImage=", udec_(biSizeImage))
-    'debug(" - compression=", udec_(biCompression))
-    ' XYZZYpnl debug(" - bitCount=", udec_(biBitCount))
-    ' XYZZYpnl debug(" - end @0x", uhex_(pLastByte))
-
-    ' XYZZYpnl debug(" - Img-start @0x", uhex_(iStart))
-    ' XYZZYpnl debug(" - Img-end @0x", uhex_(iEnd))
-
-    if biWidth <> 64 or biHeight <> 32
-        ' XYZZYpnl debug(" !! invalid BMP size! [NOT 64x32]")
-        bValidStatus := FALSE
-
-    if byte[@bfType][0] <> $42 || byte[@bfType][1] <> $4d ' B, M
-        ' XYZZYpnl debug(" !! invalid BMP file type! [NOT 'BM']")
-        bValidStatus := FALSE
-
-    if biCompression <> 0
-        ' XYZZYpnl debug(" !! invalid BMP compression! [is compressed]")
-        bValidStatus := FALSE
-
-    if bValidStatus == FALSE
-        ' XYZZYpnl debug("- ERROR invalid BMP!")
-    else
-        ' XYZZYpnl debug("-good BMP size! [64x32]")
-
-    'dbgMemDump(@fileHeaderMsg, pBffr, bfOffBits)
-    'dbgMemDump(@fileStartMsg, iStart, 32)
-    'dbgMemDump(@fileEndMsg, iEnd-32-1, 32)
-
-     
 PRI isDebugLocn(nRow, nCol) : status
     status := FALSE
     return
     if (nRow == 31 && nCol < 4) || (nRow < 2 && nCol < 3) || (nRow == 31 && nCol > 61) || (nRow < 2 && nCol > 61)
         status := TRUE ' FALSE  ' turn off debug
-
-PRI getPixelAddressForBMPRowColumn(nRow, nColumn) : pixColorAddr | rowIndex, columnIndex, nOffset, fileBitsBase, showDebug
-	' Row is inverted in .BMP file...
-	rowIndex := (screen.MAX_PANEL_ROWS - 1) - nRow
-
-	' Column is normal in file...
-	columnIndex := nColumn
-
-    showDebug := FALSE
-    'if (bitIdx == 0 || bitIdx == 31) && nBffrR < 2
-    if isDebugLocn(nRow, nColumn)
-        showDebug := TRUE ' FALSE  ' turn off debug
-
-	' now offset is simple (just multiply by 3! [bytes of color])
-    nOffset := ((rowIndex * screen.MAX_PANEL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
-
-    fileBitsBase := @byte[pBitmapFileInMemory][bfOffBits]   ' get base of image in file (skip header)
-    pixColorAddr := @byte[fileBitsBase][nOffset]    ' add in offset to 24-bit color
-
-    if showDebug
-	    ' XYZZYpnl debug("- FileOffset=", udec_(nOffset), ", RC=(", udec_(nRow), ",", udec_(nColumn), ", ofst=", uhex_long_(pixColorAddr), ", base=", uhex_long_(fileBitsBase), ")")
-
-
-PRI get24BitBMPColorForRC(nRow, nColumn) : red, green, blue | pixColorAddr
-	if(nRow > screen.MAX_PANEL_ROWS - 1) 
-		debug("- ERROR bad nRow value [", udec_(nRow), " > ", udec_(screen.MAX_PANEL_ROWS - 1), "]")
-	
-	if(nColumn > screen.MAX_PANEL_COLUMNS - 1) 
-		debug("- ERROR bad nColumn value [", udec_(nColumn), " > ", udec_(screen.MAX_PANEL_COLUMNS - 1), "]")
-
-    pixColorAddr := getPixelAddressForBMPRowColumn(nRow, nColumn)
-    ' our intername .bmp file byte order is BGR!
-    blue := byte[pixColorAddr][0]
-    green := byte[pixColorAddr][1]
-    red := byte[pixColorAddr][2]
-
-
-PRI dumpTwinRows()
-    ' XYZZYpnl debug("`temp ' Red TL,R ", uhex_long_(long[@singleBuffer][0]), ", ", uhex_long_(long[@singleBuffer][1]), " ' 13")
-    ' XYZZYpnl debug("`temp ' Red BL,R ", uhex_long_(long[@singleBuffer][62]), ", ", uhex_long_(long[@singleBuffer][63]), " ' 13")
-    ' XYZZYpnl debug("`temp ' Grn TL,R ", uhex_long_(long[@singleBuffer][64]), ", ", uhex_long_(long[@singleBuffer][65]), " ' 13")
-    ' XYZZYpnl debug("`temp ' Grn BL,R ", uhex_long_(long[@singleBuffer][126]), ", ", uhex_long_(long[@singleBuffer][127]), " ' 13")
-    ' XYZZYpnl debug("`temp ' Blu TL,R ", uhex_long_(long[@singleBuffer][128]), ", ", uhex_long_(long[@singleBuffer][129]), " ' 13")
-    ' XYZZYpnl debug("`temp ' Blu BL,R ", uhex_long_(long[@singleBuffer][190]), ", ", uhex_long_(long[@singleBuffer][191]), " ' 13")
-
 
 PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, dispLen
     '' Dump bytes in hex format to debug() terminal
@@ -539,50 +310,17 @@ PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, di
 
         bytBffr += 16
         debug("`temp 13")		' newline
-        waitus(85)  ' 50 too short, 70 less issue, 75 better, 
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
     waitms(2)
 
 DAT  { .bmp fiile work area }
-
-
 
 testValue           long    $87654321
 testValueMsg       byte    "Test value",0
 
 frameMessage       byte    "FrameBuffer",0
 
-fileHeaderMsg       byte    "File Header",0
-fileStartMsg        byte    "FileImage start",0
-fileEndMsg          byte    "FileImage end",0
-screenMessage       byte    "screenBuffer",0
-screenRed           byte    "screenRedBuffer",0
-screenBlue          byte    "screenGreenBuffer",0
-screenGreen         byte    "screenBlueBuffer",0
 
-                    ALIGNL
-                    byte 0  ' fill aligning header to avoid gaps
-                    byte 0
-BMPHeader     'Mostly using info from here:  http://www.fortunecity.com/skyscraper/windows/364/bmpffrmt.html
-bfType              byte "B","M"
-bfSize              long 0
-bfReserved1         word 0
-bfReserved2         word 0
-bfOffBits           long 54
-biSize              long 40
-biWidth             long 0
-biHeight            long 10
-biPlanes            word 1
-biBitCount          word 24
-biCompression       long 0
-biSizeImage         long 0
-
-biXPelsPerMeter     long 0
-biYPelsPerMeter     long 0
-
-biClrUsed           long 0
-biClrImportant      long 0
-
-        
 CON { license }
 
 {{
@@ -611,6 +349,5 @@ CON { license }
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
  =================================================================================================
- 
-}}
 
+}}

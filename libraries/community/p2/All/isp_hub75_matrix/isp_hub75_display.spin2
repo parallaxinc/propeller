@@ -7,7 +7,7 @@
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
 ''   Started.... Oct 2020
-''   Updated.... 17 Oct 2020
+''   Updated.... 01 Dec 2020
 ''
 '' =================================================================================================
 
@@ -109,13 +109,13 @@ PUB fillScreen(rgbColor) | row, column
             pixels.drawPixelAtRC(row, column, rgbColor)
 
 PUB fillPanel(threeBitColor)
-    '' fill screen but without PWM (for testing underlying driver)
+    '' Fill screen but without PWM (for testing underlying driver)
     panel.fillPanel(threeBitColor)
 
 PUB commitScreenToPanel()
     '' Write sceen to panel driver
     'debug("- DISP: commit!")
-    panel.loadScreen(@screen0)
+    panel.convertScreen2PWM(@screen0)
 
 
 { --------------     Text Handling     -------------- }
@@ -125,13 +125,13 @@ PUB setCursor(line, column)
     ' TODO emit error on bad column/row?
     cursorLine := 0 #> line <# maxTextLines - 1
     cursorColumn := 0 #> column <# maxTextColumns - 1
-    
+
 PUB homeCursor()
-    '' return the cursor to top left corner of our display
+    '' Return the cursor to top left corner of our display
     setCursor(0, 0)
 
 PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
-    '' Select font and update text grid size 
+    '' Select font and update text grid size
     ' currently we only support our 8x8 and 5x7 fonts
     case newFont
         TEXT_FONT_DEFAULT..TEXT_FONT_5x7:
@@ -191,11 +191,11 @@ PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
     repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
         scroller[scrollerIndex].setFontInfo(maxTextColumns, charWidthInPix, charHeightInPix, leftOffsetInPix, horizontalGapInPix, hBitmapOffsetInPix, selectedTextFont)
 
-PUB setTextColor(rgbColor)  
+PUB setTextColor(rgbColor)
     '' Set 24-bit color for subsequent text display
     currTextColor := rgbColor
 
-PUB setTextAtCursor(zString) 
+PUB setTextAtCursor(zString)
     '' Place text 'zero terminated' at our current cursor position using current text color
     setColoredTextAtLnCol(cursorLine, cursorColumn, zString, currTextColor)
 
@@ -203,7 +203,7 @@ PUB setColoredTextAtLnCol(line, column, pString, rgbColor) | charIndex
     '' Place text at specific cursor position using current text color
     setCursor(line, column)
     charIndex := 0
-    repeat 
+    repeat
         if byte[pString][charIndex] <> 0
             setColorCharAtCursor(byte[pString][charIndex++], rgbColor)
     while byte[pString][charIndex] <> 0
@@ -249,18 +249,18 @@ PUB setColoredCharAtLnCol(line, column, cChar, rgbColor) | pCharBitMap, tlScreen
 
 PUB scrollText(indexAllocated, loopCount)
     'debug("dsp:scrollText() ", udec(indexAllocated))
-    '' specify scrolling text duration (forever, once, twice)
+    '' Specify scrolling text duration (forever, once, twice)
     if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
         scroller[indexAllocated].scrollText(loopCount)
 
 
-PUB scrollTextOnLine(line, pZString, direction) : indexAllocated 
-    '' place scolling text on line N, of pZString scrolling in direction using current text color
+PUB scrollTextOnLine(line, pZString, direction) : indexAllocated
+    '' Place scolling text on line N, of pZString scrolling in direction using current text color
     indexAllocated := scrollColoredTextOnLn(line, pZString, direction, currTextColor)
 
 
 PUB scrollColoredTextOnLn(line, pZString, direction, rgbColor) : indexAllocated  | cLineIndex, cColumnIndex, widthInChars, sRowPixIndex, sColumnPixIndex
-    '' place scolling text on line N [0 - N-1], of pZString scrolling in direction using rgbColor
+    '' Place scolling text on line N [0 - N-1], of pZString scrolling in direction using rgbColor
     'debug("dsp:scrollColoredTextOnLn()")
     ' ensure we are asked to use a good location
     cLineIndex := 0 #> line <# maxTextLines - 1
@@ -274,13 +274,13 @@ PUB scrollColoredTextOnLn(line, pZString, direction, rgbColor) : indexAllocated 
     indexAllocated := scrollTextAtRCOfColor(sRowPixIndex, sColumnPixIndex, widthInChars, pZString, direction, rgbColor)
 
 
-PUB scrollTextAtRC(row, column, widthInChars, pZString, direction) : indexAllocated 
-    '' place scolling text at absolute R,C, of pZString scrolling in direction using current text color
+PUB scrollTextAtRC(row, column, widthInChars, pZString, direction) : indexAllocated
+    '' Place scolling text at absolute R,C, of pZString scrolling in direction using current text color
     indexAllocated := scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, currTextColor)
 
 
 PUB scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor) : indexAllocated
-    '' place scolling text at absolute R,C, of pZString scrolling in direction using rgbColor
+    '' Place scolling text at absolute R,C, of pZString scrolling in direction using rgbColor
     indexAllocated := nextFreeScroller()
     'debug("dsp:scrollTextAtRCOfColor() ", udec(indexAllocated))
     scroller[indexAllocated].scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor)
@@ -315,11 +315,11 @@ PRI nextFreeScroller() : scrollerIndexToUse | scrollerIndex
 { --------------     Basic Graphics     -------------- }
 
 PUB drawBox(topRow, leftColumn, width, height, filled)
-    '' Draw draw box outline/filled of width x height at R,C (using current text color)
+    '' Draw box outline/filled of width x height at R,C (using current text color)
     drawBoxOfColor(topRow, leftColumn, width, height, filled, currTextColor)
 
 PUB drawBoxOfColor(topRow, leftColumn, width, height, filled, rgbColor) | rightColumn, bottomRow, rowIndex
-    '' Draw draw box outline/filled of width x height at R,C using rgbColor
+    '' Draw box outline/filled of width x height at R,C using rgbColor
     rightColumn := leftColumn + width - 1
     bottomRow := topRow + height - 1
     if filled == TRUE
@@ -345,11 +345,11 @@ PUB drawLineOfColor(fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, d
     toColumn :=  0 #> toColumn <# screen.MAX_DISPLAY_COLUMNS - 1
     if fmRow == toRow
         ' draw Horizontal Line
-        repeat column from fmColumn to toColumn 
+        repeat column from fmColumn to toColumn
             pixels.drawPixelAtRC(fmRow, column, rgbColor)
     elseif fmColumn == toColumn
         ' draw Vertical Line
-        repeat row from fmRow to toRow 
+        repeat row from fmRow to toRow
             pixels.drawPixelAtRC(row, fmColumn, rgbColor)
     else
         dx := (toColumn - fmColumn)
@@ -363,7 +363,7 @@ PUB drawLineOfColor(fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, d
         column := fmColumn
         row := fmRow
         ctr := 1
-        repeat while (ctr <= incr) 
+        repeat while (ctr <= incr)
             pixels.drawPixelAtRC(row, column, rgbColor)
             column += dx
             row += dy
@@ -388,7 +388,6 @@ PRI isDebugLocn(nRow, nCol) : status
     if (nRow == 31 && nCol < 4) || (nRow < 2 && nCol < 3) || (nRow == 31 && nCol > 61) || (nRow < 2 && nCol > 61)
     'if (nRow  > 29)
         status := TRUE ' FALSE  ' turn off debug
-
 
 
 CON { license }
@@ -419,6 +418,5 @@ CON { license }
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
  =================================================================================================
- 
-}}
 
+}}

@@ -49,15 +49,14 @@ CON { reinterpret the users selections for driver internal use }
     MAX_PWM_FRAME_SIZE_IN_BYTES = ((MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS) / 2)
     MAX_PWM_FRAME_SIZE_IN_LONGS = MAX_PWM_FRAME_SIZE_IN_BYTES / 4
 
-    ' how many PWM frames does our user want to use?
-    MAX_PWM_FRAMES = user.MAX_PWM_WIDTH_IN_BITS ' user desired color depth
+    ' how many PWM frames does our DRIVER use?
+    MAX_PWM_FRAMES = 16     ' compiled color depth
 
-'
     DISPLAY_BITS_PER_COLOR = 24
     PANEL_BITS_PER_COLOR = 3
 
     ' (8 bits per byte)
-    DISPLAY_BYTES_PER_COLOR = DISPLAY_BITS_PER_COLOR / 8 
+    DISPLAY_BYTES_PER_COLOR = DISPLAY_BITS_PER_COLOR / 8
 
     ' (rounded up to fill a full long - leaves 0-3 bytes unused at end)
     DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
@@ -77,11 +76,12 @@ DAT { shared access variables }
 pExtScreen      long    0
 
 PUB setScreen(pScreen)
-    '' Save the location of our external screen buffer
+    '' Save the location of the external screen buffer
     'debug("7s:setScreen")
     pExtScreen := pScreen
 
-PUB screenAddress() : pScreen 
+PUB screenAddress() : pScreen
+    '' Return the address of the external screen buffer
     pScreen := pExtScreen
 
 PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, dispLen
@@ -112,7 +112,7 @@ PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, di
 
         bytBffr += 16
         debug("`temp 13")		' newline
-        waitus(85)  ' 50 too short, 70 less issue, 75 better, 
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
     waitms(2)
 
 
@@ -146,4 +146,3 @@ CON { license }
   SOFTWARE.
  =================================================================================================
 }}
-

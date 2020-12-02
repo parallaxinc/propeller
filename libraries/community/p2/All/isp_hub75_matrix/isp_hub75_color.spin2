@@ -6,13 +6,13 @@
 ''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
-''   Started.... Oct 2020 
+''   Started.... Oct 2020
 ''   Updated.... 24 Oct 2020
 ''
 '' =================================================================================================
 
 CON { test colorset }
-  
+
     cBlack = $000000
     cWhite = $FFFFFF
     cRed = $FF0000
@@ -32,7 +32,7 @@ CON { test colorset }
     cDarkGreen = $006400
     cOrange = $FFA500
     cBlueViolet = $8A2BE2
-    
+
     ' SPECIAL non-colors - invoke alforithm to gerate actual color used'
     cRedWhtBlu = $deadf0
     cRainbow = $deadf1
@@ -61,7 +61,7 @@ PUB getBrightness() : brightness
     brightness := defaultBrightness
 
 PUB correctedColor(color) : adjustedColor
-    '' correct a color using generic gamma
+    '' Correct a color using generic gamma
     adjustedColor := color
     'return
     'adjustedColor := ((color * defaultBrightness) >> 8) & $ff
@@ -69,7 +69,7 @@ PUB correctedColor(color) : adjustedColor
     adjustedColor := dutyCycleForIntensity(adjustedColor)
 
 PUB gammaPeek(color) : adjustedColor | gammmaIndex, lowColor, highColor
-    '' return index of nearest matching value in gamma table
+    '' Return index of nearest matching value in gamma table
     if bGammaEnable
         adjustedColor := byte[@gamma][color]
         repeat gammmaIndex from 0 to 255
@@ -92,7 +92,7 @@ PUB gammaPeek(color) : adjustedColor | gammmaIndex, lowColor, highColor
         adjustedColor := color
 
 PUB correctedSingleColor(led, colorValue) : adjustedColor | pGammaTable
-    '' correct the color for a specific LED (R, G, or B)
+    '' Correct the color for a specific LED (R, G, or B)
     adjustedColor := colorValue
     'adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
     case led
@@ -130,30 +130,10 @@ PUB rgbColorFromDegrees(degrees) : rcbColor | offset60, fract60, red, green, blu
     elseif degrees >= 60
         green := 255
         red := ((59 - offset60) * fract60) / 100
-    else 
+    else
         red := 255
         green := (offset60 * fract60) / 100
-    {
-    fract60 := 4.25 ' float(255 / 60)  ' 4.25             ' 255 / 60
-    if degrees >= 300
-        red := 255
-        blue := (59 - offset60) * fract60
-    elseif degrees >= 240
-        blue := 255
-        red := offset60 * fract60
-    elseif degrees >= 180
-        blue := 255
-        green := (59 - offset60) * fract60
-    elseif degrees >= 120
-        green := 255
-        blue := offset60 * fract60
-    elseif degrees >= 60
-        green := 255
-        red := (59 - offset60) * fract60
-    else 
-        red := 255
-        green := offset60 * fract60
-    }
+
     rcbColor := cValueForRGB(red, green, blue)
     'debug("- degrees=", udec_(degrees), ", color=", uhex_long_(rcbColor), " RGB=", udec_(red), ", ", udec_(green), ", ", udec_(blue), ")" )
 
@@ -168,46 +148,8 @@ PUB cValueForRGB(red, green, blue) : combinedValue
     '' CONVERT: r,g,b to combined value
     combinedValue := ((red & $ff) << 16) | ((green & $ff) << 8) | (blue & $ff)
 
-PRI dutyCycleForIntensityOld1(hex8bit) : pwmBits
-    ' CALCULATE: proper duty cycle for intensity of 0-255
-    '         --- VERSION 1 - Bits spread throughout ---
-    if hex8bit == 255
-        pwmBits := $ff
-    elseif hex8bit == 0
-        pwmBits := $00
-    else
-        pwmBits := (hex8bit / screen.MAX_PWM_FRAMES - 1) + 1
-
-PRI dutyCycleForIntensityOld2(hex8bit) : pwmBits | segmentSize
-    ' CALCULATE: proper duty cycle for intensity of 0-255
-    '         --- VERSION 2 - 3/4 high, 1/4 off, rest spread throughout ---
-    segmentSize := (256 / (screen.MAX_PWM_FRAMES + 1)) / 8
-    if hex8bit >= 255 - ((segmentSize  * 6) - 1)
-        pwmBits := $ff
-    elseif hex8bit <= (segmentSize * 2)- 1
-        pwmBits := $00
-    else
-        pwmBits := (hex8bit / screen.MAX_PWM_FRAMES) + 1
-
-PRI dutyCycleForIntensityOld3(hex8bit) : pwmBits | segmentSize
-    ' WAIT!!!  Pastel colors!???!
-    ' CALCULATE: proper duty cycle for intensity of 0-255
-    '    --- VERSION 3 - Bits spread throughout ---
-    pwmBits := (hex8bit / screen.MAX_PWM_FRAMES + 1)
-
-PRI dutyCycleForIntensityOld4(hex8bit) : pwmBits | segmentSize
-    ' CALCULATE: proper duty cycle for intensity of 0-255
-    '         --- VERSION 4 - 2/6 high, 1/6 off, rest spread throughout ---
-    segmentSize := ((256 / (screen.MAX_PWM_FRAMES + 1)) / 2) / 3
-    if hex8bit >= 255 - (segmentSize * 2) + 1
-        pwmBits := $ff
-    elseif hex8bit <= 0 + segmentSize - 1
-        pwmBits := $00
-    else
-        pwmBits := ((hex8bit * 10854) / screen.MAX_PWM_FRAMES) / 10000
-
-PRI dutyCycleForIntensity(hex8bit) : pwmBits
-    ' CALCULATE: proper duty cycle for intensity of 0-255
+PUB dutyCycleForIntensity(hex8bit) : pwmBits
+    '' CALCULATE: proper duty cycle for intensity of 0-255
     '         --- VERSION 1 - Bits spread throughout ---
     if hex8bit == 255
         pwmBits := $ff
@@ -257,7 +199,7 @@ gammaOld   byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         byte 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192, 194, 197, 199, 201, 203, 205
         byte 207, 210, 212, 214, 216, 219, 221, 223, 226, 228, 230, 233, 235, 237, 240, 242, 245
         byte 247, 250, 252, 255
- 
+
 gamma2_0
         ' 256-step brightness table: gamma = 2.0
         byte	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1
@@ -401,4 +343,3 @@ CON { license }
   SOFTWARE.
  =================================================================================================
 }}
-

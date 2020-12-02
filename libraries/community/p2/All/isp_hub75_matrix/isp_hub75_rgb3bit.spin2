@@ -104,7 +104,7 @@ VAR
 
        ' write values here to pass to driver
     long  dvrCommand
-    long  dvrArgument 
+    long  dvrArgument
 
     long  cog
 
@@ -136,7 +136,7 @@ PUB start() : ok | bSetLowPins
         overlappedLatch := TRUE
         setupPins()
         resetPanel()
-    else 
+    else
         debug("- have OTHER")
         overlappedLatch := FALSE
 
@@ -270,7 +270,7 @@ PRI dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, di
 
         bytBffr += 16
         debug("`temp 13")		' newline
-        waitus(85)  ' 50 too short, 70 less issue, 75 better, 
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
     waitms(1)
 
 ' --------------------------------------------------------------------------------------------------
@@ -403,7 +403,7 @@ drive_matrix
     if_z            setd    outInst1of3, #OUTB
     if_z            setd    outInst2of3, #OUTB
     if_z            setd    outInst3of3, #OUTB
-                
+
 
 ' init row address
                     mov     row_addr, addrValue15    ' reset address to 15 [A-D addr all ones]
@@ -419,14 +419,14 @@ getCommand
                     rdlong  nxtCommand, pCommmand
                     rdlong  nxtArgument, pArgument
                     cmp     nxtCommand, #CMD_DONE  wz
-    if_z            jmp     #chksDone                   ' redraw current buffer  
+    if_z            jmp     #chksDone                   ' redraw current buffer
                     'debug("* cmd=", udec_(nxtCommand), ", arg=", uhex_long_(nxtArgument))
 chkShow
                     cmp     nxtCommand, #CMD_SHOW_BUFFER    wz
     if_nz           jmp     #chkShowPwm
                     call    #loadBuffer
                     'debug(" - load done")
-                    jmp     #markCmdComplete            ' redraw current buffer  
+                    jmp     #markCmdComplete            ' redraw current buffer
 chkShowPwm
                     cmp     nxtCommand, #CMD_SHOW_PWM_BUFFER    wz
     if_nz           jmp     #chkFill
@@ -435,7 +435,7 @@ chkShowPwm
                     jmp     #getCommand                    ' check for next command (or same still there)
 chkFill
                     cmp     nxtCommand, #CMD_FILL_COLOR wz
-    if_nz           jmp     #chksDone                   ' redraw current buffer                
+    if_nz           jmp     #chksDone                   ' redraw current buffer
                     call    #fillBuffer
                     'debug(" - fill done")
                     jmp     #markCmdComplete            ' redraw current buffer
@@ -510,7 +510,7 @@ dumpTwinRows
 
 chksDone
                     cmp     nxtCommand, #CMD_DONE  wz
-    if_z            jmp     #wrCurrent  ' redraw current buffer  
+    if_z            jmp     #wrCurrent  ' redraw current buffer
                     'debug("--> *ERROR* Unknown cmd(", udec_(nxtCommand), ")   arg=", uhex_long_(nxtArgument))
 markCmdComplete
                     'debug(" - unknown cmd done")
@@ -609,10 +609,10 @@ outInst2of3         MUXQ    OUTA, reg_value             ' write contents of LS-b
                     djnz    byt_ctr, #clkNONextByte
                     add     reg_offset, #1
                     djnz    reg_ctr, #clkNONextReg
-                    
+
                     ' let's latch
                     drvh    #MTX_LED_PIN_OE
-                    ' write address 
+                    ' write address
                     add     row_addr, addrValue1       ' incr address by 1
                     call    #emitAddr
 
@@ -653,7 +653,7 @@ isr2
 isr3
                     nop
                     reti3
-               
+
 
 'DAT    { data }
 
@@ -701,12 +701,12 @@ nxtArgument     res     1
 pwmBffrStart    res     1
 pwmFrameCt      res     1
 
-fillBffr        res     1       ' ptr to single PWM frame sized buffer buffer  -- long: where bits of each byte are 'x x B2 G2 R2 G1 B1 R1' 
+fillBffr        res     1       ' ptr to single PWM frame sized buffer buffer  -- long: where bits of each byte are 'x x B2 G2 R2 G1 B1 R1'
 fillLong        res     1       ' value to write to each long
 fillCount       res     1       ' remaining count of bytes to write
 fillOffset      res     1       ' offset into fillBffr
 
-reg_offset      res     1       
+reg_offset      res     1
 reg_value       res     1
 byt_ctr      res     1
 dbgBffr         res     1
@@ -720,7 +720,7 @@ reg_ctr         res     1
 
         FIT     496
 
-        
+
 CON { license }
 
 {{
@@ -749,5 +749,5 @@ CON { license }
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
  =================================================================================================
- 
+
 }}

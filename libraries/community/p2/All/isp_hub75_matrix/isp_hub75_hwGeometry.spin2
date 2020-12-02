@@ -38,19 +38,7 @@ CON { Hardware Description }
     
 
 ' =================================================================================================
-'  (2) Describe your desired effective color resolution (8-24 bit) more bits, more ram need!
-' =================================================================================================
-' number of pwm bits is number of PWM frames the driver needs to allocate
-' each PWM frame is (DISPLAY PIXEL COUNT / 2) bytes in size
-'
-' NOTE: we use 2 full PWM frame-sets so we can double buffer the screen generation
-
-'  NOTE: 16 or 20 seem useful without going crazy with ram usage
-'
-    MAX_PWM_WIDTH_IN_BITS = 16   ' use 8, 12, 16, 20, 23 or 24   NOTE: each bump uses more memory!
-
-' =================================================================================================
-'  (3) Describe the overall layout of your hardware panels:
+'  (2) Describe the overall layout of your hardware panels:
 ' =================================================================================================
 '
 ' AUTHORs  1st configuration

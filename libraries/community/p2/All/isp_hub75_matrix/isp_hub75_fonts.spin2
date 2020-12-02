@@ -1,7 +1,7 @@
 '' =================================================================================================
 ''
 ''   File....... isp_hub75_fonts.spin2
-''   Purpose.... Provide lookup for one or more fonts
+''   Purpose.... Provide lookup for one or more fonts - also includes the fonts themselves
 ''   Authors.... Stephen M Moraco
 ''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
 ''               -- see below for terms of use
@@ -20,9 +20,11 @@ CON { Object Interface: PUBLIC ENUMs }
     FONT_8x8B_BYTES_PER_CHAR = 8
     FONT_5x7_BYTES_PER_CHAR = 7
 
-PUB null()      '' This is not a top level object
+PUB null()      
+    '' This is not a top level object
 
 PUB getCharAddrForFont(selectdFont, cChar) : pCharBitmap
+    '' Return address of char from specified font
     case selectdFont
         TEXT_FONT_DEFAULT..TEXT_FONT_5x7:
             pCharBitmap := getAddrFor5x7Char(cChar)
@@ -32,14 +34,14 @@ PUB getCharAddrForFont(selectdFont, cChar) : pCharBitmap
             pCharBitmap := getAddrFor8x8bChar(cChar)
 
 PUB getAddrFor8x8aChar(asciiByte) : p8x8CharBitmap   
-    '' Return the address of an 8x8 character bitmap
+    '' Return the address of an 8x8 (a) character bitmap
     p8x8CharBitmap := 0
     if(asciiByte >= $20 && asciiByte <= $7f)
         ' NOTE: add + 1 to skip top blank row of char
         p8x8CharBitmap := @byte[@font8x8a][((asciiByte - $20) * FONT_8x8A_BYTES_PER_CHAR) + 1]
 
 PUB getAddrFor8x8bChar(asciiByte) : p8x8CharBitmap   
-    '' Return the address of an 8x8 character bitmap
+    '' Return the address of an 8x8 (b) character bitmap
     if(asciiByte < $20 || asciiByte > $7f)
         asciiByte := $20
     p8x8CharBitmap := @byte[@font8x8b][asciiByte * FONT_8x8B_BYTES_PER_CHAR]
