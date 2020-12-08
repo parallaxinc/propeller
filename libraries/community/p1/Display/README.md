@@ -54,6 +54,8 @@
 
 [ezLCD-002](../All/ezLCD-002)
 
+[FT813 EVE2 Driver](../All/FT813%20EVE2%20Driver)
+
 [GaugeObject](../All/GaugeObject)
 
 [GPS to VGA](../All/GPS%20to%20VGA)
