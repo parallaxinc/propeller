@@ -6,4 +6,6 @@
 
 [JM MAX31855 Thermocouple Interface](../All/jm_max31855-k_thermocouple)
 
+[JM Soft Timer](../All/jm_soft_timer)
+
 [JM Quadrature Encoder](../All/jm_quadrature)
