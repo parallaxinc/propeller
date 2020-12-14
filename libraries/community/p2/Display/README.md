@@ -1,5 +1,7 @@
 [ANSI VGA Text](../All/ansi_vgatext)
 
+[ISP HUB75 Matrix Driver](../All/isp_hub75_matrix)
+
 [JM TM1638](../All/jm_tm1638_led_display_driver)
 
 [JM APA102C Smart Pixel Driver](../All/jm_apa102C_smart_pixel)
