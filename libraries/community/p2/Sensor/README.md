@@ -8,6 +8,8 @@
 
 [JM NEC RX](../All/jm_nec_rx)
 
+[JM NEC TX](../All/jm_nec_tx)
+
 [JM MAX31855 Thermocouple Interface](../All/jm_max31855-k_thermocouple)
 
 [JM PIXY2](../All/jm_pixy2)
