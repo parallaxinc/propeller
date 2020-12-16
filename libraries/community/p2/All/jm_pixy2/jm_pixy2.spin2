@@ -1,0 +1,522 @@
+'' =================================================================================================
+''
+''   File....... jm_pixy2.spin2
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon@jonmcphalen.com
+''   Started....
+''   Updated.... 19 JAN 2020
+''
+'' =================================================================================================
+
+{{
+
+   Note: To conserve a cog this program uses half-duplex serial coms that is coded in Spin; this
+         is good for up to 19.2kBaud when using interpreted Spin at 80MHz. Use PixMon v2 to set
+         the interface to UART, baud rate to 19200 (or lower), and to set signature colors.
+
+         *** Serial coms are not buffered; a bad connection can block the program ***
+
+         Pixy2 API:
+         -- https://docs.pixycam.com/wiki/doku.php?id=wiki:v2:porting_guide
+         -- not all Pixy2 features are implemented
+            * line following functions are not included at this time
+
+}}
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con { pixy control constants }
+
+  #0, B_SIG, B_XPOS, B_YPOS, B_WIDTH, B_HEIGHT                  ' blocks elements
+
+  BUF_SIZE               =  (MAX_BLOCKS * 14) + 6               ' response buffer size
+  VER_SIZE               =  22                                  ' version information
+
+  MAX_BLOCKS             =  10                                  ' maximum # of pixy blocks to receive
+
+  CCC_SIG1               = %00000001                            ' color signatures
+  CCC_SIG2               = %00000010
+  CCC_SIG3               = %00000100
+  CCC_SIG4               = %00001000
+  CCC_SIG5               = %00010000
+  CCC_SIG6               = %00100000
+  CCC_SIG7               = %01000000
+  CCC_ALL                = %01111111
+  CCC_COLOR_CODES        = %10000000
+
+  REQUEST_RESOLUTION     = $0C                                  ' request resolution
+  RESPONSE_RESOLUTION    = $0D                                  ' response to resolution request
+  REQUEST_VERSION        = $0E                                  ' request version
+  RESPONSE_VERSION       = $0F                                  ' response to version request
+  RESPONSE_RESULT        = $01
+  RESPONSE_ERROR         = $03
+  REQUEST_BRIGHTNESS     = $10                                  ' set camera brightness
+  REQUEST_SERVO          = $12                                  ' set servo positions
+  REQUEST_LED            = $14                                  ' set RGB LED
+  REQUEST_LAMP           = $16                                  ' set upper and lower lamps
+  REQUEST_FPS            = $18                                  ' request frame rate
+
+  CCC_REQUEST_BLOCKS     = $20                                  ' request blocks
+  CCC_RESPONSE_BLOCKS    = $21                                  ' response to blocks request
+
+  VIDEO_REQUEST_GET_RGB  = $70                                  ' request rgb color from coordinate
+
+  RESULT_OK              =   0
+  RESULT_ERROR           =  -1
+  RESULT_BUSY            =  -2
+  RESULT_CHECKSUM_ERROR  =  -3
+  RESULT_TIMEOUT         =  -4
+  RESULT_BUTTON_OVERRIDE =  -5
+  RESULT_PROG_CHANGING   =  -6
+
+
+obj
+
+  serial : "jm_serial"                                          '   unbuffered, smart pin serial coms
+
+
+var
+
+  long  started
+
+  byte  response[BUF_SIZE]                                      ' pixy response buffer
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(rx, tx, baud) : result
+
+'' Create connection between Propeller and Pixy2
+'' -- rx and tx are recieve and transmit pins
+
+  stop()                                                        ' stop if running on other pins
+
+  serial.startx(rx, tx, baud)                                   ' configure serial pins
+
+  return (started := true)
+
+
+pub stop()
+
+  if (started)
+    serial.stop()
+    started := false
+
+
+pub get_version() : result
+
+'' Request version information from Pixy2
+'' -- returns 0 if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_VERSION)
+  serial.tx($00)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_VERSION)
+      return RESULT_OK
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+  return RESULT_ERROR
+
+
+pub hardware() : result
+
+'' Returns hardware version number
+'' -- call get_version first
+
+  if (response[2] == RESPONSE_VERSION)
+    return extract16(6)
+  else
+    return 0
+
+
+pub fw_major() : result
+
+'' Returns firmware major version number
+'' -- call get_version first
+
+  if (response[2] == RESPONSE_VERSION)
+    return response[8]
+  else
+    return 0
+
+
+pub fw_minor() : result
+
+'' Returns firmware minor version number
+'' -- call get_version first
+
+  if (response[2] == RESPONSE_VERSION)
+    return response[9]
+  else
+    return 0
+
+
+pub fw_build() : result
+
+'' Returns firmware build number
+'' -- call get_version first
+
+  if (response[2] == RESPONSE_VERSION)
+    return extract16(10)
+  else
+    return 0
+
+
+pub fw_type() : p_str
+
+'' Returns pointer to firmware type string
+'' -- call get_version first
+
+  if (response[2] == RESPONSE_VERSION)
+    return @response[12]
+  else
+    return string("?")
+
+
+pub get_resolution(p_width, p_height) : result
+
+'' Get resolution from Pixy2
+'' -- p_width and p_height are pointers to word or long variables
+'' -- returns 0 if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_RESOLUTION)
+  serial.tx($01)
+  serial.tx($00)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESOLUTION)
+      word[p_width] := extract16(6)
+      word[p_height] := extract16(8)
+      return RESULT_OK
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+  return RESULT_ERROR
+
+
+pub set_camera_brightness(brightness) : result
+
+'' Set camera brightness level, 0 to 255
+'' -- default value is 50
+'' -- returns 0 (no error) if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_BRIGHTNESS)
+  serial.tx($01)
+  serial.tx($00 #> brightness <# $FF)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      return extract32(6)
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+  return RESULT_ERROR
+
+
+pub set_servos(s0pos, s1pos) : result
+
+'' Set servo positions, 0..511
+'' -- returns 0 (no error) if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  s0pos := 0 #> s0pos <# 511                                    ' keep legal
+  s1pos := 0 #> s1pos <# 511
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_SERVO)
+  serial.tx($04)
+  serial.tx(s0pos.byte[0])
+  serial.tx(s0pos.byte[1])
+  serial.tx(s1pos.byte[0])
+  serial.tx(s1pos.byte[1])
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      return extract32(6)
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub set_led(r, g, b) : result
+
+'' Set RGB levels
+'' -- returns 0 (no error) if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_LED)
+  serial.tx($03)
+  serial.tx($00 #> r <# $FF)
+  serial.tx($00 #> g <# $FF)
+  serial.tx($00 #> b <# $FF)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      return extract32(6)
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub set_lamp(upper, lower) : result
+
+'' Set lamp states
+'' -- upper - turn on the two white LEDs along Pixy2 top edge
+'' -- lower - turn on all channels of lower RGB LED
+'' -- returns 0 (no error) if successful
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_LAMP)
+  serial.tx($02)
+  serial.tx($00 #> upper <# $01)
+  serial.tx($00 #> lower <# $01)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      return extract32(6)
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub get_fps() : result
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(REQUEST_FPS)
+  serial.tx($00)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      return extract32(6)
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub get_blocks(sigmap, maxblocks) : result
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(CCC_REQUEST_BLOCKS)
+  serial.tx($02)
+  serial.tx($00 #> sigmap <# $FF)
+  serial.tx($01 #> maxblocks <# MAX_BLOCKS)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == CCC_RESPONSE_BLOCKS)
+      return response[3] / 14                                   ' return blocks detected
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub extract_block(bidx, p_block) : result | bmax
+
+'' Extracts and returns block data
+'' -- bidx is the block index 0..blockcount-1 of desired block
+'' -- p_block is pointer to array of seven words for block data
+''    *
+
+  if (response[2] == CCC_RESPONSE_BLOCKS)
+    bmax := response[3] / 14
+    if ((bidx >= 0) && (bidx < bmax))
+      bidx := (bidx * 14) + 6                                   ' start of data in buffer
+      bytemove(p_block, @response[bidx], 14)                    ' copy buffer to block variables
+      return RESULT_OK
+
+  return RESULT_ERROR
+
+
+pub get_rgb(x, y, saturate) : result
+
+'' Returns RGB color from coordinate defined by x, y
+'' -- color returned in format $00_rr_gg_bb (as long)
+'' -- saturate flag normalizes based on highest value
+
+  bytefill(@response, 0, BUF_SIZE)                              ' clear rx buffer
+
+  x := 0 #> x <# 315                                            ' keep position legal
+  y := 0 #> y <# 207
+
+  serial.tx($AE)                                                ' send command packet
+  serial.tx($C1)
+  serial.tx(VIDEO_REQUEST_GET_RGB)
+  serial.tx($05)
+  serial.tx(x.byte[0])
+  serial.tx(x.byte[1])
+  serial.tx(y.byte[0])
+  serial.tx(y.byte[1])
+  serial.tx(0 #> saturate <# 1)
+
+  receive_packet()                                              ' get response from Pixy2
+
+  if (validate_checksum() <> RESULT_OK)
+    return RESULT_CHECKSUM_ERROR
+  else
+    if (response[2] == RESPONSE_RESULT)
+      bytemove(@result, @response[6], 3)                        ' move r,g,b to result
+    else
+      return (response[2] signx 7)                              ' return error code from Pixy
+
+
+pub oct2hex(value) : result | digits
+
+'' Converts octal value from Pixy color code to hex
+
+   digits := ((encod value) / 3) + 1                            ' calculate # of digits (no leading 0s)
+
+   value ror= (digits * 3)                                      ' shift 1st digit to msb
+
+   repeat digits
+     result <<= 4                                               ' prep for nibble
+     value rol= 3                                               ' rotate high octal digit into place
+     result |= (value & %111)                                   ' add digit to value
+
+
+pub buf_addr() : p_buf
+
+'' Allow application access to raw buffer
+
+  return @response
+
+
+pri receive_packet() : len
+
+'' Wait for response packet from Pixy2
+'' -- returns length of packet
+'' -- blocking code!
+
+  repeat 6                                                      ' receive header
+    response[len++] := serial.rx()
+
+  repeat response[3]                                            ' receive payload (if present)
+    response[len++] := serial.rx()
+
+
+pri validate_checksum() : result | cs0, cs1, idx
+
+'' Calculates checksum of current packet in response
+'' -- returns 0 if checksum is correct
+
+  cs0 := extract16(4)                                           ' get expected checksum
+
+  cs1 := 0                                                      ' clear calculated checksum
+  idx := 6                                                      ' response[6] is 1st byte of payload
+
+  repeat response[3]                                            ' iterate through payload
+    cs1 += response[idx++]
+
+  if (cs1 == cs0)
+    return RESULT_OK
+  else
+    return RESULT_ERROR
+
+
+pri extract16(idx) : value
+
+'' Return 16-bit Little-Endian value from idxth position in response buffer
+
+  wordmove(@value, @response[idx], 1)
+
+
+pri extract32(idx) : value
+
+'' Return 32-bit Little-Endian value from idxth position in response buffer
+
+  longmove(@value, @response[idx], 1)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

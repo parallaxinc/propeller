@@ -2,9 +2,15 @@
 
 [JM Click RTC](../All/jm_click_rtc)
 
+[JM DS3231 RTC](../All/jm_ds3231)
+
 [JM EZ Analog](../All/jm_ez_analog)
 
+[JM NEC RX](../All/jm_nec_rx)
+
 [JM MAX31855 Thermocouple Interface](../All/jm_max31855-k_thermocouple)
+
+[JM PIXY2](../All/jm_pixy2)
 
 [JM Soft Timer](../All/jm_soft_timer)
 

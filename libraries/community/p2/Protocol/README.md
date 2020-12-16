@@ -8,11 +8,17 @@
 
 [JM Click RTC](../All/jm_click_rtc)
 
+[JM DS3231 RTC](../All/jm_ds3231)
+
 [JM EZ SPI](../All/jm_ez_spi)
 
 [JM Full Duplex Serial](../All/jm_full_duplex_serial)
 
 [JM I2C](../All/jm_i2c)
+
+[JM I2C Devices](../All/jm_i2c_devices)
+
+[JM NEC RX](../All/jm_nec_rx)
 
 [JM Quadrature Encoder](../All/jm_quadrature)
 

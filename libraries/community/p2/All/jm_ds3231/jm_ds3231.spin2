@@ -1,0 +1,434 @@
+'' =================================================================================================
+''
+''   File....... jm_ds3231.spin2
+''   Purpose.... DS3231 RTC interface (uses 24-hr format)
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (C) 2014-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 11 DEC 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con
+
+  #true,  ON, OFF
+  #false, NO, YES
+
+
+con { i2c }
+
+  PU_NONE   = i2c.PU_NONE                                       ' pull-up options
+  PU_1K5    = i2c.PU_1K5
+  PU_3K3    = i2c.PU_3K3
+  PU_15K    = i2c.PU_15K
+
+  ACK       = i2c.ACK
+  NAK       = i2c.NAK
+
+  DS3231_WR = %1101_000_0                                       ' i2c slave id
+  DS3231_RD = %1101_000_1
+
+
+  #$00, R_SCS, R_MNS, R_HRS                                     ' time registers
+  #$03, R_DAY, R_DATE, R_MON, R_YR                              ' date registers
+
+  #$07, R_A1SCS, R_A1MNS, R_A1HRS                               ' alarm 1 time registers
+  #$0A, R_A1DYDT                                                ' alarm 1 day / date
+
+  #$0B, R_A2MNS, R_A2HRS                                        ' alarm 2 time registers
+  #$0D, R_A2DYDT                                                ' alarm 2 day / date
+
+  #$0E, R_CTRL                                                  ' control register
+  #$0F, R_STATUS                                                ' status register
+
+  #$10, R_OFFSET                                                ' aging offset
+
+  #$11, R_TMSB, R_TLSB                                          ' temp registers
+
+
+obj
+
+  i2c : "jm_i2c"
+
+
+pub null()
+
+
+pub start(scl, sda, khz, pullup) | check
+
+'' Connects DS3231 to user-defined I2C bus
+
+  i2c.setup(scl, sda, khz, pullup)
+  if (present())
+    check := rd_reg(R_STATUS)
+    if (check & $80)                                            ' clear OSF bit if set
+      check &= $7F
+      wr_reg(R_STATUS, check)
+
+
+pub present() : result
+
+  return i2c.present(DS3231_WR)
+
+
+pub set_time(sc, mn, hr)
+
+'' Set seconds, minutes, and hours registers
+'' -- values are BCD
+
+  i2c.start()
+  i2c.write(DS3231_WR)
+  i2c.write(R_SCS)
+  i2c.write(sc)
+  i2c.write(mn)
+  i2c.write(hr)
+  i2c.stop()
+
+
+pub set_calendar(dy, dt, mo, yr)
+
+'' Set calendar
+'' -- values are BCD
+
+  i2c.start()
+  i2c.write(DS3231_WR)
+  i2c.write(R_DAY)
+  i2c.write(dy)
+  i2c.write(dt)
+  i2c.write(mo)
+  i2c.write(yr)
+  i2c.stop()
+
+
+pub write(n, r, p_src)
+
+'' Write n BCD registers at p_src to DS3231
+'' -- r is register number in DS3231
+'' -- values at p_src are BCD
+
+  i2c.start()
+  i2c.write(DS3231_WR)
+  i2c.write(r)
+  repeat n
+    i2c.write(byte[p_src++])
+  i2c.stop()
+
+
+pub wr_reg(r, value)
+
+'' Writes specific BCD register in DS3231
+
+  write(1, r, @value)
+
+
+pub wr_time(p_src)
+
+'' Write time (secs, mins, hours) registers at p_src to DS3231
+
+  write(3, R_SCS, p_src)
+
+
+pub wr_calendar(p_src)
+
+'' Write calendar (day, date, month, year) registers at p_src to DS3231
+
+  write(4, R_DAY, p_src)
+
+
+pub read(n, p_dest, r)
+
+'' Reads n regsiters at addr in DS3231 to p_dest
+'' -- p_dest points to byte(s)
+'' -- r is the beginning register in DS3231
+
+  i2c.start()
+  i2c.write(DS3231_WR)
+  i2c.write(r)                                                  ' set address pointer
+  i2c.start()                                                   ' restart for read
+  i2c.write(DS3231_RD)
+  repeat (n-1)
+    byte[p_dest++] := i2c.read(i2c.ACK)
+  byte[p_dest++] := i2c.read(i2c.NAK)
+  i2c.stop()
+
+
+pub rd_reg(r) : result
+
+'' Reads single registers from DS3231
+
+  read(1, @result, r)
+
+
+pub rd_time(p_dest)
+
+'' Reads clock registers (secs, mins, hours) from DS3231 to p_dest
+'' -- p_dest points to array of bytes
+
+  read(3, p_dest, R_SCS)
+
+
+pub rd_calendar(p_dest)
+
+'' Reads calendar registers (day, date, month, year) from DS3231 to p_dest
+'' -- p_dest points to array of bytes
+
+  read(4, p_dest, R_DAY)
+
+
+pub time_code() : result
+
+'' Returns current time as BCD-formatted long: $00_hh_mm_ss
+
+  read(3, @result, R_SCS)
+
+
+pub date_code() : result
+
+'' Returns current date as BCD-formatted long: $00_yr_mo_dt
+
+  read(3, @result, R_DATE)
+
+
+con { formatted strings }
+
+
+pub time_hhmmss(p_src) : result
+
+'' Returns pointer to formatted time string
+'' -- formatted string of registers at p_src
+'' -- user -1 for internal RTC registers
+
+  if (p_src < 0)
+    read(3, @result, R_SCS)                                       ' internal clock
+  else
+    bytemove(@result, p_src, 3)                                   ' external values
+
+  StrLong[0] := result.byte[2] >>   4 + "0"                       ' convert to ASCII
+  StrLong[1] := result.byte[2] &  $0F + "0"
+  StrLong[2] := ":"
+  StrLong[3] := result.byte[1] >>   4 + "0"
+  StrLong[4] := result.byte[1] &  $0F + "0"
+  StrLong[5] := ":"
+  StrLong[6] := result.byte[0] >>   4 + "0"
+  StrLong[7] := result.byte[0] &  $0F + "0"
+
+  return @StrLong
+
+
+pub time_ampm(p_src) : result | hr
+
+'' Returns pointer to formatted time string
+'' -- formatted string of registers at p_src
+'' -- user -1 for internal RTC registers
+
+  if (p_src < 0)
+    read(3, @result, R_SCS)                                     ' internal clock
+  else
+    bytemove(@result, p_src, 3)                                 ' external values
+
+  hr := bcd2dec(result.byte[2])                                 ' convert to decimal
+
+  case hr                                                       ' adjust for am/pm
+    0..11 :
+      TimeStr[9] := "A"
+      if (hr == 0)
+        hr := 12
+
+    12..23 :
+      TimeStr[9] := "P"
+      if (hr > 12)
+        hr -= 12
+
+  TimeStr[0] := hr  / 10 + "0"                                  ' convert to ASCII
+  TimeStr[1] := hr // 10 + "0"
+  TimeStr[2] := ":"
+  TimeStr[3] := result.byte[1] >>   4 + "0"
+  TimeStr[4] := result.byte[1] &  $0F + "0"
+  TimeStr[5] := ":"
+  TimeStr[6] := result.byte[0] >>   4 + "0"
+  TimeStr[7] := result.byte[0] &  $0F + "0"
+
+  return @TimeStr
+
+
+pub date_mmddyy(p_src) : result
+
+'' Returns pointer to formatted date
+'' -- formatted string of registers at p_src
+'' -- user -1 for internal RTC registers
+
+  if (p_src < 0)
+    read(3, @result, R_DATE)                                    ' internal clock
+  else
+    bytemove(@result, p_src, 3)                                 ' external values
+
+  StrLong[0] := result.byte[1] >>   4 + "0"
+  StrLong[1] := result.byte[1] &  $0F + "0"
+  StrLong[2] := "/"
+  StrLong[3] := result.byte[0] >>   4 + "0"
+  StrLong[4] := result.byte[0] &  $0F + "0"
+  StrLong[5] := "/"
+  StrLong[6] := result.byte[2] >>   4 + "0"
+  StrLong[7] := result.byte[2] &  $0F + "0"
+
+  return @StrLong
+
+
+pub today() : result
+
+'' Return RTC day of week, 1..7
+
+  return rd_reg(R_DAY)
+
+
+pub day_short(d) : result
+
+'' Return pointer to string with name of day, e.g. "MON"
+'' -- use 1..7 to print specific day name
+'' -- use -1 for current RTC day
+
+  if (d < 0)
+    d := today()
+  else
+    if ((d < 1) || (d > 7))
+      return @Unknown
+
+  return @NameShort + (--d << 2)                                ' 4 chars ea
+
+
+pub day_long(d) : p_str
+
+'' Return pointer to string with name of day, e.g. "Monday"
+'' -- use 1..7 to print specific day name
+'' -- use -1 for current RTC day
+
+  if (d < 0)
+    d := today()
+  else
+    if ((d < 1) || (d > 7))
+      return @Unknown
+
+  p_str := @NameLong                                            ' point to start of names
+
+  repeat --d                                                    ' z-align, 0..6
+    p_str += strsize(p_str) + 1                                 ' skip over to target string
+
+
+con { conversions }
+
+
+pub bcd2dec(bcd) : result
+
+' return ((bcd >> 4) * 10) + (bcd & $0F)
+
+  org
+                getnib    result, bcd, #0
+                getnib    bcd, bcd, #1
+                qmul      bcd, #10
+                getqx     bcd
+                add       result, bcd
+  end
+
+
+pub dec2bcd(dec) : result | nib0
+
+' return ((dec / 10) << 4) | (dec // 10)
+
+  org
+                qdiv      dec, #10
+                getqx     dec
+                getqy     result
+                shl       dec, #4
+                or        result, dec
+  end
+
+
+dat
+
+  Unknown               byte    "???", 0
+
+  StrShort              byte    "00:00", 0
+  StrLong               byte    "00:00:00", 0
+
+  TimeStr               byte    "hh:mm:ss xM", 0
+
+  NameShort             byte    "SUN", 0
+                        byte    "MON", 0
+                        byte    "TUE", 0
+                        byte    "WED", 0
+                        byte    "THU", 0
+                        byte    "FRI", 0
+                        byte    "SAT", 0
+
+  NameLong              byte    "Sunday", 0
+                        byte    "Monday", 0
+                        byte    "Tuesday", 0
+                        byte    "Wednesday", 0
+                        byte    "Thursday", 0
+                        byte    "Friday", 0
+                        byte    "Saturday", 0
+
+  DaysInMonth           byte    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+
+
+
+con { temperature }
+
+
+pub temp_c() : result
+
+'' Returns temperature in degrees Celcius
+'' -- returns in 1/100s
+
+  read(1, @result.byte[3], R_TMSB)
+  read(1, @result.byte[2], R_TLSB)
+
+  return (result >> 22) * 25
+
+
+pub temp_f() : result
+
+'' Returns temperature in degrees Fahrenheit
+'' -- returns in 1/100s
+
+  return temp_c() * 9 / 5 + 32_00
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
