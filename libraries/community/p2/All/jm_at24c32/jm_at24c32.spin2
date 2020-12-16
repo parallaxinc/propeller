@@ -1,0 +1,269 @@
+'' =================================================================================================
+''
+''   File....... jm_at24c32.spin2
+''   Purpose.... R/W routines for AT24C32 (4K) EEPROM
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2009-2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 09 DEC 2020
+''
+'' =================================================================================================
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con { i2c }
+
+  PU_NONE  = i2c.PU_NONE                                        ' pull-up options
+  PU_1K5   = i2c.PU_1K5
+  PU_3K3   = i2c.PU_3K3
+  PU_15K   = i2c.PU_15K
+
+  ACK      = i2c.ACK
+  NAK      = i2c.NAK
+
+  EE_WRITE = %1010_000_0
+  EE_READ  = %1010_000_1
+
+  EE_SIZE  =  4 * 1024
+  PG_SIZE  = 32
+  LAST_PG  = EE_SIZE / PG_SIZE - 1
+
+
+obj
+
+  i2c : "jm_i2c"
+
+
+var
+
+  long  devid
+
+
+pub null()
+
+'' This is not a top-level object
+
+
+pub start(sclpin, sdapin, device, khz, pullup)
+
+'' Define I2C SCL (clock) and SDA (data) pins
+
+  i2c.setup(sclpin, sdapin, khz, pullup)
+
+  devid := EE_WRITE | ((%000 #> device <# %111) << 1)
+
+
+pub wait()
+
+'' Wait for EEPROM to be ready for new command
+
+  i2c.wait(devid)
+
+
+con { write methods }
+
+
+pub wr_byte(addr, value) : result
+
+'' Write byte to eeprom
+
+  return wr_block(addr, 1, @value)
+
+
+pub wr_word(addr, value) : result
+
+'' Write word to eeprom
+
+  return wr_block(addr, 2, @value)
+
+
+pub wr_long(addr, value) : result
+
+'' Write long to eeprom
+
+  return wr_block(addr, 4, @value)
+
+
+pub wr_block(addr, n, p_src) : ackbit
+
+'' Write block of n bytes from p_src to eeprom
+'' -- be mindful of address/page size in device to prevent page wrap-around
+
+  i2c.wait(devid)
+  i2c.write(addr.byte[1])                                       ' msb of address
+  i2c.write(addr.byte[0])                                       ' lsb of address
+  repeat n
+    ackbit |= i2c.write(byte[p_src++])                          ' write a byte
+  i2c.stop()
+
+
+pub wr_xblock(addr, n, p_src) : ackbit
+
+'' Write block of n bytes from p_src to eeprom
+'' -- re-addresses each byte to allow page boundary crossing
+'' -- slow!
+
+  repeat n
+    wr_block(addr++, 1, p_src++)
+
+
+pub wr_str(addr, p_str) : ackbit | b
+
+'' Write z-string at p_str to eeprom
+'' -- string can cross page boundary
+'' -- slow!
+''    * if string will fit in page, use wr_block with strsize()+1
+
+  repeat (strsize(p_str)+1)
+    wr_block(addr++, 1, p_str++)
+
+
+pub fill(addr, n, value) : ackbit
+
+'' Write byte to eeprom n times, starting with addr
+'' -- be mindful of address/page size in device to prevent page wrap-around
+
+  i2c.wait(devid)
+  i2c.write(addr.byte[1])                                       ' msb of address
+  i2c.write(addr.byte[0])                                       ' lsb of address
+  repeat n
+    ackbit |= i2c.write(value)                                  ' write the byte
+  i2c.stop()
+
+
+pub copy_to(addr, n, p_src)
+
+'' Copies n bytes from p_src to eeprom addr
+'' -- not affected by page boundaries
+
+  repeat n
+    wr_byte(addr++, byte[p_src++])
+
+
+con { read methods }
+
+
+pub rd_byte(addr) : b
+
+'' Return byte value from eeprom
+
+  rd_block(addr, 1, @b)
+
+
+pub rd_word(addr) : w
+
+'' Return word value eeprom
+
+  rd_block(addr, 2, @w)
+
+
+pub rd_long(addr) : l
+
+'' Return long value from eeprom
+
+  rd_block(addr, 4, @l)
+
+
+pub rd_block(addr, n, p_dest)
+
+'' Read block of n bytes from eeprom to address at p_dest
+'' -- be mindful of address/page size in device to prevent page wrap-around
+
+  i2c.wait(devid)
+  i2c.write(addr.byte[1])                                       ' msb of address
+  i2c.write(addr.byte[0])                                       ' lsb of address
+  i2c.start()                                                   ' restart for read
+  i2c.write(devid | $01)                                        ' device read
+  repeat while (n > 1)
+    byte[p_dest++] := i2c.read(ACK)
+    --n
+  byte[p_dest] := i2c.read(NAK)                                 ' last byte gets NAK
+  i2c.stop()
+
+
+pub rd_str(addr, p_dest) | b
+
+'' Read (arbitrary-length) z-string, store at p_dest
+'' -- string can cross page boundary
+
+  repeat
+    b := rd_byte(addr++)                                        ' read byte from device
+    byte[p_dest++] := b                                         ' write to destination
+    if (b == 0)                                                 ' at end?
+      quit                                                      '  if yes, we're done
+
+
+pub copy_from(addr, n, p_dest)
+
+'' Copies n bytes from eeprom addr to p_dest
+'' -- p_dest is a pointer to a byte array/memory to receive the data
+'' -- not affected by page boundaries
+
+  repeat n
+    byte[p_dest++] := rd_byte(addr++)
+
+
+con { support }
+
+
+pub page_offset(page) : result
+
+'' Returns address offset for given page
+
+  return page * PG_SIZE
+
+
+pub page_num(addr) : result
+
+'' Returns page # of addr
+
+  return (addr / PG_SIZE)
+
+
+pub page_ok(addr, len) : result | pg0, pg1
+
+'' Returns true if len bytes will fit into current page
+
+  pg0 := page_num(addr)
+  pg1 := page_num(addr + len-1)
+
+  return (pg1 == pg0)
+
+
+con { license }
+
+{{
+
+  MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+}}
