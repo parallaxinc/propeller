@@ -24,6 +24,8 @@
 
 [JM Quadrature Encoder](../All/jm_quadrature)
 
+[JM Quiic Twist](../All/jm_quiic_twist)
+
 [JM Serial](../All/jm_serial)
 
 [JM Sony IRCS Rx (infrared control system receiver)](../All/jm_sircs_rx)
