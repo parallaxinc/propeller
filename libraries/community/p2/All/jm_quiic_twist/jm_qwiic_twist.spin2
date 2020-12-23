@@ -1,0 +1,496 @@
+'' =================================================================================================
+''
+''   File....... jm_qwiic_twist.spin2
+''   Purpose.... I2C encoder with RGB lighting
+''   Author..... Jon "JonnyMac" McPhalen (translation to Spin2)
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 18 DEC 2020
+''
+'' =================================================================================================
+
+{
+   Adapted by JonnyMac from Sparkfun library
+   -- https://github.com/sparkfun/SparkFun_Qwiic_Twist_Arduino_Library
+   -- written by Nathan Seidle
+}
+
+
+con { fixed io pins }
+
+  RX1    = 63  { I }                                            ' programming / debug
+  TX1    = 62  { O }
+
+  SF_CS  = 61  { O }                                            ' serial flash
+  SF_SCK = 60  { O }
+  SF_SDO = 59  { O }
+  SF_SDI = 58  { I }
+
+
+con { twist registers }
+
+' Register map documentation:
+' -- https://cdn.sparkfun.com/assets/learn_tutorials/8/4/6/Qwiic_Twist_Register_Map_-_Fixed_Endianness.pdf
+
+  TWIST_ID                 = $00
+  TWIST_STATUS             = $01
+  TWIST_VERSION            = $02
+  TWIST_ENABLE_INTS        = $04
+  TWIST_COUNT              = $05
+  TWIST_DIFFERENCE         = $07
+  TWIST_LAST_ENCODER_EVENT = $09
+  TWIST_LAST_BUTTON_EVENT  = $0B
+
+  TWIST_RED                = $0D
+  TWIST_GREEN              = $0E
+  TWIST_BLUE               = $0F
+
+  TWIST_CONNECT_RED        = $10
+  TWIST_CONNECT_GREEN      = $12
+  TWIST_CONNECT_BLUE       = $14
+
+  TWIST_TURN_INT_TIMEOUT   = $16
+  TWIST_CHANGE_ADDRESS     = $18
+  TWIST_LIMIT              = $19
+
+
+con
+
+  BTN_CLICKED = 1 << 2                                          ' event bits
+  BTN_PRESSED = 1 << 1
+  ENC_MOVED   = 1 << 0
+
+  EN_INT_BTN  = 1 << 1                                          ' interrupt enables
+  EN_INT_ENC  = 1 << 0
+
+
+con
+
+  TWIST_WR = %0111_111_0                                        ' default address
+
+  PU_NONE  = i2c.PU_NONE                                        ' i2c pull-up options
+  PU_1K5   = i2c.PU_1K5
+  PU_3K3   = i2c.PU_3K3
+  PU_15K   = i2c.PU_15K
+
+
+obj
+
+  i2c : "jm_i2c"                                                ' i2c driver (inline pasm2)
+
+' Important: I2C object must support clock stretching
+
+
+var
+
+  byte  devid                                                   ' device id
+
+
+pub null()
+
+'' This is not a top object
+
+
+pub start(sclpin, sdapin, khz, pullup) : result
+
+'' Start the Twist encoder connection with default device id
+'' -- sclpin and sdapin define the I2C bus
+'' -- khz is the bus speed in kilohertz (100 or lower)
+'' -- pullup is the selection of i2c bus pull-up strength
+
+  return startx(sclpin, sdapin, khz, TWIST_WR, pullup)          ' use default address
+
+
+pub startx(sclpin, sdapin, khz, id, pullup) : result
+
+'' Start the Twist encoder connection with specifi device id
+'' -- sclpin and sdapin define the I2C bus
+'' -- khz is the bus speed in kilohertz (100 or lower)
+'' -- id is the target id
+'' -- pullup is the selection of i2c bus pull-up strength
+
+  i2c.setup(sclpin, sdapin, khz, pullup)
+
+  devid := id
+
+  return is_connected()
+
+
+pub is_connected() : result
+
+'' Returns true if I2C device ack's
+
+  return (i2c.present(devid))
+
+
+pub change_adddress(addr)
+
+'' Change the I2C address of this device to addr
+
+  write_register(TWIST_CHANGE_ADDRESS, addr)
+
+  devid := addr
+
+
+pub clear_interrupts()
+
+'' Clears the moved, clicked, and pressed bits
+
+  write_register(TWIST_STATUS, 0)
+
+
+pub set_count(value)
+
+'' Set the encoder count to a specific value
+
+  write_register_16(TWIST_COUNT, value)
+
+
+pub get_count() : result
+
+'' Returns the number of indents the user has twisted the knob
+
+  return read_register_16(TWIST_COUNT) signx 15
+
+
+pub set_limit(value)
+
+'' Set the encoder count limit to a specific value
+
+  write_register_16(TWIST_LIMIT, value)
+
+
+pub get_limit() : result
+
+'' Returns the limit of allowed counts before wrapping
+'' -- 0 is disabled
+
+  return read_register_16(TWIST_LIMIT)
+
+
+pub get_diff(clear) : difference
+
+'' Returns the number of ticks since last check
+
+  difference := read_register_16(TWIST_DIFFERENCE) signx 15
+
+  if (clear)
+    write_register_16(TWIST_DIFFERENCE, 0)
+
+
+pub is_pressed() : result
+
+'' Returns true if button is currently being pressed
+
+  result := read_register(TWIST_STATUS)                         ' get status
+
+  if (result & BTN_PRESSED)                                     ' press flag active?
+    write_register(TWIST_STATUS, result & !BTN_PRESSED)         ' clear the flag
+    return true
+  else
+    return false
+
+
+pub is_clicked() : result
+
+'' Returns true if a click event has occurred
+
+  result := read_register(TWIST_STATUS)                         ' get status
+
+  if (result & BTN_CLICKED)                                     ' clicked flag active?
+    write_register(TWIST_STATUS, result & !BTN_CLICKED)         ' clear the flag
+    return true
+  else
+    return false
+
+
+pub is_moved() : result
+
+'' Returns true if knob has been twisted
+
+  result := read_register(TWIST_STATUS)                         ' get status
+
+  if (result & ENC_MOVED)                                       ' moved flag active?
+    write_register(TWIST_STATUS, result & !ENC_MOVED)           ' clear the flag
+    return true
+  else
+    return false
+
+
+pub time_since_last_movement(clear) : elapsed
+
+'' Returns the number of milliseconds since the last encoder movement
+
+  elapsed := read_register_16(TWIST_LAST_ENCODER_EVENT)
+
+  if (clear)
+    write_register_16(TWIST_LAST_ENCODER_EVENT, 0)
+
+
+pub time_since_last_press(clear) : elapsed
+
+'' Returns the number of milliseconds since the last button event (press and release)
+
+  elapsed := read_register_16(TWIST_LAST_BUTTON_EVENT)
+
+  if (clear)
+    write_register_16(TWIST_LAST_BUTTON_EVENT, 0)
+
+
+pub set_color(red, green, blue) | rgb
+
+'' Sets the color of the encoder LEDs
+'' -- levels are 0..255
+
+  rgb.byte[2] := 0 #> red   <# 255
+  rgb.byte[1] := 0 #> green <# 255
+  rgb.byte[0] := 0 #> blue  <# 255
+
+  write_register_24(TWIST_RED, rgb)
+
+
+pub set_rgb(rgb)
+
+'' Sets the color of the encoder LEDs
+'' -- format is $00_RR_GG_BB
+
+  write_register_24(TWIST_RED, rgb)
+
+
+pub set_red(level)
+
+'' Sets red LED level, 0..255
+
+  write_register(TWIST_RED, 0 #> level <# 255)
+
+
+pub set_green(level)
+
+'' Sets green LED level, 0..255
+
+  write_register(TWIST_GREEN, 0 #> level <# 255)
+
+
+pub set_blue(level)
+
+'' Sets blue LED level, 0..255
+
+  write_register(TWIST_BLUE, 0 #> level <# 255)
+
+
+pub get_red() : level
+
+'' Returns red LED level
+
+  return read_register(TWIST_RED)
+
+
+pub get_green() : level
+
+'' Returns green LED level
+
+  return read_register(TWIST_GREEN)
+
+
+pub get_blue() : level
+
+'' Returns blue LED level
+
+  return read_register(TWIST_BLUE)
+
+
+pub get_version() : version
+
+'' Returns a two-byte Major/Minor version number
+
+  return read_register_16(TWIST_VERSION)
+
+
+pub connect_color(red, green, blue)
+
+'' Sets the relation between each color and the twisting of the knob
+'' -- connect the LED so it changes [amount] with each encoder tick
+'' -- negative numbers are allowed (so LED gets brighter the more you turn the encoder down)
+
+  red   := -255 #> red   <# 255
+  green := -255 #> green <# 255
+  blue  := -255 #> blue  <# 255
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(TWIST_CONNECT_RED)
+  i2c.write(red.byte[0])                                ' fixed; Little-Endian
+  i2c.write(red.byte[1])
+  i2c.write(green.byte[0])
+  i2c.write(green.byte[1])
+  i2c.write(blue.byte[0])
+  i2c.write(blue.byte[1])
+  i2c.stop()
+
+' Original source has error:
+' -- 16-bit values are Little-Endian
+' -- Sparkfun library incorrectly writes them Big-Endian in this function
+
+{
+  _i2cPort->beginTransmission((uint8_t)_deviceAddress);
+  _i2cPort->write(TWIST_CONNECT_RED); //Command
+  _i2cPort->write(red >> 8);          //MSB
+  _i2cPort->write(red & 0xFF);        //LSB
+  _i2cPort->write(green >> 8);        //MSB
+  _i2cPort->write(green & 0xFF);      //LSB
+  _i2cPort->write(blue >> 8);         //MSB
+  _i2cPort->write(blue & 0xFF);       //LSB
+  if (_i2cPort->endTransmission() != 0)
+    return (false); //Sensor did not ACK
+  return (true);
+}
+
+
+pub connect_red(delta)
+
+'' Sets red change value
+
+  write_register_16(TWIST_CONNECT_RED, -255 #> delta <# 255)
+
+
+pub connect_green(delta)
+
+'' Sets green change value
+
+  write_register_16(TWIST_CONNECT_GREEN, -255 #> delta <# 255)
+
+
+pub connect_blue(delta)
+
+'' Sets blue change value
+
+  write_register_16(TWIST_CONNECT_BLUE, -255 #> delta <# 255)
+
+
+pub get_red_connect() : delta
+
+'' Get red connect value
+
+  return read_register_16(TWIST_CONNECT_RED) signx 15
+
+
+pub get_green_connect() : delta
+
+'' Get green connect value
+
+  return read_register_16(TWIST_CONNECT_GREEN) signx 15
+
+
+pub get_blue_connect() : delta
+
+'' Get blue connect value
+
+  return read_register_16(TWIST_CONNECT_BLUE) signx 15
+
+
+pub set_int_timeout(ms)
+
+'' Set number of milliseconds that elapse between end of knob turning and interrupt firing
+
+  write_register_16(TWIST_TURN_INT_TIMEOUT, ms)
+
+
+pub get_int_timeout() : ms
+
+'' Get number of milliseconds that elapse between end of knob turning and interrupt firing
+
+  return read_register_16(TWIST_TURN_INT_TIMEOUT)
+
+
+pri read_register(addr) : result
+
+'' Read 8-bit value from addr
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(addr)
+  i2c.stop()                                                    ' required by Qwiic Twist before restart
+  i2c.start()
+  i2c.write(devid | $01)
+  result := i2c.read(i2c.NAK)
+  i2c.stop()
+
+
+pri read_register_16(addr) : result
+
+'' Read 16-bit value from addr
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(addr)
+  i2c.stop()                                                    ' required by Qwiic Twist before restart
+  i2c.start()
+  i2c.write(devid | $01)
+  result.byte[0] := i2c.read(i2c.ACK)
+  result.byte[1] := i2c.read(i2c.NAK)
+  i2c.stop()
+
+
+pri write_register(addr, value)
+
+'' Write 8-bit value to register at address
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(addr)
+  i2c.write(value.byte[0])
+  i2c.stop()
+
+
+pri write_register_16(addr, value)
+
+'' Write 16-bit value to register at address
+'' -- byte order is Little-Endian
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(addr)
+  i2c.write(value.byte[0])
+  i2c.write(value.byte[1])
+  i2c.stop()
+
+
+pri write_register_24(addr, value)
+
+'' Write 24-bit value to register at address
+'' -- byte order is Big-Endian
+
+  i2c.start()
+  i2c.write(devid)
+  i2c.write(addr)
+  i2c.write(value.byte[2])
+  i2c.write(value.byte[1])
+  i2c.write(value.byte[0])
+  i2c.stop()
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

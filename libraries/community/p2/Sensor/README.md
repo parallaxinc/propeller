@@ -17,3 +17,5 @@
 [JM Soft Timer](../All/jm_soft_timer)
 
 [JM Quadrature Encoder](../All/jm_quadrature)
+
+[JM Quiic Twist](../All/jm_quiic_twist)
