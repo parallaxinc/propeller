@@ -5,11 +5,8 @@
 ''   Author..... Dennis Gately
 ''               Copyright (C) 2020-2021
 ''               -- see below for terms of use
-''   Dependencies... 
+''   Dependencies... jm_fullduplexserial.spin2
 ''                   DS132_full.spin2
-''                   jm_fullduplexserial.spin2
-''                   jm_ansi.spin2
-''
 ''   Started.... 30 DEC 2020
 ''   Updated.... 03 JAN 2021
 ''
@@ -117,7 +114,7 @@ pub wait_for_terminal(clear)
       term.str(ansi.hide_cursor())
       term.str(ansi.home())
       term.str(ansi.cls())
-        
+
 dat
 
 con { license }
