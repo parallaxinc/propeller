@@ -1,3 +1,5 @@
+[DS1302 Full](../All/DS1302_full)
+
 [JM Click 4-20mA_R/_T](../All/jm_click_4-20ma)
 
 [JM Click RTC](../All/jm_click_rtc)
