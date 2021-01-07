@@ -32,6 +32,10 @@
 
 [AD7705 interface (ADC converter)](../All/AD7705%20interface%20(ADC%20converter))
 
+[ADS1118 C](..All/ads1118/C)
+
+[ADS1118 Spin](..All/ads1118/Spin)
+
 [ADC Frequency Reader](../All/ADC%20Frequency%20Reader)
 
 [ADC Input Driver](../All/ADC%20Input%20Driver)
