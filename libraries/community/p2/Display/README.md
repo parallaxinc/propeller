@@ -1,5 +1,7 @@
 [ANSI VGA Text](../All/ansi_vgatext)
 
+[ILI9341](../All/ili9341)
+
 [ISP HUB75 Matrix Driver](../All/isp_hub75_matrix)
 
 [JM TM1638](../All/jm_tm1638_led_display_driver)
