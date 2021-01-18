@@ -6,6 +6,8 @@
 
 [JM Click RTC](../All/jm_click_rtc)
 
+[JM DHTxx Temperature/Humidity](../All/jm_dhtxx)
+
 [JM DS3231 RTC](../All/jm_ds3231)
 
 [JM EZ Analog](../All/jm_ez_analog)
