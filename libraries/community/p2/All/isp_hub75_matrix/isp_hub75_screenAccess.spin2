@@ -1,0 +1,148 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_screenAccess.spin2
+''   Purpose.... Light weight shared acccess to screen geometry and buffer location
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 17 Oct 2020
+''
+'' =================================================================================================
+
+CON { reinterpret the users selections for driver internal use }
+
+    ' possible Adapter Connections
+    PIN_GROUP_P0_P15 = user.PINS_P0_P15
+    PIN_GROUP_P16_P31 = user.PINS_P16_P31
+    PIN_GROUP_P32_P47 = user.PINS_P32_P47
+    PIN_GROUP_P48_P63 = user.PINS_P48_P63
+
+    ' the user-selected location
+    ADAPTER_BASE_PIN = user.ADAPTER_BASE_PIN
+
+    CHIP_UNKNOWN = user.CHIP_UNKNOWN
+    CHIP_FM6126A = user.CHIP_FM6126A
+
+    ' which chip driver should be used
+    PANEL_DRIVER_CHIP = user.PANEL_DRIVER_CHIP
+
+    ' how big is each panel
+    MAX_PANEL_ROWS = user.MAX_PANEL_ROWS
+    MAX_PANEL_COLUMNS = user.MAX_PANEL_COLUMNS
+
+    ' how big is our overall display
+    MAX_DISPLAY_COLUMNS = user.MAX_DISPLAY_COLUMNS
+    MAX_DISPLAY_ROWS = user.MAX_DISPLAY_ROWS
+
+    ' how many panels are connected
+    MAX_PANELS = user.MAX_PANELS
+
+    ' we have to generate clocks and latching based on physical size of hardware
+    '  the larger of the values DISPLAY* or PANEL* is our proxy for PHYSICAL size
+    '  this allows us to have a display smaller than 1 panel should we wish!
+    MAX_PHYSICAL_COLUMNS = (MAX_DISPLAY_COLUMNS > MAX_PANEL_COLUMNS) ? MAX_DISPLAY_COLUMNS : MAX_PANEL_COLUMNS
+    MAX_PHYSICAL_ROWS = (MAX_DISPLAY_ROWS > MAX_PANEL_ROWS) ? MAX_DISPLAY_ROWS : MAX_PANEL_ROWS
+
+    ' what is our PWM frame size
+    MAX_PWM_FRAME_SIZE_IN_BYTES = ((MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS) / 2)
+    MAX_PWM_FRAME_SIZE_IN_LONGS = MAX_PWM_FRAME_SIZE_IN_BYTES / 4
+
+    ' how many PWM frames does our DRIVER use?
+    MAX_PWM_FRAMES = 16     ' compiled color depth
+
+    DISPLAY_BITS_PER_COLOR = 24
+    PANEL_BITS_PER_COLOR = 3
+
+    ' (8 bits per byte)
+    DISPLAY_BYTES_PER_COLOR = DISPLAY_BITS_PER_COLOR / 8
+
+    ' (rounded up to fill a full long - leaves 0-3 bytes unused at end)
+    DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
+    DISPLAY_SIZE_IN_LONGS = (DISPLAY_SIZE_IN_BYTES / 4)
+
+OBJ { include the users' settings }
+
+    user    : "isp_hub75_hwGeometry"
+
+PUB null()
+
+    '' This is not a top level object
+
+DAT { shared access variables }
+
+' target screen and geometry thereof
+pExtScreen      long    0
+
+PUB setScreen(pScreen)
+    '' Save the location of the external screen buffer
+    'debug("7s:setScreen")
+    pExtScreen := pScreen
+
+PUB screenAddress() : pScreen
+    '' Return the address of the external screen buffer
+    pScreen := pExtScreen
+
+PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, dispLen
+    '' Dump bytes in hex format to debug() terminal
+    debug("`temp 13 '", zstr_(bfrId), ": bffr=", uhex_long_(buffer), "(", udec_(len), ")' 13")
+    maxCol := len >= 16 ? 15 : len
+    maxRow := (len / 16)
+    if maxRow * 16 < len
+        maxRow++
+    if maxRow == 0
+        maxRow := 1
+
+    bytBffr := buffer
+    waitus(35)
+    'returns
+    dispLen := 0
+    repeat rowIdx from 1 to maxRow
+        if rowIdx < 10
+            debug("`temp ' '")	' space
+        debug("`temp '  ", uhex_long_(bytBffr), ": '")
+        repeat colIdx from 0 to maxCol
+            debug("`temp '", uhex_byte_(byte[bytBffr+colIdx]), " '")
+            dispLen++
+            if dispLen >= len
+                quit
+            if colIdx == 7
+                debug("`temp ' '")	' space
+
+        bytBffr += 16
+        debug("`temp 13")		' newline
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
+    waitms(2)
+
+
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+}}

@@ -1,0 +1,228 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_display_bmp.spin2
+''   Purpose.... Display contents of .bmp file on HUB75 RGB Matrix
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Dec 2020
+''   Updated.... 01 Dec 2020
+''
+''  This object adds .bmp file loading support
+'' =================================================================================================
+
+OBJ { Objects Used by this Object }
+
+    screen      : "isp_hub75_screenAccess"
+    pixels      : "isp_hub75_screenUtils"
+    color       : "isp_hub75_color"
+
+VAR { buffer addresses }
+
+    long    pBitmapFileInMemory
+
+PUB null()
+    '' This is NOT a top level object
+
+PUB fillScreenFromBMP(pBmpFile)
+    '' Load a 24-bit .bmp file image into screen buffer (panel sized, only!)
+    loadBitmap(pBmpFile)
+
+PRI loadBitmap(pBitmapFile) | nPanelCol, nPanelRow, blue, green, red, haveError, showDebug, bInvalidFileStatus
+    ' Load a 24-bit .bmp file image into screen buffer
+    ' HEADS UP!!!
+    '     this is currently limited to "single panel size" untill we rerite this code
+
+    ' save address of 24bit file image for use by called routines
+    pBitmapFileInMemory := pBitmapFile
+
+    ' XYZZYpnl debug("- Study BMP")
+    bInvalidFileStatus := validateBmpFile(pBitmapFile)
+    if bInvalidFileStatus == FALSE
+        ' TODO: how do we warn of this?
+        abort
+
+   ' fill screen buffer
+    repeat nPanelRow from 0 to screen.MAX_PANEL_ROWS - 1
+        repeat nPanelCol from 0 to screen.MAX_PANEL_COLUMNS - 1
+            'debug("loadBitmap() - RC=(", udec_(nPanelRow), ", ", udec_(nPanelCol), ")")
+            showDebug := FALSE
+            if isDebugLocn(nPanelRow, nPanelCol)
+                showDebug := TRUE ' FALSE  ' turn off debug
+
+            red, green, blue := get24BitBMPColorForRC(nPanelRow, nPanelCol)
+
+            if showDebug
+                ' XYZZYpnl debug(" - RC=(", udec_(nPanelRow), ", ", udec_(nPanelCol), "), RGB=(", uhex_(red), uhex_(green), uhex_(blue), ")")
+
+            pixels.drawPixelAtRC(nPanelRow, nPanelCol, color.cValueForRGB(red, green, blue))
+
+PRI validateBmpFile(pBmpFileImage) : bValidStatus | pFileHeader, i, iStart, iEnd, pLastByte
+    ' interpret .BMP header and return pointer to image
+
+    ' XYZZYpnl debug("- Studying in-memory file")
+    bValidStatus := TRUE
+    'analyze bitmap image
+    pFileHeader := pBmpFileImage
+    bytemove(@bfType, pFileHeader, 2) 'read bmp header
+    pFileHeader += 2
+    bytemove(@bfSize, pFileHeader, 4) 'read bmp header
+    pFileHeader += 4
+    bytemove(@bfReserved1, pFileHeader, 4) 'read bmp header
+    pFileHeader += 4
+    bytemove(@bfOffBits, pFileHeader, 16) 'read bmp header
+    pFileHeader += 16
+    bytemove(@biPlanes, pFileHeader, 4)
+    pFileHeader += 4
+    bytemove(@biCompression, pFileHeader, 24)
+    pFileHeader += 24
+
+    'calculate actual bytes in palette
+    i := bfOffBits - 54
+    pFileHeader += i
+
+    iStart := pBmpFileImage + bfOffBits
+    iEnd := iStart + biSizeImage - 1
+
+    ' return pointer to last byte in bitmap
+    pLastByte := pFileHeader + (biHeight * biWidth * 3) - 1
+
+    ' XYZZYpnl debug("BitMap file @0x", uhex_(pBmpFileImage))
+    ' XYZZYpnl debug(" - size=", udec_(bfSize))
+    ' XYZZYpnl debug(" - OffsetBits=", udec_(bfOffBits))
+    'debug(" - #planes=", udec_(biPlanes))
+    ' XYZZYpnl debug(" - w,h=", udec_(biWidth), ",", udec_(biHeight))
+    ' XYZZYpnl debug(" - szImage=", udec_(biSizeImage))
+    'debug(" - compression=", udec_(biCompression))
+    ' XYZZYpnl debug(" - bitCount=", udec_(biBitCount))
+    ' XYZZYpnl debug(" - end @0x", uhex_(pLastByte))
+
+    ' XYZZYpnl debug(" - Img-start @0x", uhex_(iStart))
+    ' XYZZYpnl debug(" - Img-end @0x", uhex_(iEnd))
+
+    if biWidth <> screen.MAX_PANEL_COLUMNS or biHeight <> screen.MAX_PANEL_ROWS
+        ' XYZZYpnl debug(" !! invalid BMP size! [NOT 64x32]")
+        bValidStatus := FALSE
+
+    if byte[@bfType][0] <> $42 || byte[@bfType][1] <> $4d ' B, M
+        ' XYZZYpnl debug(" !! invalid BMP file type! [NOT 'BM']")
+        bValidStatus := FALSE
+
+    if biCompression <> 0
+        ' XYZZYpnl debug(" !! invalid BMP compression! [is compressed]")
+        bValidStatus := FALSE
+
+    'if bValidStatus == FALSE
+        ' XYZZYpnl debug("- ERROR invalid BMP!")
+    'else
+        ' XYZZYpnl debug("-good BMP size! [64x32]")
+
+    'dbgMemDump(@fileHeaderMsg, pBmpFileImage, bfOffBits)
+    'dbgMemDump(@fileStartMsg, iStart, 32)
+    'dbgMemDump(@fileEndMsg, iEnd-32-1, 32)
+
+PRI get24BitBMPColorForRC(nRow, nColumn) : red, green, blue | pixColorAddr
+	if(nRow > screen.MAX_PANEL_ROWS - 1)
+		debug("- ERROR bad nRow value [", udec_(nRow), " > ", udec_(screen.MAX_PANEL_ROWS - 1), "]")
+
+	if(nColumn > screen.MAX_PANEL_COLUMNS - 1)
+		debug("- ERROR bad nColumn value [", udec_(nColumn), " > ", udec_(screen.MAX_PANEL_COLUMNS - 1), "]")
+
+    pixColorAddr := getPixelAddressForBMPRowColumn(nRow, nColumn)
+    ' our intername .bmp file byte order is BGR!
+    blue := byte[pixColorAddr][0]
+    green := byte[pixColorAddr][1]
+    red := byte[pixColorAddr][2]
+
+PRI getPixelAddressForBMPRowColumn(nRow, nColumn) : pixColorAddr | rowIndex, columnIndex, nOffset, fileBitsBase, showDebug
+	' Row is inverted in .BMP file...
+	rowIndex := (screen.MAX_PANEL_ROWS - 1) - nRow
+
+	' Column is normal in file...
+	columnIndex := nColumn
+
+    showDebug := FALSE
+    'if (bitIdx == 0 || bitIdx == 31) && nBffrR < 2
+    if isDebugLocn(nRow, nColumn)
+        showDebug := TRUE ' FALSE  ' turn off debug
+
+	' now offset is simple (just multiply by 3! [bytes of color])
+    nOffset := ((rowIndex * screen.MAX_PANEL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
+
+    fileBitsBase := @byte[pBitmapFileInMemory][bfOffBits]   ' get base of image in file (skip header)
+    pixColorAddr := @byte[fileBitsBase][nOffset]    ' add in offset to 24-bit color
+
+    if showDebug
+	    debug("- FileOffset=", udec_(nOffset), ", RC=(", udec_(nRow), ",", udec_(nColumn), ", ofst=", uhex_long_(pixColorAddr), ", base=", uhex_long_(fileBitsBase), ")")
+
+PRI isDebugLocn(nRow, nCol) : status
+    status := FALSE
+    return
+    'if (nRow == 31 && nCol < 4) || (nRow < 2 && nCol < 3) || (nRow == 31 && nCol > 61) || (nRow < 2 && nCol > 61)
+    '    status := TRUE ' FALSE  ' turn off debug
+
+DAT  { .bmp fiile work area }
+
+
+fileHeaderMsg       byte    "File Header",0
+fileStartMsg        byte    "FileImage start",0
+fileEndMsg          byte    "FileImage end",0
+screenMessage       byte    "screenBuffer",0
+screenRed           byte    "screenRedBuffer",0
+screenBlue          byte    "screenGreenBuffer",0
+screenGreen         byte    "screenBlueBuffer",0
+
+                    ALIGNL
+                    byte 0  ' fill aligning header to avoid gaps
+                    byte 0
+BMPHeader     'Mostly using info from here:  http://www.fortunecity.com/skyscraper/windows/364/bmpffrmt.html
+bfType              byte "B","M"
+bfSize              long 0
+bfReserved1         word 0
+bfReserved2         word 0
+bfOffBits           long 54
+biSize              long 40
+biWidth             long 0
+biHeight            long 10
+biPlanes            word 1
+biBitCount          word 24
+biCompression       long 0
+biSizeImage         long 0
+
+biXPelsPerMeter     long 0
+biYPelsPerMeter     long 0
+
+biClrUsed           long 0
+biClrImportant      long 0
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+
+}}

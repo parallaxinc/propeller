@@ -1,0 +1,353 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_panel.spin2
+''   Purpose.... Manage the HUB75 panel content
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 01 Dec 2020
+''
+''  This object provides 24bit screen buffer to PWM buffers support
+'' =================================================================================================
+
+
+CON { I/O PINs }
+
+'DEBUG_PIN = 16
+
+OBJ
+
+    screen      : "isp_hub75_screenAccess"
+    matrix      : "isp_hub75_rgb3bit"
+    'matrix      : "isp_hub75_rgb3bit-LE"
+    color       : "isp_hub75_color"
+
+DAT { pre-initialized }
+
+    usePwmFrameset1     byte    TRUE
+    didShow             byte    FALSE
+    didShowCount        byte    2       ' just the first two screens
+
+VAR
+
+    long    cog
+    long    bus           ' ram/flash
+    long    pwmFrames1[screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
+    long    pwmFrames2[screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
+    long    showed
+
+
+
+CON { RAM/FLASH }
+
+    BASE  = 0          ' Base P2 pin of your HyperRAM module
+    RAM   = $00_000000  ' external start address of RAM
+    FLASH = $02_000000  ' external start address of flash
+
+    'FLAGS = mem.F_FASTREAD    ' enable sysclk/1 reads
+
+
+' ----------------------------------------------------------
+
+PUB start() : ok
+    '' Start the backend pasm2 driver for the matrix
+
+    debug("- PANEL: Start Matrix COG")
+    ok := cog := matrix.start()   ' send buffer to driver
+    if ok == -1
+        debug("- PANEL: underlying drivers failed!")
+        abort
+
+    'dbgMemDump(testValueMsg, @testValue, 4)
+    showed := didShowCount
+
+    clearPwmFrameBuffer()  ' clear PWM frames  and get pointer to buffer
+
+PUB stop()
+    '' Stop the pasm2 backend driver
+    if cog
+        matrix.stop()
+        cog := 0
+
+PRI waits(nSeconds)
+    repeat nSeconds
+        waitms(1000)    ' 1 seconds
+
+PUB fillPanel(threeBitColor)
+    '' Fill screen but without PWM (for testing underlying driver)
+    matrix.fillPanel(threeBitColor)
+
+PUB convertScreen2PWM(p24bitScreen) | redByte, greenByte, blueByte, pPwmFrame, pPwmFrameSet, panelCol, panelRow, p24bitColor, colorValue, colorMask, bitCount, bitNumber, panelBGR, tmpVarA, tmpVarB
+    '' Load a 24-bit image into PWM frame buffers
+    ' XYZZYpnl debug("- PANEL: loading screen at @", uhex_long_(p24bitScreen))
+
+    ' save address of 24bit screen for use by called routines
+    pScreenInMemory := p24bitScreen
+  ' clear 8x 3-bit frames
+    pPwmFrameSet := clearPwmFrameBuffer()  ' clear PWM frames  and get pointer to buffer
+
+{
+    if not didShow
+        dbgMemDump(@screenMessage, p24bitScreen, 128)
+        showed--
+}
+
+   ' fill 8x 3-bit frames from 24-bit-screen
+    org
+                    ' for each row...
+                    ' FOLLOWING use redByte tempoerarily ... as our columnIndex (multiply value)
+                    'encod   redByte, #screen.MAX_PANEL_COLUMNS        ' pre-calculate our shift vs. multiply value
+                    mov     panelRow, #screen.MAX_DISPLAY_ROWS
+nextRow
+                    ' for each column
+                    mov     panelCol, #screen.MAX_DISPLAY_COLUMNS
+nextColumn
+                    ' locate 24-bit color for pixel
+                    ' calculate address of 24-bit color
+                    '
+                    'nOffset := ((rowIndex * screen.MAX_PANEL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
+                    'pixColorAddr := @byte[pScreenInMemory][nOffset]    ' add in offset to 24-bit color
+                    mov     p24bitColor, panelRow
+                    sub     p24bitColor, #1                                  ' get rowIndex - 1 [32-1] -> [31-0]
+                    mul     p24bitColor, #screen.MAX_DISPLAY_COLUMNS         ' x maxColumns
+                    add     p24bitColor, panelCol                            ' + columnIndex
+                    sub     p24bitColor, #1                                   ' - 1 [64-1] -> [63-0]
+                    mul     p24bitColor, #screen.DISPLAY_BYTES_PER_COLOR    ' * bytes / 24-bit color
+                    add     p24bitColor, p24bitScreen                         ' + base address of screen
+                    rdlong  colorValue, p24bitColor
+                    ' red := byte[p24bitScreen][p24bitColor][0]
+                    GETBYTE tmpVarA, colorValue,#0
+                    call    #cvtTmpA2pwm
+                    mov     redByte, tmpVarA
+                    ' green := byte[p24bitScreen][p24bitColor][1]
+                    GETBYTE tmpVarA, colorValue,#1
+                    call    #cvtTmpA2pwm
+                    mov     greenByte, tmpVarA
+                    ' blue := byte[p24bitScreen][p24bitColor][2]
+                    GETBYTE tmpVarA, colorValue,#2
+                    call    #cvtTmpA2pwm
+                    mov     blueByte, tmpVarA
+
+                    ' FYI GAMMA correction, brightness are adjusted as the byte is place into our source screen buffer!!
+
+                    ' write color information to our PWM buffers
+                    ' expand 24-bit pixel into 8 pwm frames of 3-bit pixel
+                    ' for ea. bit do...
+                    mov     bitCount, #screen.MAX_PWM_FRAMES        ' MAX PWM FRAME bits to scan in LONG
+                    mov     bitNumber, #0                           ' start with bit0 of [0-MAX_PWM_FRAMES - 1]
+nextBit
+                    ' calculate offset to frame for this bit #
+                    '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX 8 pwm frames so limit our index
+                    '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
+                    '   pPwmFrame := @long[getActivePwmBuffer()][nFrameOffset]
+                    mov     pPwmFrame, bitNumber
+                    mul     pPwmFrame, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES
+                    ' calculate pointer to frame for thic bit #
+                    add     pPwmFrame, pPwmFrameSet
+                    ' build RGB1 or RGB2 bits to be stored in panel word
+                    '   rBit := red & (1 << bitNumber) > 0 ? 1 : 0
+                    '   gBit := green & (1 << bitNumber) > 0 ? 1 : 0
+                    '   bBit := blue & (1 << bitNumber) > 0 ? 1 : 0
+                    mov     panelBGR, #0                    ' clear color value
+                    testb   redByte, bitNumber     wc
+        if_c        or      panelBGR, #$01
+                    testb   greenByte, bitNumber   wc
+        if_c        or      panelBGR, #$02
+                    testb   blueByte, bitNumber    wc
+        if_c        or      panelBGR, #$04
+                    '    tmpVarB := (nBffrR > 15) ? TRUE : FALSE
+                    mov     tmpVarA, panelRow
+                    sub     tmpVarA, #1         ' now [0-31]
+                    cmp     tmpVarA, #16       wc      ' loading top or bottom half of screen?
+        if_c        mov     tmpVarB, #0                  ' NO, is RGB1 (top)
+        if_nc       mov     tmpVarB, #1                  ' YES, is RGB2 (bottom)
+                    ' convert row number to row number of top-half of panel
+        if_nc       sub     tmpVarA, #16              ' 0-31 -> 0-15
+                    ' is top-RGB1 or bottom-RGB2 color?
+                    '    if tmpVarB
+                    '       bitsBGR <<= 3    ' mov color bits into rgb2 position
+                    '       maskBitsBGR <<= 3
+                    mov     colorMask, #%0000_0111
+                    cmp     tmpVarB, #1          wz
+        if_z        shl     panelBGR, #3                ' is RGB2 move into RGB2 position:  %0011_1000
+        if_z        shl     colorMask, #3               '   and move mask as well
+                    '   byteIdx := (nBffrR * screen.MAX_PANEL_COLUMNS) + nBffrC
+                    mov     tmpVarB, tmpVarA
+                    mul     tmpVarB, #screen.MAX_DISPLAY_COLUMNS
+                    add     tmpVarB, panelCol
+                    sub     tmpVarB, #1
+                    add     tmpVarB, pPwmFrame
+                    ' get byte value
+                    '    currByte := byte[pPwmFrame][byteIdx] & !maskBitsBGR
+                    rdbyte  tmpVarA, tmpVarB
+                    not     colorMask
+                    and     tmpVarA, colorMask
+                    '    byte[pPwmFrame][byteIdx] := currByte | bitsBGR
+                    or      tmpVarA, panelBGR
+                    wrbyte  tmpVarA, tmpVarB
+                    ' this one done, if not all 8 bits done, go do next
+                    add     bitNumber, #1
+                    djnz    bitCount, #nextBit
+
+                    ' count this column, go do next column if not yet done
+                    djnz    panelCol, #nextColumn
+                    ' count this row, go do next row if not yet done
+                    djnz    panelRow, #nextRow
+                    jmp     #done
+
+' tmpVarA := cvtTmpA2pwm(tmpVarA)   ' NOTE wipes tmpVarB
+cvtTmpA2pwm
+                    sub     tmpVarB, tmpVarB
+                    cmp     tmpVarA, #0         wz      ' special case: if zero return all 0 bits
+        if_z        jmp     #noShift
+                    cmp     tmpVarA, #255       wz      ' special case: if $ff return all 1 bits
+        if_z        not     tmpVarB, tmpVarB
+        if_z        jmp     #noShift
+                    sub     tmpVarA, #1
+                    bmask   tmpVarB, tmpVarA          ' successively move CY into lower bits
+                    mov     tmpVarA, tmpVarB            ' return our new value
+noShift
+                    ret
+
+done
+    end
+{
+    if not didShow
+        dumpFrameSet(pPwmFrameSet)
+        if showed == 0
+            didShow := TRUE
+}
+    ' write 8x 3-bit frames to panel
+    matrix.writePwmBuffer(pPwmFrameSet)
+
+PRI dumpFrameSet(pPwmFrameSet) | pFrameBuffer, frameIndex
+        repeat frameIndex from 0 to 7
+            pFrameBuffer := @long [pPwmFrameSet][frameIndex * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
+            dumpFrame(pFrameBuffer)
+
+PRI dumpFrame(pFrameBuffer)
+    dbgMemDump(@frameMessage, pFrameBuffer, 32)
+
+PRI clearPwmFrameBuffer() : pPwmFrameSet
+    ' clear entire PWM buffer
+    ' implement double buffering by alternating between our two pwm-frame-sets
+    usePwmFrameset1 := !usePwmFrameset1
+    pPwmFrameSet := getActivePwmBuffer()
+    'debug("- active buffer=", uhex_long_(pPwmFrameSet))
+    longfill(pPwmFrameSet, 0, screen.MAX_PWM_FRAME_SIZE_IN_LONGS * screen.MAX_PWM_FRAMES)
+
+PRI getActivePwmBuffer() : pPwmFrameSet
+    pPwmFrameSet := (usePwmFrameset1) ? @pwmFrames1 : @pwmFrames2
+
+PRI getPwmFrameAddressForBit(nBitNumber) : pFrameBuffer | nFrameOffset, frameIdx
+    ' return indexed PWM Frame address
+    frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX 8 pwm frames so limit our index
+    nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 192 longs in each frame
+    pFrameBuffer := @long[getActivePwmBuffer()][nFrameOffset]
+    'debug("- PWM frame(", udec_(frameIdx), "), ", uhex_long(pFrameBuffer))
+
+VAR { buffer addresses }
+
+    long    pBitmapFileInMemory
+    long    pScreenInMemory
+
+PRI setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit) | nBffrR, nBffrC, isRGB2, byteIdx, maskBitsBGR, bitsBGR, currByte, showDebug
+    '  write color bits to a PWM frame at frame[r][c]
+    nBffrR := 0 #> nPanelRow <# screen.MAX_DISPLAY_ROWS - 1
+    nBffrC := 0 #> nPanelCol <# screen.MAX_DISPLAY_COLUMNS - 1
+    isRGB2 := (nBffrR > 15) ? TRUE : FALSE
+    nBffrR //= 16
+
+    maskBitsBGR := %0000_0111
+    ' NOTE: our hardware uses "00 bgr bgr" for the byte value!
+    bitsBGR := ((bBit & $01) << 2) | ((gBit & $01) << 1) | (rBit & $01)
+    if isRGB2
+        bitsBGR <<= 3    ' mov color bits into rgb2 position
+        maskBitsBGR <<= 3
+
+    byteIdx := (nBffrR * screen.MAX_PANEL_COLUMNS) + nBffrC
+
+    currByte := byte[pPwmFrame][byteIdx] & !maskBitsBGR
+    if byteIdx > 1023
+        debug("ERROR! byte index calc failure have=(" , udec_(byteIdx), ") of [0-1023]")
+    else
+        byte[pPwmFrame][byteIdx] := currByte | bitsBGR
+
+
+PRI isDebugLocn(nRow, nCol) : status
+    status := FALSE
+    return
+    if (nRow == 31 && nCol < 4) || (nRow < 2 && nCol < 3) || (nRow == 31 && nCol > 61) || (nRow < 2 && nCol > 61)
+        status := TRUE ' FALSE  ' turn off debug
+
+PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, dispLen
+    '' Dump bytes in hex format to debug() terminal
+    debug("`temp 13 '", zstr_(bfrId), ": bffr=", uhex_long_(buffer), "(", udec_(len), ")' 13")
+    maxCol := len >= 16 ? 15 : len
+    maxRow := (len / 16)
+    if maxRow * 16 < len
+        maxRow++
+    if maxRow == 0
+        maxRow := 1
+
+    bytBffr := buffer
+    waitus(35)
+    'returns
+    dispLen := 0
+    repeat rowIdx from 1 to maxRow
+        if rowIdx < 10
+            debug("`temp ' '")	' space
+        debug("`temp '  ", uhex_long_(bytBffr), ": '")
+        repeat colIdx from 0 to maxCol
+            debug("`temp '", uhex_byte_(byte[bytBffr+colIdx]), " '")
+            dispLen++
+            if dispLen >= len
+                quit
+            if colIdx == 7
+                debug("`temp ' '")	' space
+
+        bytBffr += 16
+        debug("`temp 13")		' newline
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
+    waitms(2)
+
+DAT  { .bmp fiile work area }
+
+testValue           long    $87654321
+testValueMsg       byte    "Test value",0
+
+frameMessage       byte    "FrameBuffer",0
+
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+
+}}

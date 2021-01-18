@@ -7,3 +7,6 @@ _site/
 #---Ultra Edit---
 *.bak
 *.$$$
+
+#---macOS---
+.DS_Store

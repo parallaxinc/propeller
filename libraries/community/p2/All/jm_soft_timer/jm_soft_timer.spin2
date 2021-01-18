@@ -1,0 +1,257 @@
+'' =================================================================================================
+''
+''   File....... jm_soft_timer.spin2
+''   Purpose.... Software timer (100 hours) that runs inside the Spin2 interpreter cog
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 30 NOV 2020
+''
+''   {$P2}
+''
+'' =================================================================================================
+
+{{
+   The Spin2 interpreter has user space that allows the programmer to run inline PASM2 and install
+   PASM2 that can be called, or run from an interupt.
+
+   Spin cog user addresses: $000-$130.
+
+   This code is installed at address $108 in the Spin interpreter cog and users interrupt #1. If
+   your application runs inline PASM2, you must ensure that it uses fewer than $108 instructions.
+}}
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con
+
+  #0, M_RST, M_RSTRUN, M_HOLD, M_RUN                            ' timer modes
+
+  #0, R_TIX, R_SCS, R_MNS, R_HRS                                ' time registers
+
+  BUF_SIZE = 12                                                 ' string buffer size
+
+  #0, M_HHMMSS, M_HHMMSSTT                                      ' string modes
+
+
+var
+
+  long  command
+  long  timeregs
+
+  byte  timeStr[BUF_SIZE]                                       ' string output
+
+
+pub null()
+
+'' This is not a top level object
+
+
+pub start()
+
+'' Installs timer ISR into Spin2 cog
+
+  isrticks := clkfreq / 100                                     ' base timig is 1/100ths second
+
+  p_cmd    := @command                                          ' point to our variables
+  p_tregs  := @timeregs
+
+  regexec(@timer)                                               ' start timer in Spin2 cog
+
+
+pub set_mode(m) : now
+
+'' Assert timer mode and return current (packed) value
+'' -- format is $HH_MM_SS_TT (not BCD)
+
+  command := M_RST #> m <# M_RUN
+
+  if (command == M_RST)
+    return 0
+  else
+    return timeregs
+
+
+pub preset(h, m, s, t) : newtime
+
+'' Preset time registers and run
+
+  newtime.byte[R_HRS] := 0 #> h <# 99
+  newtime.byte[R_MNS] := 0 #> m <# 59
+  newtime.byte[R_SCS] := 0 #> s <# 59
+  newtime.byte[R_TIX] := 0 #> t <# 99
+
+  presetx(newtime)
+
+
+pub presetx(newtime)
+
+'' Preset time registers to newtime
+'' -- newtime is packed long in the format $HH_MM_SS_TT (not BCD)
+'' -- warning: no bounds checking
+
+  command := M_HOLD
+  waitms(100)                                                   ' ensure hold command picked up
+  timeregs := newtime
+  command := M_RUN
+
+
+pub raw() : result
+
+'' Returns timer as packed long
+'' -- format is $HH_MM_SS_TT (not BCD)
+
+  return timeregs
+
+
+pub ticks() : result
+
+'' Returns 1/100ths seconds register
+
+  return timeregs.byte[R_TIX]
+
+
+pub seconds() : result
+
+'' Returns seconds register
+
+  return timeregs.byte[R_SCS]
+
+
+pub minutes() : result
+
+'' Returns minutes register
+
+  return timeregs.byte[R_MNS]
+
+
+pub hours() : result
+
+'' Returns hours register
+
+  return timeregs.byte[R_HRS]
+
+
+pub str(tmode) : p_str | t
+
+'' Return current time as formatted string
+
+  t := timeregs                                                 ' snapshot timer
+
+  bytefill(@timeStr, 0, BUF_SIZE)                               ' reset string
+
+  dec2(t.byte[R_HRS], @timeStr+0, ":")
+  dec2(t.byte[R_MNS], @timeStr+3, ":")
+
+  if (tmode == M_HHMMSSTT)
+    dec2(t.byte[R_SCS], @timeStr+6, ".")
+    dec2(t.byte[R_TIX], @timeStr+9, 0)
+  else
+    dec2(t.byte[R_SCS], @timeStr+6, 0)
+
+  return @timeStr
+
+
+pri dec2(value, p_str, pad)
+
+  byte[p_str++] := value  / 10 + "0"
+  byte[p_str++] := value // 10 + "0"
+
+  if (pad)
+    byte[p_str] := pad
+
+
+dat { timer isr }
+
+timer           word      entry, finish-entry-1                 ' define chunk start and size-1
+                org       $108                                  ' org can be $000..$130-size
+
+entry           mov       ijmp1, #isr                           ' set int1 vector
+                setint1   #1                                    ' set int1 to ct-passed-ct1 event
+                getct     pr0                                   ' get ct
+    _ret_       addct1    pr0, isrticks                         ' set initial ct1 target, return to Spin2
+
+isr             rdlong    work, p_cmd                   wz      ' read command
+
+    if_z        mov       tregs, #0                             ' reset timer
+    if_z        jmp       #update
+
+                cmp       work, #M_RSTRUN               wcz     ' reset and keep running?
+    if_e        mov       tregs, #0                             ' reset
+    if_e        wrlong    #M_RUN, p_cmd                         ' update command to run
+    if_e        jmp       #update
+
+                cmp       work, #M_HOLD                 wcz     ' hold with current value
+    if_e        jmp       #exit
+
+adj_timer       rdlong    tregs, p_tregs                        ' get current registers
+
+                getbyte   work, tregs, #R_TIX                   ' 1/100ths
+                incmod    work, #99                     wc      ' increment with rollover
+                setbyte   tregs, work, #R_TIX                   ' put it back
+    if_nc       jmp       #update                               ' if no rollover, update and exit
+
+                getbyte   work, tregs, #R_SCS                   ' seconds
+                incmod    work, #59                     wc
+                setbyte   tregs, work, #R_SCS
+    if_nc       jmp       #update
+
+                getbyte   work, tregs, #R_MNS                   ' minutes
+                incmod    work, #59                     wc
+                setbyte   tregs, work, #R_MNS
+    if_nc       jmp       #update
+
+                getbyte   work, tregs, #R_HRS                   ' hours
+                incmod    work, #99                    wc
+                setbyte   tregs, work, #R_HRS
+
+update          wrlong    tregs, p_tregs                        ' update the timer
+
+exit            addct1    pr0, isrticks
+                reti1                                           ' return from interrupt
+
+isrticks        long      0-0                                   ' ticks per 1/100 seconds
+p_cmd           long      0-0                                   ' pointer to command
+p_tregs         long      0-0                                   ' pointer to time register
+tregs           long      0                                     ' working time registers
+work            long      0
+
+finish                                                          ' 37 longs
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
