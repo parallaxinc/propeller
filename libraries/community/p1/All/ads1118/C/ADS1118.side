@@ -1,0 +1,8 @@
+ADS1118.c
+>compiler=C
+>memtype=cmm main ram compact
+>optimize=-Os
+>-m32bit-doubles
+>-Wall
+>-fno-exceptions
+>BOARD::ACTIVITYBOARD
