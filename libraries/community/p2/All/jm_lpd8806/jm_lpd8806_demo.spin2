@@ -1,0 +1,143 @@
+'' =================================================================================================
+''
+''   File....... jm_lpd8806_demo.spin2
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 26 NOV 2020
+''
+''   {$P2}
+''
+'' =================================================================================================
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDO   = 59  { O }
+  SD_SDI   = 58  { I }
+
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { O }
+
+
+con { app io pins }
+
+  L_CLK    =  1  { O }
+  L_DAT    =  0  { O }
+
+
+con
+
+  #true,  ON, OFF
+  #false, NO, YES
+
+  BUF_SIZE = 8                                                  ' # of connected pixels
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  strip : "jm_lpd8806"                                          ' * LPD8806 driver
+  term  : "jm_fullduplexserial"                                 ' * serial IO for terminal
+
+' * uses cog when loaded
+
+
+var { globals }
+
+  long  pixels[BUF_SIZE]                                        ' color buffer for pixels
+
+
+pub main() | idx
+
+  setup()
+
+' wait_for_terminal(true)
+
+  repeat
+    strip.clear()
+    waitms(500)
+    strip.fill(strip.RED)
+    waitms(500)
+    strip.fill(strip.GREEN)
+    waitms(500)
+    strip.fill(strip.BLUE)
+    waitms(500)
+
+    repeat idx from 0 to BUF_SIZE-1
+      strip.set_pixel_color(idx, $40_40_40_00)                  ' 50% white
+      waitms(125)
+      strip.set_pixel_color(idx, $00_00_00_00)                  ' off
+
+  repeat
+    waitct(0)
+
+
+pub setup()
+
+  strip.start(BUF_SIZE, @pixels, L_DAT, L_CLK, 1000)            ' start lpd8806 driver @ 1MHz
+
+  term.start(RX1, TX1, %0000, BR_TERM)                          ' start terminal io
+
+
+pub wait_for_terminal(docls)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (docls)
+    term.tx(term.CLS)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
