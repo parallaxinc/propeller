@@ -28,7 +28,7 @@ MAX_SCROLL_CHAR_LONGS = (MAX_SCROLL_CHAR_BYTES / 4)
 
 MAX_SCROLL_COLOR_BYTES = ((((MAX_SCROLL_COLORS_TO_BUFFER * screen.DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4)
 MAX_SCROLL_COLOR_LONGS = (MAX_SCROLL_COLOR_BYTES / 4)
-    'DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
+    'DISPLAY_SIZE_IN_BYTES = (((MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
 
 MAX_LONGS_PER_CHAR_BITMAP = 2
 
@@ -92,7 +92,7 @@ PUB initialize()
     instanceID := instanceNumber++
     remainingPixToScroll := 0
     isSetup := TRUE ' yes, now we are!
-    debug("stx:initialize() ", udec(instanceID))
+    'debug("stx:initialize() ", udec(instanceID))
 
 PUB setFontInfo(nbrTextColumns, charWidth, charHeight, leadingGap, horizontalGap, hBitmapOffset, textFont)
     '' Call any time font changes - so we can keep up

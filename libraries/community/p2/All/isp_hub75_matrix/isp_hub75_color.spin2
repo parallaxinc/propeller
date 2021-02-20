@@ -33,11 +33,26 @@ CON { test colorset }
     cOrange = $FFA500
     cBlueViolet = $8A2BE2
 
+    cFullRed = $FF0000
+    cFullGreen = $00FF00
+    cFullBlue = $0000FF
+
     ' SPECIAL non-colors - invoke alforithm to gerate actual color used'
     cRedWhtBlu = $deadf0
     cRainbow = $deadf1
 
     #0, LED_UNKNOWN, LED_RED, LED_GREEN, LED_BLUE
+
+    ' our 3-bit colors
+    BASE_BLACK   = $00
+    BASE_RED     = $01
+    BASE_GREEN   = $02
+    BASE_YELLOW    = $03
+    BASE_BLUE    = $04
+    BASE_MAGENTA = $05
+    BASE_CYAN  = $06
+    BASE_WHITE   = $07
+
 
 OBJ
 
@@ -152,13 +167,18 @@ PUB dutyCycleForIntensity(hex8bit) : pwmBits
     '' CALCULATE: proper duty cycle for intensity of 0-255
     '         --- VERSION 1 - Bits spread throughout ---
     if hex8bit == 255
-        pwmBits := $ff
+        pwmBits := screen.MAX_PWM_FRAMES
     else
         pwmBits := hex8bit / screen.MAX_PWM_FRAMES
-
-
+{
+    if not didShow[hex8bit]
+        debug("clr:dcyc ", uhex_byte(hex8bit), uhex_byte(pwmBits))
+        didShow[hex8bit] := TRUE
+'}
 
 DAT { tables, default values }
+
+didShow             byte    FALSE[256]
 
 defaultBrightness   word    256  '256      ' 205 = 80%  [0-255,256]   where 256 is NO brightness adjustment
 

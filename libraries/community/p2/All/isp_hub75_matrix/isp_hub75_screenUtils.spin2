@@ -36,9 +36,9 @@ PUB drawPixelAtRC(row, column, rgbColor) | xlatedColor, fHue
 
 PUB drawPixelAtRCwithRGB(row, column, red, green, blue) | rowIndex, columnIndex, colorOffset, pColor, pScreen
     '' Place r,g,b color pixel at r,c
-    rowIndex := 0 #> row <# screen.MAX_DISPLAY_ROWS - 1
-    columnIndex :=  0 #> column <# screen.MAX_DISPLAY_COLUMNS - 1
-    colorOffset := ((rowIndex * screen.MAX_DISPLAY_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
+    rowIndex := 0 #> row <# screen.MAX_PHYSICAL_ROWS - 1
+    columnIndex :=  0 #> column <# screen.MAX_PHYSICAL_COLUMNS - 1
+    colorOffset := ((rowIndex * screen.MAX_PHYSICAL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
     pScreen := screen.screenAddress()
     pColor := @byte[pScreen][colorOffset]
     'if isDebugLocn(rowIndex, columnIndex)
