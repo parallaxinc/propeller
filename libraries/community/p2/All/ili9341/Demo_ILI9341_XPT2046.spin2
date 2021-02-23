@@ -1,0 +1,699 @@
+{{
+  
+  ILI9341_XPT2046 Demo 
+
+320x240 LCD driver for ILI9341 controller and XPT2046 touch screen.  This version is SPI based.
+  
+Author: Greg LaPolla                                                                                             
+Updated: 2021-02-15                                                                                              
+Designed For: P2X8C4M64P                                                                                         
+Version: 1.0                                                                                             
+
+'' Based on  Cluso's Demo ST7796 4.0in SPI 480x320 w Touch LCD Driver
+
+}}
+
+CON
+  _clkfreq = 200_000_000            ' clock frequency
+
+  width         = 320               ' screen width  (cols)
+  height        = 280               ' screen height (rows)
+  textwidth     = width / 6         ' 80 chars per line 80*6=480
+
+  LCD_rotate_0          = $00       '\   0 degrees
+  LCD_rotate_90         = $A0       '|  90 degrees
+  LCD_rotate_180        = $C0       '| 180 degrees
+  LCD_rotate_270        = $60       '/ 270 degrees
+  LCD_mirror_90         = $20       '   90 degrees H-mirror
+' Set the following to suit...
+  LCD_rotate    = LCD_mirror_90     ' <--- set to suit
+
+' ILI9341 registers...
+  LCD_NOP               = $00
+  LCD_SW_RESET          = $01
+  LCD_SLEEP_ON          = $10
+  LCD_SLEEP_OFF         = $11
+  LCD_PARTIAL           = $12
+  LCD_NORMAL            = $13
+  LCD_INVERSION_OFF     = $20
+  LCD_INVERSION_ON      = $21
+  LCD_GAMMA_SET         = $26
+  LCD_DISPLAY_OFF       = $28
+  LCD_DISPLAY_ON        = $29
+  LCD_COL_ADR           = $2A
+  LCD_ROW_ADR           = $2B
+  LCD_RAM_WRITE         = $2C
+  LCD_COLOR_SPACE       = $2D   '4K/65K/262K
+' LCD_RAMRD             = $2E
+  LCD_MADCTR            = $36   'Mem Addr Contol (rotate screen)
+  LCD_PIXEL_FORMAT      = $3A
+  LCD_FRAME_CTL1        = $B1
+  LCD_INVERSION_CTL     = $B4
+  LCD_POWER_CTL1        = $C0
+  LCD_POWER_CTL2        = $C1
+  LCD_VCOM_CTL1         = $C5
+  LCD_VCOM_OFFSET       = $C7
+  LCD_POS_GAMMA         = $E0
+  LCD_NEG_GAMMA         = $E1
+  LCD_GAMMA_RS          = $F2
+
+' BGR 5+6+5 16bits/pixel (RGB reversed)
+  black = $0000
+  white = $FFFF
+  blue  = $F800
+  green = $07E0
+  red   = $001F
+  yellow= red+green
+  purple= red+blue
+
+'                 ' sin(x) * 1024    ' degrees
+Z00     =    0    ' 0.0000 * 1024    '  0
+Z01     =  107    ' 0.1045 * 1024    '  6
+Z02     =  213    ' 0.2079 * 1024    ' 12
+Z03     =  316    ' 0.3090 * 1024    ' 18
+Z04     =  416    ' 0.4067 * 1024    ' 24
+Z05     =  512    ' 0.5000 * 1024    ' 30
+Z06     =  602    ' 0.5878 * 1024    ' 36
+Z07     =  685    ' 0.6691 * 1024    ' 42
+Z08     =  761    ' 0.7431 * 1024    ' 48
+Z09     =  828    ' 0.8090 * 1024    ' 54
+Z10     =  887    ' 0.8660 * 1024    ' 60
+Z11     =  935    ' 0.9135 * 1024    ' 66
+Z12     =  974    ' 0.9511 * 1024    ' 72
+Z13     = 1002    ' 0.9781 * 1024    ' 78
+Z14     = 1018    ' 0.9945 * 1024    ' 84
+Z15     = 1024    ' 1.0000 * 1024    ' 90
+'180    =     ' 0.0000 * 1024    '    180
+'270    =     '-1.0000 * 1024    '    270
+
+' Clock constants
+_CX     = 64                    '\ clock center
+_CY     = 64                    '/
+_CD     = 120                   ' clock  face dia
+_CS     = 45                    ' second hand length
+_CM     = 40                    ' minute hand length
+_CH     = 30                    ' hour   hand length
+fgd     = blue/2 'green         ' foreground dial color (clock dial)
+bgd     = black                 ' background dial color
+fgh     = red                   ' hour hand color
+fgm     = yellow                ' minute hand color
+fgs     = white                 ' second hand color
+
+baud  = 2_000_000
+
+OBJ
+  lcd:  "LCD_ILI9341_XPT2046"
+  'term : "jm_serial"           ' LCD pasm cog driver (supports 6*8 and 8*8 pixel font)
+
+VAR
+  long cog                                             ' pasm cog+1
+  long tx,ty,tx40,ty40,tx280,ty200,spotx,spoty,int,clock_button
+  long cr
+
+DAT
+  colorlist word white, red+green, blue, green, red, red+blue, blue+green, blue/2
+
+PUB start() | i
+
+  cog := lcd.Start(LCD_rotate)                          ' sw/hw initialise LCD (rotate 0/90/180/270)
+  lcd.start_TS()
+  'term.start(baud)
+' screen defaults...
+  lcd.setFGcolor(blue)                                  ' set foreground color
+  lcd.setBGcolor(black)                                 ' set background color
+  lcd.clearScreen()                                     ' clear screen (background color)
+' Touchscreen enable interupt
+  lcd.get_ts($90)                                       'turn on ts_int
+
+  waitms(50)
+
+' Select one/some of the following...
+  waitms(1000)                                          ' wait
+  drawSomeChars()
+  waitms(1000)                                          ' wait
+  drawSomeLines()
+  waitms(1000)                                          ' wait
+  drawSomeBoxes()
+  waitms(1000)                                          ' wait
+  drawSomeCircles()
+  'waitms(1000)                                         ' wait
+  'waitms(5000)                                         ' wait
+
+' draw some text and then do clock...
+  lcd.clearScreen()
+  lcd.setFGcolor(green)
+  lcd.setBGcolor(black)
+  lcd.SetColRow(0, height/2)                            ' 2nd half of screen
+  repeat i from $20 to $7F                              ' 6*8 font 96 char set
+    lcd.DrawChar6x8(i)
+  lcd.SetColRow(0, height/2+20)
+      repeat i from $20 to $7F                          ' 8*8 font 96 char set
+        lcd.DrawChar8x8(i)
+
+' do clock...
+
+      lcd.clearScreen()
+      drawstring(100,160, string("CALIBRATE TOP LEFT"))
+      lcd.SetColRow(40, 40)
+      lcd.DrawChar8x8($78)  'draw top left calibration X
+      cr := 13
+      int := 1
+
+      lcd.Wait_for_touch()      'wait for touch
+
+      tx := lcd.get_ts($91)     '$91 turns off interupt and collects x position
+      tx40 := lcd.get_ts($91)   '$91 keeps off interupt after x data, calibration point tx40
+      ty := lcd.get_ts($D1)     '$D1 keeps off interupt and collects y position
+      ty40 := lcd.get_ts($D0)    'D0 turns interupt back on after calibration point ty40
+
+      'term.fstr4(string("X %d Y %d int %d %s"),tx40,ty40,int,@cr)
+      lcd.clearscreen()
+      drawstring(100,160, string("CALIBRATE BOTTOM RIGHT"))
+      lcd.SetColRow(280,200)
+      lcd.DrawChar8x8($78)  'draw bottom right calibration X
+
+      lcd.wait_for_untouch()           'wait until not touched
+      lcd.wait_for_touch()             'wait until touched
+
+      tx := lcd.get_ts($91)
+      tx280 := lcd.get_ts($91)       'calibration point tx280
+      ty := lcd.get_ts($D1)
+      ty200 := lcd.get_ts($D0)        'calibration point ty200
+
+      'term.fstr4(string("X %d Y %d int %d %s"),tx280,ty200,spotx,@cr)
+
+      lcd.clearscreen()
+      drawstring(100,160, string("TOUCH DISPLAY TO MAKE X"))
+      lcd.SetWindow(240,20,280,60)
+      lcd.FillWindow(white)
+      lcd.setBGcolor(white)
+      lcd.setFGcolor(black)
+      drawstring(245,36, string("CLOCK"))
+      lcd.setBGcolor(black)
+      lcd.setFGcolor(green)
+
+  clock_button := false
+
+  repeat until clock_button
+
+    lcd.wait_for_untouch()           'wait until not touched
+    lcd.wait_for_touch()             'wait until touched
+
+    tx := lcd.get_ts($91)
+    tx := lcd.get_ts($91)
+    ty := lcd.get_ts($D1)
+    ty := lcd.get_ts($D0)
+
+    spotx := 280-(((tx-tx280)*240)/(tx40-tx280)) 'the 240 is pixels in x direction between calibration marks
+    spoty := 200-(((ty-ty200)*160)/(ty40-ty200)) 'the 160 is pixels in y direction between calibration marks
+
+    if((spotx > 240) and (spotx < 300) and (spoty > 20) and (spoty < 60))
+      clock_button := true
+
+    if not clock_button
+      lcd.SetColRow(spotx,spoty)
+      lcd.DrawChar8x8($78)
+
+  'term.fstr4(string("X %d Y %d int %d %s"),spotx,spoty,spotx,@cr)
+
+  main_roundclock()
+
+'---------------------------end main-----------------------------------------------------
+
+PRI drawString(col,row, str) | i
+  lcd.setColRow(col, row)
+  repeat i from 0 to 25                                 ' 6*8 font 96 char set
+    if byte[str][i] == 0
+      quit
+    lcd.DrawChar6x8(byte[str][i])
+
+PRI drawLEDs(ys, v) | x, y, z, i
+
+  repeat i from 0 to 7
+    x := 46 + (i * 6)
+    if i > 3
+      x += 6
+    lcd.setWindow(x+1, ys+1, x+4, ys+6)
+    if (v >> (7-i)) & 1 == 1
+      lcd.fillWindow(red)
+    else
+      lcd.fillWindow(green)
+  lcd.setColRow(114, ys)
+  lcd.setFGcolor(yellow)
+  z := (v >> 4) | $30
+  if z > $39
+    z += 7
+  lcd.drawChar6x8(z)
+  z := (v & $F) | $30
+  if z > $39
+    z += 7
+  lcd.drawChar6x8(z)
+
+PRI drawStateLEDs(ys, v) | x, y, z, i
+
+  repeat i from 0 to 5
+    x := 58 + (i * 6)
+    if i > 3
+      x += 6
+    lcd.setWindow(x+1, ys+1, x+4, ys+6)
+    if (v >> (5-i)) & 1 == 1
+      lcd.fillWindow(red)
+    else
+      lcd.fillWindow(green)
+  lcd.setColRow(120, ys)
+  lcd.setFGcolor(red)
+  case v
+    1 : z := $30
+    2 : z := $31
+    4 : z := $32
+    8 : z := $33
+    16: z := $34
+    32: z := $35
+  lcd.drawChar6x8(z)
+
+PRI drawSomeChars() | i
+' Draw some chars ($20..$7F)
+
+  lcd.clearScreen()
+  lcd.setFGcolor(green)
+  lcd.setBGcolor(black)
+
+  repeat i from $20 to $7F                              ' 6*8 font 96 char set
+    lcd.DrawChar6x8(i)
+
+  lcd.SetColRow(0, height/2)                            ' 2nd half of screen
+
+  repeat i from $20 to $7F                              ' 8*8 font 96 char set
+    lcd.DrawChar8x8(i)
+
+PRI drawSomeLines()
+' Draw some lines
+
+  lcd.setBGcolor(black)
+  lcd.clearScreen()
+
+  drawLine(0, 0, width-1, height-1, blue)
+  drawLine(0, height-1, width-1, 0, blue)
+  drawLine(0, height/2-1, width-1, height/2-1, yellow)
+  drawLine(width/2-1, 0, width/2-1, height-1, yellow)
+  drawLine(width/4-1, 0, width-width/4-1, height-1, red)
+  drawLine(width/4-1, height-1, width-width/4-1, 0, red)
+
+PRI drawSomeBoxes() | i, xs, ys, xe, ye, z
+' Draw some diagonal boxes
+
+  lcd.clearScreen()
+
+  z  := 40
+  xs := 0
+  ys := 0
+  xe := z
+  ye := z
+  repeat i from 0 to 7
+    lcd.SetWindow(xs,ys,xe,ye)
+    lcd.FillWindow(colorlist[i])
+    xs += z
+    ys += z
+    xe += z
+    ye += z
+
+  z  := 40
+  xs := 0
+  ys := height-z
+  xe := z
+  ye := height-1
+  repeat i from 0 to 7
+    lcd.SetWindow(xs,ys,xe,ye)
+    lcd.FillWindow(colorlist[i])
+    xs += z
+    ys -= z
+    xe += z
+    ye -= z
+
+PRI drawSomeCircles() | i, z, dia
+' Draw some circles
+
+  lcd.clearScreen()
+
+  z := height/2/8
+  repeat i from 0 to 7
+    dia := z + (z * i)
+    drawCircle(width/2, height/2, dia, colorlist[i])
+
+''+-----------------------------------------------------+
+''| High Level Drivers                                  |
+''+-----------------------------------------------------+
+
+PRI drawLine(xs, ys, xe, ye, rgb) | i, x, y
+' Draw Line - start co-ords, end co-ords, color
+  'plot incrementing x axis
+  repeat i from 0 to xe-xs
+    y := (ye-ys)*i/(xe-xs)
+    drawPixel(xs+i, ys+y, rgb)
+  'plot incrementing y axis
+  repeat i from 0 to ye-ys
+    x := (xe-xs)*i/(ye-ys)
+    drawPixel(xs+x, ys+i, rgb)
+
+PRI drawCircle(xc, yc, dia, rgb) | x, y
+' Draw Circle d^2 = x^2 + y^2; y = SQRT(d^2 - x^2) (Pythagoras theorum)
+  repeat x from 0 to dia
+    y := SQRT((dia*dia) - (x*x))
+    'plot 4 quadrants for incrementing x axis
+    drawPixel(xc+x, yc+y, rgb)
+    drawPixel(xc-x, yc+y, rgb)
+    drawPixel(xc+x, yc-y, rgb)
+    drawPixel(xc-x, yc-y, rgb)
+    'plot 4 quadrants for incrementing y axis (fills in more dots on circle)
+    drawPixel(xc+y, yc+x, rgb)
+    drawPixel(xc-y, yc+x, rgb)
+    drawPixel(xc+y, yc-x, rgb)
+    drawPixel(xc-y, yc-x, rgb)
+
+PRI drawPixel(x, y, rgb) | i
+' Draw 1 pixel
+  lcd.setWindow(x, y, x, y)                             ' 1 pixel
+  lcd.fillWindow(rgb)
+
+PRI fillRectangle(xs, ys, xe, ye, rgb)
+  lcd.setWindow(xs, ys, xe, ye)
+  lcd.fillWindow(rgb)
+
+''+-----------------------------------------------------+
+''| Special Functions...                                |
+''+-----------------------------------------------------+
+
+PRI main_roundclock() | h, hprev, m, mprev, s, sprev, tick, hx, hz, x
+' Round Clock
+
+  lcd.setFGcolor(fgd)
+  lcd.setBGcolor(bgd)
+'  lcd.clearScreen()
+
+' Draw Clock Face
+  drawCircle(_CX, _CY, _CD/2, fgd)
+  lcd.setColRow( 56,   8)
+  lcd.DrawChar6x8("1")
+  lcd.DrawChar6x8("2")
+  lcd.setColRow( 31,  16)
+  lcd.DrawChar6x8("1")
+  lcd.DrawChar6x8("1")
+  lcd.setColRow( 89,  16)
+  lcd.DrawChar6x8("1")
+  lcd.setColRow( 15,  36)
+  lcd.DrawChar6x8("1")
+  lcd.DrawChar6x8("0")
+  lcd.setColRow(106,  36)
+  lcd.DrawChar6x8("2")
+  lcd.setColRow(  8,  60)
+  lcd.DrawChar6x8("9")
+  lcd.setColRow(112,  60)
+  lcd.DrawChar6x8("3")
+  lcd.setColRow( 15,  84)
+  lcd.DrawChar6x8("8")
+  lcd.setColRow(106,  84)
+  lcd.DrawChar6x8("4")
+  lcd.setColRow( 31, 104)
+  lcd.DrawChar6x8("7")
+  lcd.setColRow( 89, 104)
+  lcd.DrawChar6x8("5")
+  lcd.setColRow( 60, 112)
+  lcd.DrawChar6x8("6")
+
+  tick := GETCT()
+
+' Draw the date                 ' date incrementing left as an exercise
+  lcd.SetWindow(92,0,0,0)                               ' only need to set x,y
+  lcd.DrawChar6x8("0")
+  lcd.DrawChar6x8("7")
+  lcd.DrawChar6x8(" ")
+  lcd.DrawChar6x8("N")
+  lcd.DrawChar6x8("O")
+  lcd.DrawChar6x8("V")
+  lcd.SetWindow(104,9,0,0)                              ' next line +1 pixel
+  lcd.DrawChar6x8("2")
+  lcd.DrawChar6x8("0")
+  lcd.DrawChar6x8("2")
+  lcd.DrawChar6x8("0")
+
+' Draw Clock Hands
+  hprev~
+  mprev~
+  sprev~
+  repeat
+    repeat h from 0 to 11
+      hx := h*5                                                                   ' hx= 0..59 for hour hand angle
+      drawLine(_CX, _CY, byte[@HH00][hprev*2],  byte[@HH00][hprev*2+1],  bgd)     ' remove prev hour hand
+      drawLine(_CX, _CY, byte[@HH00][hx*2],     byte[@HH00][hx*2+1],     bgd)     ' show hour hand
+      hprev := hx
+      repeat m from 0 to 59
+        drawLine(_CX, _CY, byte[@MH00][mprev*2], byte[@MH00][mprev*2+1], bgd)     ' remove prev minute hand
+        drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)     ' show minute hand
+        case m
+          12,24,36,48:                                                            '\ hx is +0/1/2/3/4 offset...
+            hx++                                                                  '| ...for hour hand to...
+            drawLine(_CX, _CY, byte[@HH00][hprev*2], byte[@HH00][hprev*2+1], bgd) '| ...advance every...
+            drawLine(_CX, _CY, byte[@HH00][hx*2], byte[@HH00][hx*2+1], fgh)       '| ...12 minutes...
+            hprev := hx                                                           '/ ...
+        mprev := m
+        repeat s from 0 to 59
+          drawLine(_CX, _CY, byte[@SH00][sprev*2], byte[@SH00][sprev*2+1], bgd)   ' remove prev second hand
+          drawLine(_CX, _CY, byte[@SH00][s*2],     byte[@SH00][s*2+1],     fgs)   ' show second hand
+          drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)   ' show minute hand
+          drawLine(_CX, _CY, byte[@HH00][hx*2],    byte[@HH00][hx*2+1],    fgh)   ' show hour hand
+          sprev := s
+          lcd.SetWindow(0,0,0,0)
+          if h<10
+            lcd.DrawChar6x8("0")
+            lcd.DrawChar6x8(h | $30)
+          else
+            lcd.DrawChar6x8("1")
+            lcd.DrawChar6x8((h-10) | $30)
+          lcd.DrawChar6x8(":")
+          x := m/10
+          lcd.DrawChar6x8(x | $30)
+          x := m//10
+          lcd.DrawChar6x8(x | $30)
+          lcd.DrawChar6x8(":")
+          x := s/10
+          lcd.DrawChar6x8(x | $30)
+          x := s//10
+          lcd.DrawChar6x8(x | $30)
+          tick += _clkfreq                                                        ' +1S
+          waitct(tick)
+
+DAT
+        orgh
+' Hands (seconds) x & y co-ords
+SH00    byte  _CX + ((_CS * Z00) >> 10), _CY - ((_CS * Z15) >> 10) '00
+        byte  _CX + ((_CS * Z01) >> 10), _CY - ((_CS * Z14) >> 10) '01
+        byte  _CX + ((_CS * Z02) >> 10), _CY - ((_CS * Z13) >> 10) '02
+        byte  _CX + ((_CS * Z03) >> 10), _CY - ((_CS * Z12) >> 10) '...
+        byte  _CX + ((_CS * Z04) >> 10), _CY - ((_CS * Z11) >> 10)
+        byte  _CX + ((_CS * Z05) >> 10), _CY - ((_CS * Z10) >> 10)
+        byte  _CX + ((_CS * Z06) >> 10), _CY - ((_CS * Z09) >> 10)
+        byte  _CX + ((_CS * Z07) >> 10), _CY - ((_CS * Z08) >> 10)
+        byte  _CX + ((_CS * Z08) >> 10), _CY - ((_CS * Z07) >> 10)
+        byte  _CX + ((_CS * Z09) >> 10), _CY - ((_CS * Z06) >> 10)
+        byte  _CX + ((_CS * Z10) >> 10), _CY - ((_CS * Z05) >> 10)
+        byte  _CX + ((_CS * Z11) >> 10), _CY - ((_CS * Z04) >> 10)
+        byte  _CX + ((_CS * Z12) >> 10), _CY - ((_CS * Z03) >> 10)
+        byte  _CX + ((_CS * Z13) >> 10), _CY - ((_CS * Z02) >> 10)
+        byte  _CX + ((_CS * Z14) >> 10), _CY - ((_CS * Z01) >> 10)
+
+        byte  _CX + ((_CS * Z15) >> 10), _CY + ((_CS * Z00) >> 10)
+        byte  _CX + ((_CS * Z14) >> 10), _CY + ((_CS * Z01) >> 10)
+        byte  _CX + ((_CS * Z13) >> 10), _CY + ((_CS * Z02) >> 10)
+        byte  _CX + ((_CS * Z12) >> 10), _CY + ((_CS * Z03) >> 10)
+        byte  _CX + ((_CS * Z11) >> 10), _CY + ((_CS * Z04) >> 10)
+        byte  _CX + ((_CS * Z10) >> 10), _CY + ((_CS * Z05) >> 10)
+        byte  _CX + ((_CS * Z09) >> 10), _CY + ((_CS * Z06) >> 10)
+        byte  _CX + ((_CS * Z08) >> 10), _CY + ((_CS * Z07) >> 10)
+        byte  _CX + ((_CS * Z07) >> 10), _CY + ((_CS * Z08) >> 10)
+        byte  _CX + ((_CS * Z06) >> 10), _CY + ((_CS * Z09) >> 10)
+        byte  _CX + ((_CS * Z05) >> 10), _CY + ((_CS * Z10) >> 10)
+        byte  _CX + ((_CS * Z04) >> 10), _CY + ((_CS * Z11) >> 10)
+        byte  _CX + ((_CS * Z03) >> 10), _CY + ((_CS * Z12) >> 10)
+        byte  _CX + ((_CS * Z02) >> 10), _CY + ((_CS * Z13) >> 10)
+        byte  _CX + ((_CS * Z01) >> 10), _CY + ((_CS * Z14) >> 10)
+
+        byte  _CX - ((_CS * Z00) >> 10), _CY + ((_CS * Z15) >> 10)
+        byte  _CX - ((_CS * Z01) >> 10), _CY + ((_CS * Z14) >> 10)
+        byte  _CX - ((_CS * Z02) >> 10), _CY + ((_CS * Z13) >> 10)
+        byte  _CX - ((_CS * Z03) >> 10), _CY + ((_CS * Z12) >> 10)
+        byte  _CX - ((_CS * Z04) >> 10), _CY + ((_CS * Z11) >> 10)
+        byte  _CX - ((_CS * Z05) >> 10), _CY + ((_CS * Z10) >> 10)
+        byte  _CX - ((_CS * Z06) >> 10), _CY + ((_CS * Z09) >> 10)
+        byte  _CX - ((_CS * Z07) >> 10), _CY + ((_CS * Z08) >> 10)
+        byte  _CX - ((_CS * Z08) >> 10), _CY + ((_CS * Z07) >> 10)
+        byte  _CX - ((_CS * Z09) >> 10), _CY + ((_CS * Z06) >> 10)
+        byte  _CX - ((_CS * Z10) >> 10), _CY + ((_CS * Z05) >> 10)
+        byte  _CX - ((_CS * Z11) >> 10), _CY + ((_CS * Z04) >> 10)
+        byte  _CX - ((_CS * Z12) >> 10), _CY + ((_CS * Z03) >> 10)
+        byte  _CX - ((_CS * Z13) >> 10), _CY + ((_CS * Z02) >> 10)
+        byte  _CX - ((_CS * Z14) >> 10), _CY + ((_CS * Z01) >> 10)
+
+        byte  _CX - ((_CS * Z15) >> 10), _CY - ((_CS * Z00) >> 10)
+        byte  _CX - ((_CS * Z14) >> 10), _CY - ((_CS * Z01) >> 10)
+        byte  _CX - ((_CS * Z13) >> 10), _CY - ((_CS * Z02) >> 10)
+        byte  _CX - ((_CS * Z12) >> 10), _CY - ((_CS * Z03) >> 10)
+        byte  _CX - ((_CS * Z11) >> 10), _CY - ((_CS * Z04) >> 10)
+        byte  _CX - ((_CS * Z10) >> 10), _CY - ((_CS * Z05) >> 10)
+        byte  _CX - ((_CS * Z09) >> 10), _CY - ((_CS * Z06) >> 10)
+        byte  _CX - ((_CS * Z08) >> 10), _CY - ((_CS * Z07) >> 10)
+        byte  _CX - ((_CS * Z07) >> 10), _CY - ((_CS * Z08) >> 10)
+        byte  _CX - ((_CS * Z06) >> 10), _CY - ((_CS * Z09) >> 10)
+        byte  _CX - ((_CS * Z05) >> 10), _CY - ((_CS * Z10) >> 10)
+        byte  _CX - ((_CS * Z04) >> 10), _CY - ((_CS * Z11) >> 10)
+        byte  _CX - ((_CS * Z03) >> 10), _CY - ((_CS * Z12) >> 10)
+        byte  _CX - ((_CS * Z02) >> 10), _CY - ((_CS * Z13) >> 10)
+        byte  _CX - ((_CS * Z01) >> 10), _CY - ((_CS * Z14) >> 10)
+
+' Hands (minutes) x & y co-ords
+MH00    byte  _CX + ((_CM * Z00) >> 10), _CY - ((_CM * Z15) >> 10) '00
+        byte  _CX + ((_CM * Z01) >> 10), _CY - ((_CM * Z14) >> 10) '01
+        byte  _CX + ((_CM * Z02) >> 10), _CY - ((_CM * Z13) >> 10) '02
+        byte  _CX + ((_CM * Z03) >> 10), _CY - ((_CM * Z12) >> 10) '...
+        byte  _CX + ((_CM * Z04) >> 10), _CY - ((_CM * Z11) >> 10)
+        byte  _CX + ((_CM * Z05) >> 10), _CY - ((_CM * Z10) >> 10)
+        byte  _CX + ((_CM * Z06) >> 10), _CY - ((_CM * Z09) >> 10)
+        byte  _CX + ((_CM * Z07) >> 10), _CY - ((_CM * Z08) >> 10)
+        byte  _CX + ((_CM * Z08) >> 10), _CY - ((_CM * Z07) >> 10)
+        byte  _CX + ((_CM * Z09) >> 10), _CY - ((_CM * Z06) >> 10)
+        byte  _CX + ((_CM * Z10) >> 10), _CY - ((_CM * Z05) >> 10)
+        byte  _CX + ((_CM * Z11) >> 10), _CY - ((_CM * Z04) >> 10)
+        byte  _CX + ((_CM * Z12) >> 10), _CY - ((_CM * Z03) >> 10)
+        byte  _CX + ((_CM * Z13) >> 10), _CY - ((_CM * Z02) >> 10)
+        byte  _CX + ((_CM * Z14) >> 10), _CY - ((_CM * Z01) >> 10)
+
+        byte  _CX + ((_CM * Z15) >> 10), _CY + ((_CM * Z00) >> 10)
+        byte  _CX + ((_CM * Z14) >> 10), _CY + ((_CM * Z01) >> 10)
+        byte  _CX + ((_CM * Z13) >> 10), _CY + ((_CM * Z02) >> 10)
+        byte  _CX + ((_CM * Z12) >> 10), _CY + ((_CM * Z03) >> 10)
+        byte  _CX + ((_CM * Z11) >> 10), _CY + ((_CM * Z04) >> 10)
+        byte  _CX + ((_CM * Z10) >> 10), _CY + ((_CM * Z05) >> 10)
+        byte  _CX + ((_CM * Z09) >> 10), _CY + ((_CM * Z06) >> 10)
+        byte  _CX + ((_CM * Z08) >> 10), _CY + ((_CM * Z07) >> 10)
+        byte  _CX + ((_CM * Z07) >> 10), _CY + ((_CM * Z08) >> 10)
+        byte  _CX + ((_CM * Z06) >> 10), _CY + ((_CM * Z09) >> 10)
+        byte  _CX + ((_CM * Z05) >> 10), _CY + ((_CM * Z10) >> 10)
+        byte  _CX + ((_CM * Z04) >> 10), _CY + ((_CM * Z11) >> 10)
+        byte  _CX + ((_CM * Z03) >> 10), _CY + ((_CM * Z12) >> 10)
+        byte  _CX + ((_CM * Z02) >> 10), _CY + ((_CM * Z13) >> 10)
+        byte  _CX + ((_CM * Z01) >> 10), _CY + ((_CM * Z14) >> 10)
+
+        byte  _CX - ((_CM * Z00) >> 10), _CY + ((_CM * Z15) >> 10)
+        byte  _CX - ((_CM * Z01) >> 10), _CY + ((_CM * Z14) >> 10)
+        byte  _CX - ((_CM * Z02) >> 10), _CY + ((_CM * Z13) >> 10)
+        byte  _CX - ((_CM * Z03) >> 10), _CY + ((_CM * Z12) >> 10)
+        byte  _CX - ((_CM * Z04) >> 10), _CY + ((_CM * Z11) >> 10)
+        byte  _CX - ((_CM * Z05) >> 10), _CY + ((_CM * Z10) >> 10)
+        byte  _CX - ((_CM * Z06) >> 10), _CY + ((_CM * Z09) >> 10)
+        byte  _CX - ((_CM * Z07) >> 10), _CY + ((_CM * Z08) >> 10)
+        byte  _CX - ((_CM * Z08) >> 10), _CY + ((_CM * Z07) >> 10)
+        byte  _CX - ((_CM * Z09) >> 10), _CY + ((_CM * Z06) >> 10)
+        byte  _CX - ((_CM * Z10) >> 10), _CY + ((_CM * Z05) >> 10)
+        byte  _CX - ((_CM * Z11) >> 10), _CY + ((_CM * Z04) >> 10)
+        byte  _CX - ((_CM * Z12) >> 10), _CY + ((_CM * Z03) >> 10)
+        byte  _CX - ((_CM * Z13) >> 10), _CY + ((_CM * Z02) >> 10)
+        byte  _CX - ((_CM * Z14) >> 10), _CY + ((_CM * Z01) >> 10)
+
+        byte  _CX - ((_CM * Z15) >> 10), _CY - ((_CM * Z00) >> 10)
+        byte  _CX - ((_CM * Z14) >> 10), _CY - ((_CM * Z01) >> 10)
+        byte  _CX - ((_CM * Z13) >> 10), _CY - ((_CM * Z02) >> 10)
+        byte  _CX - ((_CM * Z12) >> 10), _CY - ((_CM * Z03) >> 10)
+        byte  _CX - ((_CM * Z11) >> 10), _CY - ((_CM * Z04) >> 10)
+        byte  _CX - ((_CM * Z10) >> 10), _CY - ((_CM * Z05) >> 10)
+        byte  _CX - ((_CM * Z09) >> 10), _CY - ((_CM * Z06) >> 10)
+        byte  _CX - ((_CM * Z08) >> 10), _CY - ((_CM * Z07) >> 10)
+        byte  _CX - ((_CM * Z07) >> 10), _CY - ((_CM * Z08) >> 10)
+        byte  _CX - ((_CM * Z06) >> 10), _CY - ((_CM * Z09) >> 10)
+        byte  _CX - ((_CM * Z05) >> 10), _CY - ((_CM * Z10) >> 10)
+        byte  _CX - ((_CM * Z04) >> 10), _CY - ((_CM * Z11) >> 10)
+        byte  _CX - ((_CM * Z03) >> 10), _CY - ((_CM * Z12) >> 10)
+        byte  _CX - ((_CM * Z02) >> 10), _CY - ((_CM * Z13) >> 10)
+        byte  _CX - ((_CM * Z01) >> 10), _CY - ((_CM * Z14) >> 10)
+
+' Hands (hours) x & y co-ords
+HH00    byte  _CX + ((_CH * Z00) >> 10), _CY - ((_CH * Z15) >> 10) '00
+        byte  _CX + ((_CH * Z01) >> 10), _CY - ((_CH * Z14) >> 10) '01
+        byte  _CX + ((_CH * Z02) >> 10), _CY - ((_CH * Z13) >> 10) '02
+        byte  _CX + ((_CH * Z03) >> 10), _CY - ((_CH * Z12) >> 10) '...
+        byte  _CX + ((_CH * Z04) >> 10), _CY - ((_CH * Z11) >> 10)
+        byte  _CX + ((_CH * Z05) >> 10), _CY - ((_CH * Z10) >> 10)
+        byte  _CX + ((_CH * Z06) >> 10), _CY - ((_CH * Z09) >> 10)
+        byte  _CX + ((_CH * Z07) >> 10), _CY - ((_CH * Z08) >> 10)
+        byte  _CX + ((_CH * Z08) >> 10), _CY - ((_CH * Z07) >> 10)
+        byte  _CX + ((_CH * Z09) >> 10), _CY - ((_CH * Z06) >> 10)
+        byte  _CX + ((_CH * Z10) >> 10), _CY - ((_CH * Z05) >> 10)
+        byte  _CX + ((_CH * Z11) >> 10), _CY - ((_CH * Z04) >> 10)
+        byte  _CX + ((_CH * Z12) >> 10), _CY - ((_CH * Z03) >> 10)
+        byte  _CX + ((_CH * Z13) >> 10), _CY - ((_CH * Z02) >> 10)
+        byte  _CX + ((_CH * Z14) >> 10), _CY - ((_CH * Z01) >> 10)
+
+        byte  _CX + ((_CH * Z15) >> 10), _CY + ((_CH * Z00) >> 10)
+        byte  _CX + ((_CH * Z14) >> 10), _CY + ((_CH * Z01) >> 10)
+        byte  _CX + ((_CH * Z13) >> 10), _CY + ((_CH * Z02) >> 10)
+        byte  _CX + ((_CH * Z12) >> 10), _CY + ((_CH * Z03) >> 10)
+        byte  _CX + ((_CH * Z11) >> 10), _CY + ((_CH * Z04) >> 10)
+        byte  _CX + ((_CH * Z10) >> 10), _CY + ((_CH * Z05) >> 10)
+        byte  _CX + ((_CH * Z09) >> 10), _CY + ((_CH * Z06) >> 10)
+        byte  _CX + ((_CH * Z08) >> 10), _CY + ((_CH * Z07) >> 10)
+        byte  _CX + ((_CH * Z07) >> 10), _CY + ((_CH * Z08) >> 10)
+        byte  _CX + ((_CH * Z06) >> 10), _CY + ((_CH * Z09) >> 10)
+        byte  _CX + ((_CH * Z05) >> 10), _CY + ((_CH * Z10) >> 10)
+        byte  _CX + ((_CH * Z04) >> 10), _CY + ((_CH * Z11) >> 10)
+        byte  _CX + ((_CH * Z03) >> 10), _CY + ((_CH * Z12) >> 10)
+        byte  _CX + ((_CH * Z02) >> 10), _CY + ((_CH * Z13) >> 10)
+        byte  _CX + ((_CH * Z01) >> 10), _CY + ((_CH * Z14) >> 10)
+
+        byte  _CX - ((_CH * Z00) >> 10), _CY + ((_CH * Z15) >> 10)
+        byte  _CX - ((_CH * Z01) >> 10), _CY + ((_CH * Z14) >> 10)
+        byte  _CX - ((_CH * Z02) >> 10), _CY + ((_CH * Z13) >> 10)
+        byte  _CX - ((_CH * Z03) >> 10), _CY + ((_CH * Z12) >> 10)
+        byte  _CX - ((_CH * Z04) >> 10), _CY + ((_CH * Z11) >> 10)
+        byte  _CX - ((_CH * Z05) >> 10), _CY + ((_CH * Z10) >> 10)
+        byte  _CX - ((_CH * Z06) >> 10), _CY + ((_CH * Z09) >> 10)
+        byte  _CX - ((_CH * Z07) >> 10), _CY + ((_CH * Z08) >> 10)
+        byte  _CX - ((_CH * Z08) >> 10), _CY + ((_CH * Z07) >> 10)
+        byte  _CX - ((_CH * Z09) >> 10), _CY + ((_CH * Z06) >> 10)
+        byte  _CX - ((_CH * Z10) >> 10), _CY + ((_CH * Z05) >> 10)
+        byte  _CX - ((_CH * Z11) >> 10), _CY + ((_CH * Z04) >> 10)
+        byte  _CX - ((_CH * Z12) >> 10), _CY + ((_CH * Z03) >> 10)
+        byte  _CX - ((_CH * Z13) >> 10), _CY + ((_CH * Z02) >> 10)
+        byte  _CX - ((_CH * Z14) >> 10), _CY + ((_CH * Z01) >> 10)
+
+        byte  _CX - ((_CH * Z15) >> 10), _CY - ((_CH * Z00) >> 10)
+        byte  _CX - ((_CH * Z14) >> 10), _CY - ((_CH * Z01) >> 10)
+        byte  _CX - ((_CH * Z13) >> 10), _CY - ((_CH * Z02) >> 10)
+        byte  _CX - ((_CH * Z12) >> 10), _CY - ((_CH * Z03) >> 10)
+        byte  _CX - ((_CH * Z11) >> 10), _CY - ((_CH * Z04) >> 10)
+        byte  _CX - ((_CH * Z10) >> 10), _CY - ((_CH * Z05) >> 10)
+        byte  _CX - ((_CH * Z09) >> 10), _CY - ((_CH * Z06) >> 10)
+        byte  _CX - ((_CH * Z08) >> 10), _CY - ((_CH * Z07) >> 10)
+        byte  _CX - ((_CH * Z07) >> 10), _CY - ((_CH * Z08) >> 10)
+        byte  _CX - ((_CH * Z06) >> 10), _CY - ((_CH * Z09) >> 10)
+        byte  _CX - ((_CH * Z05) >> 10), _CY - ((_CH * Z10) >> 10)
+        byte  _CX - ((_CH * Z04) >> 10), _CY - ((_CH * Z11) >> 10)
+        byte  _CX - ((_CH * Z03) >> 10), _CY - ((_CH * Z12) >> 10)
+        byte  _CX - ((_CH * Z02) >> 10), _CY - ((_CH * Z13) >> 10)
+        byte  _CX - ((_CH * Z01) >> 10), _CY - ((_CH * Z14) >> 10)
+
+dat
+{{
++------------------------------------------------------------------------------------------------------------------------------+
+|                                                   TERMS OF USE: MIT License                                                  |
++------------------------------------------------------------------------------------------------------------------------------+
+|Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    |
+|files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    |
+|modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software|
+|is furnished to do so, subject to the following conditions:                                                                   |
+|                                                                                                                              |
+|The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.|
+|                                                                                                                              |
+|THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          |
+|WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         |
+|COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   |
+|ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         |
++------------------------------------------------------------------------------------------------------------------------------+
+}}

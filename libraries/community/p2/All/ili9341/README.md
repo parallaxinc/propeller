@@ -1,4 +1,4 @@
-# ILI9341
+# ILI9341_XPT2046
 
 ## Language
 
@@ -10,7 +10,7 @@ Display
 
 ## Description
 
-ILI9341 is a spin2 object that interfaces the ILI9341 chip with the Propeller 2 P2X8C4M64P
+ILI9341_XPT2046 is a spin2 object that interfaces the ILI9341 Video chip and the XPT2046 chip with the Propeller 2 P2X8C4M64P
 
 Learn more about the Propeller 2 at [www.parallax.com](http://www.parallax.com).
 
@@ -18,9 +18,9 @@ Learn more about the Propeller 2 at [www.parallax.com](http://www.parallax.com).
 
 ## License
 
-Copyright © 2020 Greg LaPolla ILI9341 Spin 2 Object is licensed under the MIT License.
+Copyright © 2021 Greg LaPolla ILI9341_XPT2046 Spin 2 Object is licensed under the MIT License.
 
 ## Credits
 
-ILI9341 Spin 2 Object is developed by Greg LaPolla. 
-This Driver was derived from The object ILI9341-spi by  Mark Tillotson 
+ILI9341_XPT2046 Spin 2 Object is maintained by Greg LaPolla. <br />
+This Driver was derived from Cluso's ST7796 4.0in SPI 480x320 w Touch LCD Driver
