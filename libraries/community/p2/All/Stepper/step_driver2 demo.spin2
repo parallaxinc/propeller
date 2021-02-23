@@ -1,0 +1,232 @@
+CON debug_log_size = 100_000
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDI   = 59  { O }
+  SD_SDO   = 58  { I }
+
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { IO }
+
+
+con { app io pins }
+   enpin  = 14    ' motor enable
+  _spin   = 15    'start stop pin (input)
+  _cpin   = 17    'step output pin         (or cw pin)
+  _dpin   = 19    'direction output pin    (or ccw pin)
+
+  NL = 13  ''NL: New Line
+
+
+
+  MAXSTR_LENGTH = 99                                   'Maximum length of received numerical string (not including zero terminator).
+
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  stepper   : "step_driver2_cc"                                  ' pasm stepper routine
+                                                        ' use step_driver2_sd  for step and direction
+                                                        ' use step_driver2_cc  or cw, ccw motor drivers
+  term : "jm_serial"                                            ' serial IO for terminal
+
+
+
+dat
+
+  Banner        byte    "Stepper Demo", 0
+
+var
+   long cpos
+   long mode
+   long stm
+   long spd
+   long ofs
+   long ve
+   long ast
+   long sst
+   long start
+   long endt
+
+   byte char
+   byte spin
+   byte cpin
+   byte dpin
+   byte  str_buffer[MAXSTR_LENGTH+1]                     'String buffer for numerical strings
+
+CON     '1 - Run this program with F10
+        '2 - Start the PST with F12 , check echo on,  Baud rate set above  (BR_TERM  = 115_200)
+        '3 - press any key to start
+
+pub main() | t, value,st, sp
+  spin := _spin
+  cpin := _cpin
+  dpin := _dpin
+
+  setup()                 'start the stepper driver, get the addresses for program values
+
+  wait_for_terminal(true)   'press any key after the parallax serial terminal (PST) is started
+
+  long[cpos][0] := 1000     'preset the starting position   (just an arbitrary value, defaults to zero)
+  showvalues()
+
+  repeat
+    term.fstr0(string("\r\rEnter steps: "))        ' ex: 500 -> 500 steps cw, -1000 -> 1000 steps ccw
+    st := decin()
+
+    term.fstr0(string("\rEnter speed: "))          ' 1 to approx 45_000, steps per second
+    sp := abs(decin())                             ' negative speed not allowed
+    if sp == 0                                     'zero speed not allowed
+      sp++
+
+    endt := start := getms()
+
+                                       'this is the call to the stepper driver
+    stepper.move(sp,st)           'speed, steps
+
+
+    term.tx(16)     'cls
+    repeat
+        showvalues()
+        endt := getms()
+    while long[mode][0] & %00001 == 1  'repeat while mode[bit0] = 1 (moving)
+
+
+    term.tx(16)     'cls
+    showvalues()                    'one more time after all the results are in
+
+
+
+
+pub setup()
+
+  stepper.start(spin, cpin, dpin)                          'start/stop pin, (step pin, dir pin to driver)
+  cpos := stepper.getpos()
+  mode := stepper.getmode()
+  stm  := stepper.getsteps()
+  ofs  := stepper.getoff()
+  ve   := stepper.getvel()
+  ast  := stepper.getas()
+  sst  := stepper.getss()
+
+  term.start(BR_TERM)                                           ' start terminal io
+  pinlow(enpin)
+
+pub wait_for_terminal(clear)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    term.tx(term.CLS)
+
+PUB DecIn() : value
+{{Receive carriage return terminated string of characters representing a decimal value.
+  Returns: the corresponding decimal value.}}
+
+  StrInMax(@str_buffer, MAXSTR_LENGTH)
+  value := StrToBase(@str_buffer, 10)
+
+PUB StrInMax(stringptr, maxcount) |c
+{{Receive a string of characters (either carriage return terminated or maxcount in length) and stores it (zero terminated)
+starting at stringptr.  Waits until either full string received or maxcount characters received.
+  Parameters:
+    stringptr - pointer to memory in which to store received string characters.
+                Memory reserved must be large enough for all string characters plus a zero terminator (maxcount + 1).
+    maxcount  - maximum length of string to receive, or -1 for unlimited.}}
+
+  repeat while (maxcount--)                                             'While maxcount not reached
+    c := term.rx()
+    if c == 8                                                           'backspace
+       byte[stringptr--] :=  0
+       quit
+    elseif (byte[stringptr++] := c) == NL                               'Get chars until NL
+        quit
+  byte[stringptr+(byte[stringptr-1] == NL)]~                            'Zero terminate string; overwrite NL or append 0 char
+
+PRI StrToBase(stringptr, base) : value | chr, index
+{Converts a zero terminated string representation of a number to a value in the designated base.
+Ignores all non-digit characters (except negative (-) when base is decimal (10)).}
+
+  value := index := 0
+  repeat until ((chr := byte[stringptr][index++]) == 0)
+    chr := -15 + --chr & %11011111 + 39*(chr > 56)                              'Make "0"-"9","A"-"F","a"-"f" be 0 - 15, others out of range
+    if (chr > -1) and (chr < base)                                              'Accumulate valid values into result; ignore others
+      value := value * base + chr
+  if (base == 10) and (byte[stringptr] == "-")                                  'If decimal, address negative sign; ignore otherwise
+    value := - value
+
+PRI Showvalues()
+    term.fstr1(string("\001%s\r"), @Banner)
+
+    term.fstr0(string("\rCurrent Position: "))
+    term.jdpdec(long[cpos][0],0 ,6," ")
+
+    term.fstr0(string("\r            Mode: "))
+    term.fbin(long[mode][0],6)
+
+    term.fstr0(string("\r          Offset: "))
+    term.jdpdec(long[ofs][0],0,6," ")
+
+    term.fstr0(string("\r     Accel steps: "))
+    term.jdpdec(long[ast][0], 0, 6, " ")
+
+    term.fstr0(string("\r  Steps at speed: "))
+    term.jdpdec(long[sst][0], 0,6," ")
+
+    term.fstr0(string("\r    Max Velocity: "))
+    term.jdpdec(long[ve][0],0,6," ")
+
+    term.fstr0(string("\r\011Elapsed time (msec): "))
+    term.jdpdec(endt - start,0,6," ")
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

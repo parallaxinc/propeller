@@ -1,0 +1,322 @@
+{P2 Stepper motor driver }
+
+
+CON
+
+
+VAR
+  long cog            ' cog flag/id
+
+  long  CP            'current position
+  long  SPD           'Speed in steps/sec
+  long  STM           'steps to move +/-      Routine clears this after values are read
+  long  Asteps        'Number of steps for acceleration phase
+  long  Offset        'degrees at ends of range to skip
+
+
+  long  MODEb         'mode bits
+                      'b0 = 0 - stopped, 1 - moving
+                      'b1 = 1 - accel
+                      'b2 = 1 - decel
+                      'b3 = 1 - at slew speed
+                      'b4 = direction, 1=cw
+                      'b5 1 = decel to stop
+
+  long  sspn         'SSPIN - set to 0 to stop, 1 to start
+  long  cwpin        'cw pin to driver
+  long  ccwpin       'ccw pin to driver
+  long  frequency    'clock frequency
+  long  del
+  long  vel
+  long  as
+  long  ds
+  long  ss
+  long  stn
+
+
+PUB start(sp, cw, ccw): result
+  stop()
+  longmove(@sspn, @sp, 3)                        ' save pins
+  frequency := clkfreq
+  cog := COGINIT(COGEXEC_NEW,@_begin,@cp) +1
+  return cog
+
+PUB stop()
+
+'' Stop stepper driver
+'' -- frees a cog if driver was running
+
+  if (cog)                                                      ' cog active?
+    cogstop(cog-1)                                              '  yes, shut it down
+    cog := 0                                                    '  and mark stopped
+
+PUB move(sp,st)| t
+
+  asteps := sp/10 +2         'effectively sets max acceleration
+  t := abs(st/2)
+  offset := 40
+  if asteps > t
+    asteps := t              'limits accel/ decel steps to 1/2 the total steps
+  ss := abs(st) - (asteps*2)
+  if ss == 0
+    sp := 10*(asteps -2)     'limit acceleration for short moves
+
+  longmove(@spd, @sp, 2)          'copy values   - start the move
+
+PUB getpos(): result
+  return @cp
+
+PUB getsteps(): result
+  return @stm
+
+PUB getmode(): result
+  return @modeb
+
+PUB getoff(): result
+  return @offset
+
+PUB getvel(): result
+  return @vel
+
+PUB getas(): result
+  return @asteps
+
+PUB getss(): result
+  return @ss
+
+
+DAT           ORG   0
+
+_begin        mov       ptrb, ptra
+              add       ptrb, #24                      '4 bytes * 6 longs
+              setq      #4-1
+              rdlong    sspin,ptrb[0]                  'get three pin numbers  and frequency
+
+              drvl      cwpn
+              drvl      ccwpn
+
+_stopped      rdlong    steps, ptra[2]  wz            'wait for steps to be non zero
+        if_z  jmp       #_stopped
+
+              setq      #5-1                          'get 5 parameters from hub
+              rdlong    cpos, ptra[0]
+
+              wrlong    #0, ptra[2]                   'set steps to zero to indicate we received them
+
+             ' wrlong    astps, ptra[12]
+             ' wrlong    angoff, ptra[13]
+
+              drvl      cwpn
+              drvl      ccwpn
+              mov       stepp, cwpn                   'anticipate cw
+              mov       mode, #0
+              abs       steps         wc              'convert neg steps to pos
+              muxc      mode, #16
+        if_nc jmp       #_dirset                      'set direction pin based on c D[31]
+              mov       stepp, ccwpn                  'if ccw swap the pins
+_dirset       wrlong    mode, ptra[5]                 'output the mode with dir bit set
+
+_setup        mov       halfsp, speed
+              shr       halfsp, #1                       'make half speed variable
+
+              mov       stepn, #0
+              mov       stom, steps
+              mov       newmin, angoff
+              mov       newrange, n360
+              sub       newrange, angoff
+              sub       newrange, angoff              'newrange = angoff to (360-angoff)
+              shl       newmin, #7                    'partial multiply x128   11930464/128 = 93206 remaining
+              mov       xsteps, #0
+              mov       t3, astps
+              shl       t3, #1                        'x2 -  accel and decel
+              cmp       t3, stom     wc               'more than accel + decel steps?
+       if_nc  jmp       #_waitstart
+              mov       xsteps, steps
+              sub       xsteps, t3                    'xsteps = excess steps above accel +decel or zero
+              mov       stom, t3
+
+
+'******************************************************************************************************
+
+_waitstart    testp     sspin      wc                   'wait for start pin = 1
+      if_nc   jmp       #_waitstart
+
+              or        mode, #%011                     'moving, accel
+              wrlong    mode, ptra[5]
+              call      #_dostep                        'output a step
+
+_mainloop     testp     sspin     wc                    'still in run mode?
+        if_c  jmp       #_mlp1                          'yes, keep running
+                                                        'if stop pressed
+              or        mode, #%100000                  'turn on decel_to_stop
+              sub       steps, xsteps
+              mov       xsteps, #0
+
+_mlp1         cmp       astps, stepn   wz              'done accelerating?
+        if_z  jmp       # _mlp2
+        if_nz call      #_waitstep
+              jmp       #_mainloop
+
+_mlp2         cmp       xsteps, #1    wz                'wait till the last at_speed step
+       if_z   jmp       #_checknextmove
+
+_mlp3         tjz       xsteps, #_mlp5                  'if xsteps = 0, decelerate
+_mlp4         andn      mode, #%01110                   'acceleration done
+              or        mode, #%01000                   'set mode -> at speed
+              jmp       #_mlp6
+
+_mlp5         andn      mode, #%01110
+              or        mode, #%00100                   'set mode -> decel
+              wrlong    t2, ptra[11]                    'output top speed
+
+_mlp6         wrlong    mode, ptra[5]
+              call      #_waitstep
+              jmp       #_mainloop
+
+'******************************************************************************************************
+
+_checknextmove
+              rdlong    steps2, ptra[2]  wz
+        if_z  jmp       #_mlp3                          'no new move to consider
+
+              mov       t1, #0                         'else- check if direction is same
+              abs       steps2         wc              'convert neg steps to pos
+              muxc      t1, #16                        'set direction bit
+              mov       t2, mode
+              and       t2, #%10000                    'clear all but direction bit
+              cmp       t1, t2         wz             ' is direction the same as current
+      if_nz   jmp       #_mlp3                        'direction is different we need to stop before starting next move
+
+              rdlong    speed2, ptra[1]
+              cmp       speed, speed2   wz           'is speed the same
+       if_nz  jmp       #_mlp3                        'not the same, can't continue
+
+_same_speed   add       steps, steps2                 'add new steps to current steps
+              add       xsteps, steps2                'new steps are all at_speed steps
+              wrlong    #0, ptra[2]                   'set steps to zero to indicate we received them
+              jmp       #_mlp4
+
+'*****************************************************************************************************
+
+_waitstep     waitct2                                   'wait for the delay period to end
+              'then start another pulse
+_dostep       tjnz      steps, #_dostep1                'zero steps left, we're done
+              pop       t1                              'pop the unused return address
+              and       mode, #%0100000                 'indicate stopped  but leave b5 set if decelerate_to_stop
+              wrlong    cpos, ptra[0]
+              wrlong    mode, ptra[5]
+              jmp       #_stopped
+
+_dostep1      drvh      stepp                           'step pin high
+              getct     cv
+              addct1    cv,delayh                        'start the pulse high timer
+
+              testb     mode, #4     wc                 'check the direction bit
+              sumc      cpos, #1                        'add/subtract from current position
+              wrlong    cpos, ptra[0]                   'update current position
+
+              waitct1
+              drvl      stepp                           'step pulse end
+
+_ws1          testb     mode, #3     wc                 'at speed?
+        if_c  sub       xsteps, #1                      'yes, dec xsteps
+        if_c  jmp       #_ws2                           'yes, keep old delay
+
+              call      #_getdelay                      'get new delay if accel or decel
+
+_ws2          addct2    cv, delay                       'start the delay timer
+              sub       steps, #1                       'decrement the steps to go
+              testb     mode, #3     wc                 'mode = at speed?
+        if_nc add       stepn, #1                       'inc stepn if not
+              ret
+
+_getdelay     qmul      stepn, newrange                 'scale step to range angoff - (360 - angoff)
+              getqx     t1
+              shl       t1, #7                          'partial multiply *32
+              qdiv      t1, stom
+              getqx     newvalue
+              add       newvalue, newmin                'new value is converted oldvalue
+              qmul      newvalue, mult                  'finish multiply * 93206
+              getqx     newvalue
+              qrotate   halfsp, newvalue                   'get cosine of vector
+              getqx     t1
+              mov       t2, halfsp
+              sub       t2, t1                          'get velocity
+
+              fges      t2, #1                          'avoid divide by zero
+              qdiv      freq, t2                        'delay = frequency/ velocity
+              getqx     delay
+              fles      delay, maxdelay
+              ret
+
+
+'-----------------------------------------------------------------------------------------------
+
+delayh        long      1000                    'step output high time  1000/200_000_000 = 5µs
+delay         long      1                       'delay between steps - calculated
+n360          long      360                     'the number 360
+mult          long      93206                   '372827 * 32 = 11930464 * 360 = FFFFFFFF = 4294967295 = 359.999999999degress
+maxdelay      long      95000000
+
+cpos          res       1                       'current position - steps
+speed         res       1                       'speed -steps/sec
+steps         res       1                       'steps to move
+astps         res       1                       'accel/ decel steps
+angoff        res       1
+
+mode          res       1                       'b0 = 0 - stopped, 1 - moving
+                                                'b1 = 1 - accel
+                                                'b2 = 1 - decel
+                                                'b3 = 1 - at slew speed
+                                                'b4 = 1 direction = cw
+
+sspin         res       1                       'start =1 stop =0 pin  (input)
+cwpn          res       1                       'output to driver
+ccwpn         res       1                       '   "
+freq          res       1                       'system clock frequency
+
+stepp         res       1                       'depending on direction, either cwpn or ccwpn
+
+t1            res       1                       'temp variables
+t2            res       1
+t3            res       1
+cv            res       1                       'counter value
+
+stepn         res       1                       'step number
+oldval        res       1
+newmin        res       1
+newvalue      res       1                       'converted old value
+newrange      res       1
+halfsp        res       1                       'speed/2
+stom          res       1                       'steps to move
+xsteps        res       1                       'excess steps = total steps - (2*asteps)
+
+steps2        res       1                       'second move steps and speed
+speed2        res       1
+
+              fit 150
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
