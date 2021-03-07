@@ -18,3 +18,4 @@
 
 [JM RGBX Pixel Driver](../All/jm_rgbx_pixel)
 
+[MAX7219 Dot Matrix Master](../All/max7219-dot-matrix-master)

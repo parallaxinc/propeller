@@ -1,0 +1,1022 @@
+{{
+
+  MAX7219 Dot Matrix MCU 8x32 LED Display Module Scrolling Demo
+  Author: Greg LaPolla
+  E-Mail: glapolla@gmail.com
+  Copyright (c) 2021 Greg LaPolla
+  See end of file for terms of use
+
+  This object is based on some arduino code posted in the arduino forum.  I do not have the original authors name
+
+}}
+
+CON
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+  DIN = 9                                                       ' DataIn pin (18)
+  CLK = 10                                                      ' Clock pin (17)
+  LOAD = 11                                                     ' Load pin (16)
+
+  numDevices = 4                                                ' Number of MAX7219 LED Driver Chips (1-8)
+  scrollDelay = 5
+
+
+VAR
+
+  long bufferLong [14]
+
+OBJ
+         lc : "Led_Control"
+
+
+PUB main()| x, text
+
+  x:= 0
+
+  lc.start (DIN,CLK,LOAD,numDevices)
+
+  repeat while x < numDevices
+    lc.shutdown(x,false)       'The MAX72XX is in power-saving mode on startup
+    lc.setIntensity(x,8)       'Set the brightness to default value
+    lc.clearDisplay(x)         'and clear the display
+    x++
+
+  text := @scrollText
+
+  scrollMessage(text)
+  scrollFont()
+
+PUB scrollFont()| counter
+
+  counter := $20
+  repeat while counter < $80
+    loadBufferLong(counter)
+    waitms(scrollDelay)
+    counter++
+
+PUB scrollMessage(messageString)| counter, myChar
+
+  counter := 0
+  myChar := 0
+
+  repeat
+    ' read back a char
+    myChar := byte [messageString][counter]
+
+    if (myChar <> 0)
+      loadBufferLong(myChar)
+
+    counter++
+  while (myChar <> 0)
+
+PUB loadBufferLong(ascii)| a, c, x, count
+
+  if (ascii >= $20 && ascii <=$7f)
+
+    a := 0
+
+    repeat while a < 7                                                 ' Loop 7 times for a 5x7 font
+      c := font5x7[(((ascii - $20) * 8) + a)]                          ' Index into character table to get row data
+      x := bufferLong [a*2]                                            ' Load current scroll buffer
+      x := x | c                                                       ' OR the new character onto end of current
+      bufferLong [a*2] := x                                            ' Store in buffer
+      a++
+
+    count := font5x7[(((ascii - $20) * 8) + 7)]                        ' Index into character table for kerning data
+    x:=0
+    repeat while x < count
+      rotateBufferLong()
+      printBufferLong()
+      waitms(scrollDelay)
+      x++
+
+PUB rotateBufferLong()| a, x, b
+
+  a := 0
+
+  repeat while a < 7                                                   ' Loop 7 times for a 5x7 font
+    x := bufferLong [a*2]                                              ' Get low buffer entry
+    b := x.[31]                                                        ' Copy high order bit that gets lost in rotation
+    x := x << 1                                                        ' Rotate left one bit
+    bufferLong [a*2] := x                                              ' Store new low buffer
+    x := bufferLong [a*2+1]                                            ' Get high buffer entry
+    x := x << 1                                                        ' Rotate left one bit
+    x.[0] := b                                                         ' Store saved bit
+    bufferLong [a*2+1] := x                                            ' Store new high buffer
+    a++
+
+PUB printBufferLong()| a,x,y
+
+  a:=0
+
+  repeat while a < 7                                                   ' Loop 7 times for a 5x7 font
+    x := bufferLong [a*2+1]                                            ' Get high buffer entry
+    y := x                                                             ' Mask off first character
+    lc.setRow(3,a,y)                                                   ' Send row to relevent MAX7219 chip
+    x := bufferLong [a*2]                                              ' Get low buffer entry
+    y := (x>>24)                                                       ' Mask off second character
+    lc.setRow(2,a,y)                                                   ' Send row to relevent MAX7219 chip
+    y := (x>>16)                                                       ' Mask off third character
+    lc.setRow(1,a,y)                                                   ' Send row to relevent MAX7219 chip
+    y := (x>>8)                                                        ' Mask off forth character
+    lc.setRow(0,a,y)                                                   ' Send row to relevent MAX7219 chip
+    a++
+
+DAT
+
+scrollText    BYTE      "  THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG 1234567890 the quick brown fox jumped over the lazy dog   ", 0
+
+' Numeric Font Matrix (Arranged as 7x font data + 1x kerning data)
+
+font5x7
+byte %00000000  'Space (Char 0x20)
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 6
+
+byte %10000000  '!
+byte %10000000
+byte %10000000
+byte %10000000
+byte %00000000
+byte %00000000
+byte %10000000
+byte 2
+
+byte %10100000  '"
+byte %10100000
+byte %10100000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 4
+
+byte %01010000  '#
+byte %01010000
+byte %11111000
+byte %01010000
+byte %11111000
+byte %01010000
+byte %01010000
+byte 6
+
+byte %00100000  '$
+byte %01111000
+byte %10100000
+byte %01110000
+byte %00101000
+byte %11110000
+byte %00100000
+byte 6
+
+byte %11000000  '%
+byte %11001000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %10011000
+byte %00011000
+byte 6
+
+byte %01100000  '&
+byte %10010000
+byte %10100000
+byte %01000000
+byte %10101000
+byte %10010000
+byte %01101000
+byte 6
+
+byte %11000000  ''
+byte %01000000
+byte %10000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 3
+
+byte %00100000  '(
+byte %01000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %01000000
+byte %00100000
+byte 4
+
+byte %10000000  ')
+byte %01000000
+byte %00100000
+byte %00100000
+byte %00100000
+byte %01000000
+byte %10000000
+byte 4
+
+byte %00000000  '*
+byte %00100000
+byte %10101000
+byte %01110000
+byte %10101000
+byte %00100000
+byte %00000000
+byte 6
+
+byte %00000000  '+
+byte %00100000
+byte %00100000
+byte %11111000
+byte %00100000
+byte %00100000
+byte %00000000
+byte 6
+
+byte %00000000  ',
+byte %00000000
+byte %00000000
+byte %00000000
+byte %11000000
+byte %01000000
+byte %10000000
+byte 3
+
+byte %00000000  '-
+byte %00000000
+byte %11111000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 6
+
+byte %00000000  '.
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %11000000
+byte %11000000
+byte 3
+
+byte %00000000  '/
+byte %00001000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %10000000
+byte %00000000
+byte 6
+
+byte %01110000  '0
+byte %10001000
+byte %10011000
+byte %10101000
+byte %11001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %01000000  '1
+byte %11000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %11100000
+byte 4
+
+byte %01110000  '2
+byte %10001000
+byte %00001000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %11111000
+byte 6
+
+byte %11111000  '3
+byte %00010000
+byte %00100000
+byte %00010000
+byte %00001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %00010000  '4
+byte %00110000
+byte %01010000
+byte %10010000
+byte %11111000
+byte %00010000
+byte %00010000
+byte 6
+
+byte %11111000  '5
+byte %10000000
+byte %11110000
+byte %00001000
+byte %00001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %00110000  '6
+byte %01000000
+byte %10000000
+byte %11110000
+byte %10001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %11111000  '7
+byte %10001000
+byte %00001000
+byte %00010000
+byte %00100000
+byte %00100000
+byte %00100000
+byte 6
+
+byte %01110000  '8
+byte %10001000
+byte %10001000
+byte %01110000
+byte %10001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %01110000  '9
+byte %10001000
+byte %10001000
+byte %01111000
+byte %00001000
+byte %00010000
+byte %01100000
+byte 6
+
+byte %00000000  ':
+byte %11000000
+byte %11000000
+byte %00000000
+byte %11000000
+byte %11000000
+byte %00000000
+byte 3
+
+byte %00000000  '
+byte %11000000
+byte %11000000
+byte %00000000
+byte %11000000
+byte %01000000
+byte %10000000
+byte 3
+
+byte %00010000  '<
+byte %00100000
+byte %01000000
+byte %10000000
+byte %01000000
+byte %00100000
+byte %00010000
+byte 5
+
+byte %00000000  '=
+byte %00000000
+byte %11111000
+byte %00000000
+byte %11111000
+byte %00000000
+byte %00000000
+byte 6
+
+byte %10000000  '>
+byte %01000000
+byte %00100000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %10000000
+byte 5
+
+byte %01110000  '?
+byte %10001000
+byte %00001000
+byte %00010000
+byte %00100000
+byte %00000000
+byte %00100000
+byte 6
+
+byte %01110000  '@
+byte %10001000
+byte %00001000
+byte %01101000
+byte %10101000
+byte %10101000
+byte %01110000
+byte 6
+
+byte %01110000  'A
+byte %10001000
+byte %10001000
+byte %10001000
+byte %11111000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %11110000  '%
+byte %10001000
+byte %10001000
+byte %11110000
+byte %10001000
+byte %10001000
+byte %11110000
+byte 6
+
+byte %01110000  'C
+byte %10001000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %11100000  'D
+byte %10010000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10010000
+byte %11100000
+byte 6
+
+byte %11111000  'E
+byte %10000000
+byte %10000000
+byte %11110000
+byte %10000000
+byte %10000000
+byte %11111000
+byte 6
+
+byte %11111000  'F
+byte %10000000
+byte %10000000
+byte %11110000
+byte %10000000
+byte %10000000
+byte %10000000
+byte 6
+
+byte %01110000  'G
+byte %10001000
+byte %10000000
+byte %10111000
+byte %10001000
+byte %10001000
+byte %01111000
+byte 6
+
+byte %10001000  'H
+byte %10001000
+byte %10001000
+byte %11111000
+byte %10001000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %11100000  'I
+byte %01000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %11100000
+byte 4
+
+byte %00111000  'J
+byte %00010000
+byte %00010000
+byte %00010000
+byte %00010000
+byte %10010000
+byte %01100000
+byte 6
+
+byte %10001000  'K
+byte %10010000
+byte %10100000
+byte %11000000
+byte %10100000
+byte %10010000
+byte %10001000
+byte 6
+
+byte %10000000  'L
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %11111000
+byte 6
+
+byte %10001000  'M
+byte %11011000
+byte %10101000
+byte %10101000
+byte %10001000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %10001000  'N
+byte %10001000
+byte %11001000
+byte %10101000
+byte %10011000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %01110000  'O
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %11110000  'P
+byte %10001000
+byte %10001000
+byte %11110000
+byte %10000000
+byte %10000000
+byte %10000000
+byte 6
+
+byte %01110000  'Q
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10101000
+byte %10010000
+byte %01101000
+byte 6
+
+byte %11110000  'R
+byte %10001000
+byte %10001000
+byte %11110000
+byte %10100000
+byte %10010000
+byte %10001000
+byte 6
+
+byte %01111000  'S
+byte %10000000
+byte %10000000
+byte %01110000
+byte %00001000
+byte %00001000
+byte %11110000
+byte 6
+
+byte %11111000  'T
+byte %00100000
+byte %00100000
+byte %00100000
+byte %00100000
+byte %00100000
+byte %00100000
+byte 6
+
+byte %10001000  'U
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %10001000  'V
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %01010000
+byte %00100000
+byte 6
+
+byte %10001000  'W
+byte %10001000
+byte %10001000
+byte %10101000
+byte %10101000
+byte %10101000
+byte %01010000
+byte 6
+
+byte %10001000  'X
+byte %10001000
+byte %01010000
+byte %00100000
+byte %01010000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %10001000  'Y
+byte %10001000
+byte %10001000
+byte %01010000
+byte %00100000
+byte %00100000
+byte %00100000
+byte 6
+
+byte %11111000  'Z
+byte %00001000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %10000000
+byte %11111000
+byte 6
+
+byte %11100000  '[
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %11100000
+byte 4
+
+byte %00000000  '(Backward Slash)
+byte %10000000
+byte %01000000
+byte %00100000
+byte %00010000
+byte %00001000
+byte %00000000
+byte 6
+
+byte %11100000  ']
+byte %00100000
+byte %00100000
+byte %00100000
+byte %00100000
+byte %00100000
+byte %11100000
+byte 4
+
+byte %00100000  '^
+byte %01010000
+byte %10001000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 6
+
+byte %00000000  '_
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %11111000
+byte 6
+
+byte %10000000  '`
+byte %01000000
+byte %00100000
+byte %00000000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 4
+
+byte %00000000  'a
+byte %00000000
+byte %01110000
+byte %00001000
+byte %01111000
+byte %10001000
+byte %01111000
+byte 6
+
+byte %10000000  'b
+byte %10000000
+byte %10110000
+byte %11001000
+byte %10001000
+byte %10001000
+byte %11110000
+byte 6
+
+byte %00000000  'c
+byte %00000000
+byte %01110000
+byte %10001000
+byte %10000000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %00001000  'd
+byte %00001000
+byte %01101000
+byte %10011000
+byte %10001000
+byte %10001000
+byte %01111000
+byte 6
+
+byte %00000000  'e
+byte %00000000
+byte %01110000
+byte %10001000
+byte %11111000
+byte %10000000
+byte %01110000
+byte 6
+
+byte %00110000  'f
+byte %01001000
+byte %01000000
+byte %11100000
+byte %01000000
+byte %01000000
+byte %01000000
+byte 6
+
+byte %00000000  'g
+byte %01111000
+byte %10001000
+byte %10001000
+byte %01111000
+byte %00001000
+byte %01110000
+byte 6
+
+byte %10000000  'h
+byte %10000000
+byte %10110000
+byte %11001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %01000000  'i
+byte %00000000
+byte %11000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %11100000
+byte 4
+
+byte %00010000  'j
+byte %00000000
+byte %00110000
+byte %00010000
+byte %00010000
+byte %10010000
+byte %01100000
+byte 5
+
+byte %10000000  'k
+byte %10000000
+byte %10010000
+byte %10100000
+byte %11000000
+byte %10100000
+byte %10010000
+byte 5
+
+byte %11000000  'l
+byte %01000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %01000000
+byte %11100000
+byte 4
+
+byte %00000000  'm
+byte %00000000
+byte %11010000
+byte %10101000
+byte %10101000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %00000000  'n
+byte %00000000
+byte %10110000
+byte %11001000
+byte %10001000
+byte %10001000
+byte %10001000
+byte 6
+
+byte %00000000  'o
+byte %00000000
+byte %01110000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %01110000
+byte 6
+
+byte %00000000  'p
+byte %00000000
+byte %11110000
+byte %10001000
+byte %11110000
+byte %10000000
+byte %10000000
+byte 6
+
+byte %00000000  'q
+byte %00000000
+byte %01101000
+byte %10011000
+byte %01111000
+byte %00001000
+byte %00001000
+byte 6
+
+byte %00000000  'r
+byte %00000000
+byte %10110000
+byte %11001000
+byte %10000000
+byte %10000000
+byte %10000000
+byte 6
+
+byte %00000000  's
+byte %00000000
+byte %01110000
+byte %10000000
+byte %01110000
+byte %00001000
+byte %11110000
+byte 6
+
+byte %01000000  't
+byte %01000000
+byte %11100000
+byte %01000000
+byte %01000000
+byte %01001000
+byte %00110000
+byte 6
+
+byte %00000000  'u
+byte %00000000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %10011000
+byte %01101000
+byte 6
+
+byte %00000000  'v
+byte %00000000
+byte %10001000
+byte %10001000
+byte %10001000
+byte %01010000
+byte %00100000
+byte 6
+
+byte %00000000  'w
+byte %00000000
+byte %10001000
+byte %10101000
+byte %10101000
+byte %10101000
+byte %01010000
+byte 6
+
+byte %00000000  'x
+byte %00000000
+byte %10001000
+byte %01010000
+byte %00100000
+byte %01010000
+byte %10001000
+byte 6
+
+byte %00000000  'y
+byte %00000000
+byte %10001000
+byte %10001000
+byte %01111000
+byte %00001000
+byte %01110000
+byte 6
+
+byte %00000000  'z
+byte %00000000
+byte %11111000
+byte %00010000
+byte %00100000
+byte %01000000
+byte %11111000
+byte 6
+
+byte %00100000  '{
+byte %01000000
+byte %01000000
+byte %10000000
+byte %01000000
+byte %01000000
+byte %00100000
+byte 4
+
+byte %10000000  '|
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte %10000000
+byte 2
+
+byte %10000000  '}
+byte %01000000
+byte %01000000
+byte %00100000
+byte %01000000
+byte %01000000
+byte %10000000
+byte 4
+
+byte %00000000  '~
+byte %00000000
+byte %00000000
+byte %01101000
+byte %10010000
+byte %00000000
+byte %00000000
+byte 6
+
+byte %01100000  ' (Char 0x7F)
+byte %10010000
+byte %10010000
+byte %01100000
+byte %00000000
+byte %00000000
+byte %00000000
+byte 5
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
