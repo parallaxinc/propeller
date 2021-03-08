@@ -1,0 +1,362 @@
+{{
+
+  MAX7219 Dot Matrix MCU 8x32 LED Display Module Demo
+  Author: Greg LaPolla
+  E-Mail: glapolla@gmail.com
+  Copyright (c) 2021 Greg LaPolla
+  See end of file for terms of use
+
+  This object is based on the arduino LedControl by Eberhard Fahle
+
+}}
+
+CON
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+  CONSTANT_NAME = 0
+  ascii_index = 95
+
+VAR
+
+  long waitmstime
+  byte output[128]
+  byte buffer[64]
+
+OBJ
+
+  lc : "led_control"
+
+PUB Main()| q, display
+
+  lc.start (9,10,11,1)
+  waitmstime := 100
+
+  {{
+  The MAX72XX is in power-saving mode on startup,
+  we have to do a wakeup call
+  }}
+
+  lc.shutdown(0,false)
+
+  {{ Set the brightness to a medium values }}
+
+  lc.setIntensity(0,8)
+
+  {{ and clear the display }}
+
+  lc.clearDisplay(0)
+
+  display := string("PARALLAX")
+  read_8x8(display,8,@output)
+
+  repeat
+    writeParallaxOnMatrix()
+    rows()
+    columns()
+    single()
+
+PUB writeParallaxOnMatrix()
+
+  lc.setRow(0,0,output[0])
+  lc.setRow(0,1,output[1])
+  lc.setRow(0,2,output[2])
+  lc.setRow(0,3,output[3])
+  lc.setRow(0,4,output[4])
+  lc.setRow(0,5,output[5])
+  lc.setRow(0,6,output[6])
+  lc.setRow(0,7,output[7])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[8])
+  lc.setRow(0,1,output[9])
+  lc.setRow(0,2,output[10])
+  lc.setRow(0,3,output[11])
+  lc.setRow(0,4,output[12])
+  lc.setRow(0,5,output[13])
+  lc.setRow(0,6,output[14])
+  lc.setRow(0,7,output[15])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[16])
+  lc.setRow(0,1,output[17])
+  lc.setRow(0,2,output[18])
+  lc.setRow(0,3,output[19])
+  lc.setRow(0,4,output[20])
+  lc.setRow(0,5,output[21])
+  lc.setRow(0,6,output[22])
+  lc.setRow(0,7,output[23])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[24])
+  lc.setRow(0,1,output[25])
+  lc.setRow(0,2,output[26])
+  lc.setRow(0,3,output[27])
+  lc.setRow(0,4,output[28])
+  lc.setRow(0,5,output[29])
+  lc.setRow(0,6,output[30])
+  lc.setRow(0,7,output[31])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[32])
+  lc.setRow(0,1,output[33])
+  lc.setRow(0,2,output[34])
+  lc.setRow(0,3,output[35])
+  lc.setRow(0,4,output[36])
+  lc.setRow(0,5,output[37])
+  lc.setRow(0,6,output[38])
+  lc.setRow(0,7,output[39])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[40])
+  lc.setRow(0,1,output[41])
+  lc.setRow(0,2,output[42])
+  lc.setRow(0,3,output[43])
+  lc.setRow(0,4,output[44])
+  lc.setRow(0,5,output[45])
+  lc.setRow(0,6,output[46])
+  lc.setRow(0,7,output[47])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[48])
+  lc.setRow(0,1,output[49])
+  lc.setRow(0,2,output[50])
+  lc.setRow(0,3,output[51])
+  lc.setRow(0,4,output[52])
+  lc.setRow(0,5,output[53])
+  lc.setRow(0,6,output[54])
+  lc.setRow(0,7,output[55])
+
+  waitms(waitmstime)
+
+  lc.setRow(0,0,output[56])
+  lc.setRow(0,1,output[57])
+  lc.setRow(0,2,output[58])
+  lc.setRow(0,3,output[59])
+  lc.setRow(0,4,output[60])
+  lc.setRow(0,5,output[61])
+  lc.setRow(0,6,output[62])
+  lc.setRow(0,7,output[63])
+
+PUB rows()| row, x
+
+{{
+  This function lights up a some Leds in a row.
+  The pattern will be repeated on every row.
+  The pattern will blink along with the row-number.
+  row number 4 (index==3) will blink 4 times etc.
+ }}
+
+  row := 0
+  repeat while row < 8
+    waitms(waitmstime)
+    lc.setRow(0,row,%10100000)
+    waitms(waitmstime)
+    lc.setRow(0,row,byte[0])
+    x := 0
+    repeat while x < row
+      waitms(waitmstime)
+      lc.setRow(0,row,%10100000)
+      waitms(waitmstime)
+      lc.setRow(0,row,byte[0])
+      x++
+    row++
+
+PUB columns()| col, x
+
+{{
+  This function lights up a some Leds in a column.
+ The pattern will be repeated on every column.
+ The pattern will blink along with the column-number.
+ column number 4 (index==3) will blink 4 times etc.
+}}
+
+  col := 0
+  repeat while col < 8
+    waitms(waitmstime)
+    lc.setColumn(0,col,%10100000)
+    waitms(waitmstime)
+    lc.setColumn(0,col,byte[0])
+    x := 0
+    repeat while x < col
+      waitms(waitmstime)
+      lc.setColumn(0,col,%10100000)
+      waitms(waitmstime)
+      lc.setColumn(0,col, byte[0])
+      x++
+    col++
+
+PUB single()| row ,col, x
+
+{{
+ This function will light up every Led on the matrix.
+ The led will blink along with the row-number.
+ row number 4 (index==3) will blink 4 times etc.
+}}
+
+  row := 0
+  repeat while row < 8
+    col := 0
+    repeat while col < 8
+      waitms(waitmstime)
+      lc.setLed(0,row,col,true)
+      waitms(waitmstime)
+      x := 0
+      repeat while x < col
+        lc.setLed(0,row,col,false)
+        waitms(waitmstime)
+        lc.setLed(0,row,col,true)
+        waitms(waitmstime)
+        x++
+      col++
+    row++
+
+PUB read_8x8(p_str, strlen, p_arr)| x, k, j
+
+  x:=0
+  p_arr += 0
+  repeat while x < strlen                                   ' Keep search within the confines of the length of the array
+    k:=0
+    repeat while k < ascii_index                            ' Stay within the ascii array during search
+      ' find character in ascii array
+      if(byte[p_str][x] == ascii[k*9])                      ' Did we find it ?
+        j:=0
+        repeat while j < 8                                  ' Loop for each line of the 8x8 matrix
+          'load font info into array_out
+          byte[p_arr++] := ascii[((k*9)+1)+j]              ' Load the font into the array
+          j++
+      k++
+    x++
+
+DAT
+
+ascii      byte $20, $00, $00, $00, $00, $00, $00, $00, $00    '
+           byte $21, $18, $3c, $3c, $18, $18, $00, $18, $00    ' >!
+           byte $22, $6c, $6c, $00, $00, $00, $00, $00, $00    ' "
+           byte $23, $6c, $6c, $fe, $6c, $fe, $6c, $6c, $00    ' #
+           byte $24, $30, $7c, $c0, $78, $0c, $f8, $30, $00    ' $
+           byte $25, $00, $c6, $cc, $18, $30, $66, $c6, $00    ' %
+           byte $26, $38, $6c, $38, $76, $dc, $cc, $76, $00    ' &
+           byte $27, $60, $60, $c0, $00, $00, $00, $00, $00    ' '
+           byte $28, $18, $30, $60, $60, $60, $30, $18, $00    ' (
+           byte $29, $60, $30, $18, $18, $18, $30, $60, $00    ' )
+           byte $2a, $00, $66, $3c, $ff, $3c, $66, $00, $00    ' *
+           byte $2b, $00, $30, $30, $fc, $30, $30, $00, $00    ' +
+           byte $2c, $00, $00, $00, $00, $00, $30, $30, $60    ' ,
+           byte $2d, $00, $00, $00, $fc, $00, $00, $00, $00    ' -
+           byte $2e, $00, $00, $00, $00, $00, $30, $30, $00    ' .
+           byte $2f, $06, $0c, $18, $30, $60, $c0, $80, $00    ' >/
+           byte $30, $7c, $c6, $ce, $de, $f6, $e6, $7c, $00    ' 0
+           byte $31, $30, $70, $30, $30, $30, $30, $fc, $00    ' 1
+           byte $32, $78, $cc, $0c, $38, $60, $cc, $fc, $00    ' 2
+           byte $33, $78, $cc, $0c, $38, $0c, $cc, $78, $00    ' 3
+           byte $34, $1c, $3c, $6c, $cc, $fe, $0c, $1e, $00    ' 4
+           byte $35, $fc, $c0, $f8, $0c, $0c, $cc, $78, $00    ' 5
+           byte $36, $38, $60, $c0, $f8, $cc, $cc, $78, $00    ' 6
+           byte $37, $fc, $cc, $0c, $18, $30, $30, $30, $00    ' 7
+           byte $38, $78, $cc, $cc, $78, $cc, $cc, $78, $00    ' 8
+           byte $39, $78, $cc, $cc, $7c, $0c, $18, $70, $00    ' 9
+           byte $3a, $00, $30, $30, $00, $00, $30, $30, $00    ' :
+           byte $3b, $00, $30, $30, $00, $00, $30, $30, $60    ' ;
+           byte $3c, $18, $30, $60, $c0, $60, $30, $18, $00    ' <
+           byte $3d, $00, $00, $fc, $00, $00, $fc, $00, $00    ' =
+           byte $3e, $60, $30, $18, $0c, $18, $30, $60, $00    ' >
+           byte $3f, $78, $cc, $0c, $18, $30, $00, $30, $00    ' ?
+           byte $40, $7c, $c6, $de, $de, $de, $c0, $78, $00    ' @
+           byte $41, $30, $78, $cc, $cc, $fc, $cc, $cc, $00    ' A
+           byte $42, $fc, $66, $66, $7c, $66, $66, $fc, $00    ' B
+           byte $43, $3c, $66, $c0, $c0, $c0, $66, $3c, $00    ' C
+           byte $44, $f8, $6c, $66, $66, $66, $6c, $f8, $00    ' D
+           byte $45, $fe, $62, $68, $78, $68, $62, $fe, $00    ' E
+           byte $46, $fe, $62, $68, $78, $68, $60, $f0, $00    ' F
+           byte $47, $3c, $66, $c0, $c0, $ce, $66, $3e, $00    ' G
+           byte $48, $cc, $cc, $cc, $fc, $cc, $cc, $cc, $00    ' H
+           byte $49, $78, $30, $30, $30, $30, $30, $78, $00    ' I
+           byte $4a, $1e, $0c, $0c, $0c, $cc, $cc, $78, $00    ' J
+           byte $4b, $e6, $66, $6c, $78, $6c, $66, $e6, $00    ' K
+           byte $4c, $f0, $60, $60, $60, $62, $66, $fe, $00    ' L
+           byte $4d, $c6, $ee, $fe, $fe, $d6, $c6, $c6, $00    ' M
+           byte $4e, $c6, $e6, $f6, $de, $ce, $c6, $c6, $00    ' N
+           byte $4f, $38, $6c, $c6, $c6, $c6, $6c, $38, $00    ' O
+           byte $50, $fc, $66, $66, $7c, $60, $60, $f0, $00    ' P
+           byte $51, $78, $cc, $cc, $cc, $dc, $78, $1c, $00    ' Q
+           byte $52, $fc, $66, $66, $7c, $6c, $66, $e6, $00    ' R
+           byte $53, $78, $cc, $e0, $70, $1c, $cc, $78, $00    ' S
+           byte $54, $fc, $b4, $30, $30, $30, $30, $78, $00    ' T
+           byte $55, $cc, $cc, $cc, $cc, $cc, $cc, $fc, $00    ' U
+           byte $56, $cc, $cc, $cc, $cc, $cc, $78, $30, $00    ' V
+           byte $57, $c6, $c6, $c6, $d6, $fe, $ee, $c6, $00    ' W
+           byte $58, $c6, $c6, $6c, $38, $38, $6c, $c6, $00    ' X
+           byte $59, $cc, $cc, $cc, $78, $30, $30, $78, $00    ' Y
+           byte $5a, $fe, $c6, $8c, $18, $32, $66, $fe, $00    ' Z
+           byte $5b, $78, $60, $60, $60, $60, $60, $78, $00    ' [
+           byte $5c, $c0, $60, $30, $18, $0c, $06, $02, $00    ' \<
+           byte $5d, $78, $18, $18, $18, $18, $18, $78, $00    ' ]
+           byte $5e, $10, $38, $6c, $c6, $00, $00, $00, $00    ' ^
+           byte $5f, $00, $00, $00, $00, $00, $00, $00, $ff    ' _
+           byte $60, $30, $30, $18, $00, $00, $00, $00, $00    ' `
+           byte $61, $00, $00, $78, $0c, $7c, $cc, $76, $00    ' a
+           byte $62, $e0, $60, $60, $7c, $66, $66, $dc, $00    ' b
+           byte $63, $00, $00, $78, $cc, $c0, $cc, $78, $00    ' c
+           byte $64, $1c, $0c, $0c, $7c, $cc, $cc, $76, $00    ' d
+           byte $65, $00, $00, $78, $cc, $fc, $c0, $78, $00    ' e
+           byte $66, $38, $6c, $60, $f0, $60, $60, $f0, $00    ' f
+           byte $67, $00, $00, $76, $cc, $cc, $7c, $0c, $f8    ' g
+           byte $68, $e0, $60, $6c, $76, $66, $66, $e6, $00    ' h
+           byte $69, $30, $00, $70, $30, $30, $30, $78, $00    ' i
+           byte $6a, $0c, $00, $0c, $0c, $0c, $cc, $cc, $78    ' j
+           byte $6b, $e0, $60, $66, $6c, $78, $6c, $e6, $00    ' k
+           byte $6c, $70, $30, $30, $30, $30, $30, $78, $00    ' l
+           byte $6d, $00, $00, $cc, $fe, $fe, $d6, $c6, $00    ' m
+           byte $6e, $00, $00, $f8, $cc, $cc, $cc, $cc, $00    ' n
+           byte $6f, $00, $00, $78, $cc, $cc, $cc, $78, $00    ' o
+           byte $70, $00, $00, $dc, $66, $66, $7c, $60, $f0    ' p
+           byte $71, $00, $00, $76, $cc, $cc, $7c, $0c, $1e    ' q
+           byte $72, $00, $00, $dc, $76, $66, $60, $f0, $00    ' r
+           byte $73, $00, $00, $7c, $c0, $78, $0c, $f8, $00    ' s
+           byte $74, $10, $30, $7c, $30, $30, $34, $18, $00    ' t
+           byte $75, $00, $00, $cc, $cc, $cc, $cc, $76, $00    ' u
+           byte $76, $00, $00, $cc, $cc, $cc, $78, $30, $00    ' v
+           byte $77, $00, $00, $c6, $d6, $fe, $fe, $6c, $00    ' w
+           byte $78, $00, $00, $c6, $6c, $38, $6c, $c6, $00    ' x
+           byte $79, $00, $00, $cc, $cc, $cc, $7c, $0c, $f8    ' y
+           byte $7a, $00, $00, $fc, $98, $30, $64, $fc, $00    ' z
+           byte $7b, $1c, $30, $30, $e0, $30, $30, $1c, $00    ' {
+           byte $7c, $18, $18, $18, $00, $18, $18, $18, $00    ' |
+           byte $7d, $e0, $30, $30, $1c, $30, $30, $e0, $00    ' }
+           byte $7e, $76, $dc, $00, $00, $00, $00, $00, $00    ' ~
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

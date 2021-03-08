@@ -17,7 +17,7 @@ CON
   _clkfreq = 200_000_000            ' clock frequency
 
   width         = 320               ' screen width  (cols)
-  height        = 280               ' screen height (rows)
+  height        = 240               ' screen height (rows)
   textwidth     = width / 6         ' 80 chars per line 80*6=480
 
   LCD_rotate_0          = $00       '\   0 degrees
