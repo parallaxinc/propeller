@@ -71,7 +71,6 @@ Conversions to/from integer:
 Conversion from string:
 
 `FromString(ptr)`: reads a float from a string. The string may represent the float in ordinary or in scientific notation, in which case the exponent is specified by `E` (so e.g. "100" may be written "1E02").
-## Display 
 
 Display using SEND:
 
