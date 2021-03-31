@@ -1,0 +1,1664 @@
+{{
+   IEEE binary floating point support for Spin2
+   Copyright (c) 2021 Total Spectrum Software, Inc.
+   MIT Licensed
+
+   Support for 32 bit IEEE binary floating point. Only a subset of the
+   IEEE standard is actually supported; for example, only round to
+   nearest even rounding mode, and there is no signalling method for
+   overflow, underflow, etc.
+
+   The 32 bit float is stored as:
+
+      s_eeee_eeeee_bbbb_bbbb_bbbb_bbbb_bbbb_bbb
+
+   where the s bit is the sign (0 for +, 1 for -), the e bits give
+   the exponent, and b bits give the significand, which is
+   stored normalized with an implied leading 1 (unless the exponent
+   is 0, in which case the full significand is stored, which may be
+   0).
+   
+   The exponent field is in the range 0-255, which is encoded offset by
+   127 (so a field of 126 represents 2^-1, and so on).
+   An exponent of 255 is special and means either an infinity (if
+   the b bits are all 0) or otherwise "not a number" (if a b is nonzero).
+
+   Zero is represented by both exponent and significand set to 0.
+
+   A note on rounding: the only rounding method supported is "round to
+   nearest even", which is the default IEEE rounding method. When the
+   exact result doesn't fit in the output, the closest float value to
+   the result is chosen. If the result is exactly half-way between two
+   values, the one with an even last digit is picked.
+
+   In the code the variable "sticky" appears in a number of
+   places. This acts as a flag to help us determine whether any
+   non-zero digits have been discarded, which is useful for
+   rounding. We could simplify the rounding if we always just add 0.5,
+   in which case all of the "sticky" related code could be removed,
+   but this can cause a subtle bias to creep in to things like averages
+   of a lot of results.
+   
+   Methods:
+
+   MkFloat(x, e): create a float with value based on x and exponent E.
+     The value of x is treated as a fraction with one (non-zero) digit
+     before the decimal point. Thus, MkFloat(1_1, 2) and MkFloat(1_100, 2)
+     both produce the same number, namely 1.1E+02. *Note* any leading
+     0's in x are ignored, so they should be omitted.
+     If x has more than 7 decimal digits, only the first 7 are used (the
+     remainder are truncated, *not* rounded).
+     Also note that any `_` within x is ignored; this may trip you up if
+     you expect it to be treated like a `.`.
+     Examples:
+       MkFloat(-2_0, -1) produces -2.0E-01, i.e. -0.2
+       MkFloat(3_14159, 0) produces 3.14159
+       MkFloat(123, 3) produces 1.23E+03, i.e. 1230.0
+       MkFloat(123_0, 0) produces 1.23E+00, i.e. 1.23
+              (Note the _ is not a decimal point!)
+
+   SendFloatSci(x): uses SEND to output decimal float x in scientific notation.
+     No optimization of the output is done, it always uses 1.6 digits.
+     Negative numbers are preceded by "-", positive ones by " ". The
+     exponent is printed as two digits. 0, infinity, and NaN get printed
+     specially.
+       e.g. SendFloatSci(MkFloat(1_0, 2)) will send " 1.000000E+02" to the SEND
+       function.
+
+   SendFloatPlain(x): uses SEND to output decimal float in ordinary notation
+     This can end up printing a lot of 0's for large or small numbers
+
+   SendFloat(x): uses SEND to output a decimal float in a bounded size
+     This selects between plain and scientific notation based on the
+     magnitude of the float being printed
+     
+   FromString(stringptr) :
+     Reads a float from a string. The string may begin with any
+     number of "-" characters or else a "+" character. It should then
+     have digits 0-9, then an optional "." followed by more digits
+     0-9, then an optional "E" or "e" followed by an exponent (which
+     may start with a + or - sign, then have up to two digits)
+
+     If instead of digits we see a letter "I" we return the appropriately
+     signed infinity. If we see a letter "N" we return NaN
+     
+   Mathematical operations:
+     FNeg(x)    : negates decimal floating point number `x`
+     FAbs(x)    : returns absolute value of floating point value `x`
+     FAdd(x, y) : returns x + y
+     FSub(x, y) : returns x - y
+     FMul(x, y) : returns x * y
+     FDiv(x, y) : returns x / y
+
+     FSqrt(x)   : returns square root of x
+
+     FCmp(x, y) : compare x and y, return -1, 0, +1, or $8000_0000 based on
+                  x < y, x == y, x > y, or x,y unordered respectively
+
+     Ffrac(x)   : returns fractional part of x
+     
+   Trig functions:
+     The angle to use is specified in one of three ways:
+       SetDegrees(): specifies that angles are in degrees
+       SetRadians(): specifies that angles are in radians
+       SetFraction(): specifies that angles are in fractions of a circle
+     The default state is to use fractions of a circle
+
+     FSin(angle) : calculate sin(angle)
+     FCos(angle) : calculate cos(angle)
+     FTan(angle) : calculate tan(angle)
+     FASin(x)    : find inverse sin (angle such that FSin(angle) = x)
+     FACos(x)    : find inverse cosine
+     FATan(x)    : find inverse tangent
+     FATan2(x, y): find angle that the vector (x,y) makes with the X axis
+     
+   Conversions to/from integer
+     
+     FromInt(n)  : converts signed integer to decimal float
+     FromUInt(n) : converts unsigned integer to decimal float
+     FTrunc(x)   : converts float to signed integer, with truncation
+     FRound(x)   : converts float to signed integer, with rounding
+
+   Exponentials and logs
+
+     FLog2(x)    : calculates log base 2 of x
+     FLog10(x)   : calculates log base 10 of x
+     FLog(x)     : calculates log base e (natural logarithm) of x
+     FExp2(x)    : calculates 2^x
+     FExp10(x)   : calculates 10^x
+     FExp(x)     : calculates e^x
+     FPow(x, y)  : calculates x^y
+}}
+
+CON
+  BASE = 2
+  SIGN_SHIFT = 31
+  EXP_OFFSET = 127         ' offset for exponent field
+  EXP_SHIFT  = 23          ' shift for reading the exponent field
+  MAX_EXP    = 255
+  EXP_MASK   = MAX_EXP
+  MIN_SIG    = $800_000       ' smallest significand
+  MIN_SIG_BITS = 23
+  MAX_SIG    = BASE*MIN_SIG   ' one more than the largest significand
+  MAX_SIG_DIGITS = 24         ' number of BASE digits in MIN_SIG
+  
+  ' some special values
+  NEG_ZERO = $8000_0000
+  INFINITY = MAX_EXP << EXP_SHIFT
+  NEG_INFINITY = NEG_ZERO | INFINITY
+  ONE = (BASE==10) ? ((EXP_OFFSET << EXP_SHIFT) | MIN_SIG) : (EXP_OFFSET<<EXP_SHIFT)
+  
+  ' canonical value for Not A Number
+  NAN    = $7fff_ffff
+
+  ' result for unordered comparison
+  UNORDERED_CMP_RESULT = $8000_0000
+
+  ' other useful constants
+  ' value for 2 * pi
+  TWOPI = 6.28318530718
+  CONST_E =  2.718281825
+  CONST_ONE = 1.0
+  LOG2_10 = 3.3219281
+  LOG2_E  = 1.4426950409
+  LOGE_2  = 0.6931472
+  
+PUB null()
+  ' this is not a top level object
+
+'
+' utility function: multiply a *signed* integer x by 2^shift_val
+' returns the result, plus a value "sticky" which is non-zero
+' if any non-zero bit went out
+' NOTE that x is signed, that matters
+'
+PRI shift2(x, shift_val) : r, sticky
+  if shift_val == 0
+    return x, 0
+  elseif shift_val > 31 or shift_val < -32
+    return 0, 0
+  elseif shift_val > 0
+    return x<<shift_val, 0
+  elseif shift_val == -32
+    r := 0
+    sticky := x
+  else
+    shift_val := -shift_val
+    r := x sar shift_val
+    ' calculate the remainder bits
+    ' make "sticky" the bits left over
+    sticky := x << (32-shift_val)
+
+'
+' utility function: normalize "binval" to be
+' in the range
+'   [1<<bits, 2<<bits)
+'
+' returns 4 items:
+'   normalized_val : the new significand
+'   exp_fixup      : value by which to adjust the exponent
+'   digit          : last digit shifted out
+'   sticky         : non-zero if any other non-zero bits were shifted out
+'
+
+PRI normalize2(binval, bits) : normalized_val, exp_fixup, digit, sticky
+  ' find most significant bit
+  exp_fixup := bits - encod binval
+  if exp_fixup == 0
+    return binval, 0, 0, 0
+  elseif exp_fixup > 0
+    binval := binval << exp_fixup
+    return binval, exp_fixup, 0, 0
+  else
+    ' shift one less than needed so we can calculate
+    ' correct remainder
+    binval, sticky := shift2(binval, exp_fixup+1)
+    digit := (binval&1)
+    normalized_val := binval>>1
+    
+''
+'' Unpack a float into s, e, b
+'' where s is the sign (0 or 1)
+'' e is the exponent (offset by EXP_OFFSET)
+'' b is the 24 bit significand
+'' Fixes up denormalized numbers (allowing -ve exponents) but
+'' otherwise leaves the fields alone
+''
+PRI Unpack(x) : s, e, b | shift, exp_fixup
+  s := x>>31
+  e := (x>>EXP_SHIFT) & EXP_MASK
+  b := x & ((1<<EXP_SHIFT)-1)
+  ' handle denormalized numbers
+  if e == 0
+    if b <> 0
+      e := 1  ' denormalized number
+  elseif e <> MAX_EXP
+    b |= MIN_SIG  ' restore implied bit
+    
+
+''
+'' Pack s, e, b into a float
+'' handles denormalizing and rounding if necessary,
+'' and if there is overflow returns infinity
+'' "sticky" is 0 if there are any digits known to be non-zero to
+'' the right of the significand, and is used for rounding
+''
+PRI Pack(sign, exp, binval, sticky) : x | digit, exp_fixup, shift_sticky
+
+  digit := 0  ' last digit shifted out
+
+  ' normalize
+  if binval
+    binval, exp_fixup, digit, shift_sticky := normalize2(binval, MIN_SIG_BITS)
+    exp -= exp_fixup
+  elseif exp < MAX_EXP
+    exp := 0  ' if 0 result, use 0 exponent
+    
+  if exp >= MAX_EXP
+    ' overflow, return appropriately signed infinity
+    return (sign<<31) | INFINITY
+  elseif exp <= 0
+    ' handle denormalized numbers
+    --exp
+    repeat
+      sticky |= digit
+      digit := binval&1
+      binval := binval>>1
+      ++exp
+    while binval and exp < 0
+    if exp < 0
+      digit := 0
+  else
+    ' remove implied 1 bit
+    binval &= !MIN_SIG
+    
+  ' round if appropriate
+  if digit
+    ' if sticky, or if odd significand, then round up
+    sticky |= (binval & 1)
+    if sticky
+      binval++
+      
+  ' handle overflow after rounding
+  ' actually we do this by just adding in the
+  ' exponent (overflow goes into the exponent)
+  if exp < 0
+    exp := 0
+  ' I think we've got everything, now return
+  return (sign<<SIGN_SHIFT) + (exp<<EXP_SHIFT) + binval
+
+
+' utility function: like muldiv64, but returns both quotient and remainder
+PRI mymuldiv64(mult1, mult2, divisor) : quotient, remainder
+  org
+    qmul mult1, mult2
+    getqy mult1
+    getqx mult2
+    setq  mult1
+    qdiv  mult2, divisor
+    getqx quotient
+    getqy remainder
+  end
+
+' utility function: calculate sqrt(mult1*mult2)
+PRI mulsqrt64(mult1, mult2) : r
+  org
+    qmul mult1, mult2
+    getqy mult1  ' upper word
+    getqx mult2  ' lower word
+    qsqrt mult2, mult1
+    getqx r
+  end
+
+' utility function: calculate both high and low parts of a 32*32 multiply
+PRI mul64(mult1, mult2) : hi, lo
+  org
+    qmul mult1, mult2
+    getqy hi
+    getqx lo
+  end
+
+{{
+  FAdd(a, b): calculate a + b
+}}
+PUB FAdd(a, b) : r | asign, aexp, bsign, bexp, sticky, shift
+  asign, aexp, a := Unpack(a)
+  bsign, bexp, b := Unpack(b)
+
+  ' make a the one with the larger magnitude
+  if (aexp < bexp) or (aexp == bexp and a < b)
+    ' swap a and b
+    a,b := b,a
+    aexp,bexp := bexp, aexp
+    asign,bsign := bsign, asign
+
+  ' check for special cases
+  if aexp == MAX_EXP
+    if a <> 0
+      ' a was NAN
+      return NAN
+    if bexp == MAX_EXP and asign <> bsign
+      ' infinity - infinity
+      return NAN
+    ' return correctly signed infinity
+    return Pack(asign, MAX_EXP, 0, 0)
+  if b == 0
+    if a == 0
+      ' -0 + -0 == -0; otherwise -0 + 0 == 0
+      return Pack(asign & bsign, 0, 0, 0)
+    ' otherwise a + 0 == a
+    return Pack(asign, aexp, a, 0)
+
+  ' if we reach here we have normalized numbers
+  ' figure out how much to shift b down by
+  shift := aexp-bexp
+  if shift > MAX_SIG_DIGITS+1
+    ' b will underflow to 0, so just return a
+    return Pack(asign, aexp, a, 0)
+
+  ' shift up to give head room
+  a <<= 1
+  b <<= 1
+  aexp-- ' correct for scaling
+  
+  ' check for addition vs. subtraction
+  if asign <> bsign
+    b := -b
+      
+  ' shift b down
+  b, sticky := shift2(b, -shift)
+  ' add it in  
+  a += b
+  if a == 0
+     asign &= bsign
+  return Pack(asign, aexp, a, sticky)
+    
+{{
+  FSub(a, b): calculate a + b
+}}
+PUB FSub(a, b) : r
+  r := FAdd(a, FNeg(b))
+  
+{{
+  FNeg(x) : Negate x
+}}
+
+PUB FNeg(x) : r
+  r := x ^ $80000000
+
+{{
+  FAbs(x) : Find absolute value of x
+}}
+
+PUB FAbs(x) : r
+  r := x & $7fff_ffff
+
+
+{{
+  FMul(x, y) : Calculate x*y
+}}
+PUB FMul(a, b) : r | asign, aexp, bsign, bexp, sticky
+  asign, aexp, a := Unpack(a)
+  bsign, bexp, b := Unpack(b)
+
+  ' calculate sign of the result
+  asign ^= bsign
+  
+  ' check for various special cases
+  if aexp == MAX_EXP
+    if a <> 0  ' NaN
+      return NAN
+    else
+      if (bexp == MAX_EXP)
+        if b <> 0
+          return NAN   ' infinity * NaN is NaN
+      elseif b == 0
+          return NAN   ' infinity * 0 is NaN
+      ' otherwise return infinity
+      return Pack(asign, MAX_EXP, 0, 0)
+  if bexp == MAX_EXP
+    if b <> 0
+      return NAN  ' anything * NaN == NaN
+    if a == 0
+      return NAN   ' 0 * infinity is NaN
+      
+    ' finite * infinity produces (appropriately signed) 0
+    return Pack(asign, MAX_EXP, 0, 0)
+  if a == 0 or b == 0
+    return Pack(asign, 0, 0, 0)  ' otherwise 0 / x is 0
+    
+  ' if we get here we have finite, nonzero a and b
+  ' calculate a * b
+  ' quotient goes in r, remainder into "sticky" (for rounding purposes)
+
+  aexp := (aexp + bexp) - 2  ' adjust for *4 we will apply for scaling purposes
+  aexp -= EXP_OFFSET
+  
+  r, sticky := mymuldiv64(a<<1, b<<1, MIN_SIG)
+
+  return Pack(asign, aexp, r, sticky)
+
+{{
+  FDiv(a, b): calculate a / b
+}}
+PUB FDiv(a, b) : r | asign, aexp, bsign, bexp, sticky
+  asign, aexp, a := Unpack(a)
+  bsign, bexp, b := Unpack(b)
+  
+  ' calculate sign of the result
+  asign ^= bsign
+  
+  ' check for various special cases
+  if aexp == MAX_EXP
+    if a <> 0  ' NaN
+      return NAN
+    else
+      if (bexp == MAX_EXP)
+        return NAN   ' infinity / infinity is NaN
+      ' otherwise return infinity
+      return Pack(asign, MAX_EXP, 0, 0)
+  if bexp == MAX_EXP
+    if b <> 0
+      return NAN
+    ' finite / infinity produces (appropriately signed) 0
+    return Pack(asign, 0, 0, 0)
+  if a == 0
+    if b == 0
+      return NAN ' 0 / 0 is Nan
+    return Pack(asign, 0, 0, 0)  ' otherwise 0 / x is 0
+  if b == 0
+    return Pack(asign, MAX_EXP, 0, 0) ' x / 0 is infinity if x is finite
+    
+  aexp := (aexp - bexp) - 2  ' adjust for *100 we will apply for scaling purposes
+  aexp += EXP_OFFSET
+  
+  ' if we get here we have finite, nonzero a and b
+  ' calculate a / b
+  ' quotient goes in r, remainder into "sticky" (for rounding purposes)
+  r, sticky := mymuldiv64(a, MIN_SIG<<2, b)
+  return Pack(asign, aexp, r, sticky)
+
+{{
+  FSqrt(x) : find square root of x
+}}
+PUB FSqrt(a) : r | asign, aexp, scale
+  asign, aexp, a := Unpack(a)
+  ' check for negative numbers
+  if asign
+    if aexp == 0 and a == 0
+      return NEG_ZERO  ' special case sqrt(-0) = -0
+    ' otherwise sqrt(-x) gives NAN
+    return NAN
+  if aexp == MAX_EXP
+    if a <> 0
+      return NAN     ' sqrt(NaN) = NaN
+    return INFINITY  ' sqrt(inf) = inf
+
+  ' may be a denormalized number
+  ' if so, scale it up so we get good
+  ' precision on it
+  if aexp <= 1 and a
+    a, scale, _, _ := normalize2(a, MIN_SIG_BITS)
+    aexp -= scale
+ 
+  ' convert aexp to its actual value
+
+  aexp -= EXP_OFFSET
+  ' need to work on even exponents
+  ' use the fact that a * 10^p == 10*a * 10^(p-1)
+  ' also multiply by an additional factor of 100 to give room for rounding
+  if (aexp & 1)
+    aexp -= 5
+    scale := MIN_SIG<<5
+  else
+    aexp -= 4
+    scale := MIN_SIG<<4
+  aexp sar= 1
+  a := mulsqrt64(a, scale)
+  return Pack(asign, aexp + EXP_OFFSET, a, 1) ' assume sticky bit is 1, most sqrt are not exact
+
+{
+  Conversion functions to/from int
+}
+{ Convert unsigned integer to float }
+PUB FromUInt(n) : r | exp, sticky
+  exp := EXP_OFFSET + MAX_SIG_DIGITS - 1
+  ' if the high bit is set, watch out
+  if n < 0
+    sticky := n & 1
+    n := n>>1
+    ++exp 
+  return Pack(0, exp, n, sticky)
+
+{ Convert signed integer to float }
+PUB FromInt(n) : r | sign, exp
+  exp := EXP_OFFSET + MAX_SIG_DIGITS - 1
+  if n < 0
+    sign := 1
+    n := -n
+    if n < 0  ' $8000_0000
+      n := n>>1
+      ++exp
+  else
+    sign := 0
+  return Pack(sign, exp, n, 0)
+
+{{
+  FRound: Convert float to signed integer (rounded)
+          returns $7fff_ffff or $8000_0000 for any overflow cases
+}}
+PUB FRound(a) : r | aexp, asign, scale, roundup, sticky
+  asign, aexp, a := Unpack(a)
+
+  ' check for 0
+  if a == 0 and aexp <= 0
+      return 0
+  ' check for NaN and infinity
+  if aexp == MAX_EXP
+    return $7fff_ffff + asign
+    
+  ' convert to "real" exponent
+  aexp -= EXP_OFFSET
+  ' shift right by 23 to produce a real integer, by 22 to produce one with a bit for rounding
+  aexp -= 22
+  a, sticky := shift2(a, aexp)
+  ' round to nearest even
+  if sticky or (a&2)
+    a++
+  a >>= 1
+  if a == 0 and  aexp > 0
+    ' overflow
+    return $7fff_ffff + asign
+  if asign
+    a := -a
+  return a
+  
+{{
+  FTrunc: Convert float to signed integer (truncated
+          returns $7fff_ffff for overflow cases
+}}
+PUB FTrunc(a) : r | aexp, asign, scale
+  asign, aexp, a := Unpack(a)
+
+  ' check for 0
+  if a == 0 and aexp <= 0
+      return 0
+  ' check for NaN and infinity
+  ' return MAX_EXP for these
+  if aexp == MAX_EXP
+    return $7fff_ffff + asign
+    
+  ' convert to "real" exponent
+  aexp -= EXP_OFFSET
+  ' shift right by 23 to produce a truncated integer
+  aexp -= 23
+  a, _ := shift2(a, aexp)
+  ' round to nearest even
+  if a == 0 and  aexp > 0
+    ' overflow
+    return $7fff_ffff + asign
+  if asign
+    a := -a
+  return a
+  
+{{
+  Find fractional part of real number x
+}}
+PUB FFrac(x) : r | a, aexp, asign, scale
+  asign, aexp, a := Unpack(x)
+
+  ' FFrac( NaN ) -> NaN
+  if aexp == MAX_EXP and a <> 0
+    return NAN
+    
+  aexp -= EXP_OFFSET          ' find "true" exponent
+  if aexp < 0                 ' for powers < 0, whole thing is fraction
+    return x
+
+  '
+  ' if aexp == 0, we have a = N_xxx_xxx, and we want just the
+  '  xxx_xxx part
+  '
+  if aexp > MAX_SIG_DIGITS-1
+    return 0
+
+  scale := 1 << ((MAX_SIG_DIGITS-1) - aexp)
+  a := a // scale
+  return Pack(asign, aexp + EXP_OFFSET, a, 0)
+
+
+{{
+  Find "scale" factor of real number x
+  this is the fractional part of x, expressed
+  as a 0.32 bit fixed point number
+}}
+
+PUB FScale(x) : r
+  return do_FScale(x, 0)
+  
+{ internal function, actually does the work }
+{ but does an additional shift of "extrascale" }
+
+PRI do_FScale(x, extrashift) : r | a, aexp, asign, scale, scaleshift
+  asign, aexp, a := Unpack(x)
+
+  ' FFrac( NaN ) -> NaN
+  if aexp == MAX_EXP
+    return NAN
+  if a == 0
+    return 0
+  aexp -= EXP_OFFSET
+
+  ' OK, here's the deal:
+  ' if aexp is 0, we have something like $8x_xxxx that we
+  ' need to shift up so that the $8 is in bit 32
+  ' if aexp is 1, we shift one more
+  ' if aexp is -1, one less
+  ' at the end we have to shift it up
+  scaleshift := (32 - (MAX_SIG_DIGITS-1)) + aexp
+  scaleshift -= extrashift
+  
+  if (scaleshift > 31) or (scaleshift < -31)
+    return 0
+  if scaleshift < 0
+    scaleshift := -scaleshift
+    r := a >> scaleshift
+  else
+    r := a << scaleshift
+    
+  if asign
+    r := -r
+
+{{
+   FCmp: Comparison function, compares numbers x and y
+   returns: -1 if x < y, 0 if x = y, +1 if x > y, and $8000_0000 if x or y is NaN
+}}
+PUB FCmp(a, b) : r
+  ' special case: -0 == 0
+  ' and everything else should compare to -0 as if it were 0
+  if a == $8000_0000
+    a := 0
+  if b == $8000_0000
+    b := 0
+  ' special case: check for NaN
+  ' NaN with a positive sign
+  if a > INFINITY or b > INFINITY
+    return UNORDERED_CMP_RESULT
+  ' NaN with a negative sign
+  if a +> NEG_INFINITY or b +> NEG_INFINITY
+    return UNORDERED_CMP_RESULT
+  ' OK, do the usual check here
+  ' if both are positive, or one is positive and one negative,
+  ' the usual comparison works
+  ' for both negative, we have to swap 
+  if (a&b) < 0
+    ' both negative
+    a := -a
+    b := -b
+  
+  if a < b
+    return -1
+  elseif a == b
+    return 0
+  else
+    return 1
+
+{{
+   Trig Functions
+}}
+
+VAR
+  long fullCircle
+
+PUB SetDegrees()
+  fullCircle := 360.0
+
+PUB SetRadians()
+  fullCircle := TWOPI ' 6.28318530718  ' 2.0*3.141592654
+
+PUB SetFraction()
+  fullCircle := 0
+  
+' adjust an angle based on the current setting for
+' radians / degrees
+PRI TrigAngle(angle) : r
+  if fullCircle
+    angle := FDiv(angle, fullCircle)
+  r := FScale(angle)
+
+PUB FSin(angle) : result | significand, sign, exp, tmp
+  if angle >= INFINITY
+    return NAN
+  if angle +>= NEG_INFINITY
+    return NAN
+
+  ' special case small angles in the radian case
+  ' (for degrees we punt)
+  if fullCircle == TWOPI
+    sign := angle>>31
+    tmp := angle&$7fff_ffff
+    if tmp < $3380_0000  ' 2^-24
+      return angle
+      
+  angle := TrigAngle(angle)
+
+  ' at this point angle is a fraction 0-$FFFF_FFFF of a full circle
+  ' now calculate sin(angle) as a number between 0 and MIN_SIG*BASE^6
+  ' note that is BASE^6 times bigger than our normal significand, so
+  ' we have to divide by BASE^6 by making the exponent -6
+  
+  significand := qsin(MIN_SIG << 6, angle, 0)
+  exp := -6 + EXP_OFFSET
+  if (significand < 0)
+    sign := 1
+    significand := -significand
+  else
+    sign := 0
+  return Pack(sign, exp, significand, 0)  
+
+PUB FCos(angle) : result | significand, sign, exp
+  if angle >= INFINITY
+    return NAN
+  if angle +>= NEG_INFINITY
+    return NAN
+  angle := TrigAngle(angle)
+  ' at this point angle is a fraction 0-$FFFF_FFFF of a full circle
+  ' now calculate sin(angle) as a number between 0 and MIN_SIG*BASE^6
+  ' note that is BASE^6 times bigger than our normal significand, so
+  ' we have to divide by 10^3 by making the exponent -6
+  
+  significand, _ := rotxy(MIN_SIG << 6, 0, angle)
+  'significand := qcos(MIN_SIG << 6, angle, 0)
+  exp := -6 + EXP_OFFSET
+  if (significand < 0)
+    sign := 1
+    significand := -significand
+  else
+    sign := 0
+  return Pack(sign, exp, significand, 1)
+
+'
+' tan(x) can get arbitrarily large, so we have to watch out for that
+' for now simplify by just computing sin(x) / cos(x)
+'
+
+PUB FTan(angle) : r | sinval, cosval, sign, exp, sticky, tmp
+  if angle >= INFINITY
+    return NAN
+  if angle +>= NEG_INFINITY
+    return NAN
+
+  ' special case small angles in the radian case
+  ' (for degrees we punt)
+  if fullCircle == TWOPI
+    sign := angle>>31
+    tmp := angle&$7fff_ffff
+    if tmp < $3380_0000  ' 2^-24
+      return angle
+      
+  angle := TrigAngle(angle)
+  ' at this point angle is a fraction 0-$FFFF_FFFF of a full circle
+
+  ' calculate cos and sin 
+  cosval, sinval := rotxy(MIN_SIG << 6, 0, angle)
+  if cosval < 0
+    sign := 1
+    cosval := -cosval
+  else
+    sign := 0
+  if sinval < 0
+    sign := 1-sign
+    sinval := -sinval
+    
+  exp := -4 + EXP_OFFSET
+  ' need to calculate sinval / cosval
+  if cosval == 0
+    return (sign<<31) | INFINITY
+    
+  ' make sure sinval / cosval gets calculated to
+  ' reasonable precision
+  ' we want to leave some space for rounding
+  cosval, tmp, _, _ := normalize2(cosval, MIN_SIG_BITS+6)
+  exp += tmp
+    
+  r, sticky := mymuldiv64(sinval, MIN_SIG<<4, cosval)
+  return PACK(sign, exp, r, sticky)
+
+CON
+  TRIG_SCALE = 28
+  TRIG_ONE = (1<<TRIG_SCALE)
+  
+{{
+  FASin(x): find the angle a for which sin(a) = x
+}}
+
+PUB FASin(y) : a | x, x2, len, angle, sign
+  ' assuming a unit hypotenuse,
+  ' figure out the x that goes with y to make
+  ' a right angle triangle
+
+  ' dispose of some special cases
+  ' for small y, we know sin(y) == y
+  ' so asin(y) == y too
+  sign := y>>31
+  y &= $7fff_ffff
+  if y < $3380_0000   ' 2^-24
+    return y|(sign<<31)
+  if y > $3f80_0000   ' must not be > 1.0
+    return NAN
+
+  y := do_FScale(y, 32-TRIG_SCALE)  ' produce 2.30 number instead of 0.32
+  x2, _ := mymuldiv64(y, y, TRIG_ONE)  ' x2 = y^2
+  x2 := TRIG_ONE - x2             ' x2 = 1 - y^2
+  x := mulsqrt64(x2, TRIG_ONE)    ' x = sqrt(1 - y^2)
+
+  _, angle := xypol(x, y)
+  ' angles are 0.32 numbers: convert to 2.30
+  angle := angle sar 2
+  if angle < 0
+    sign := 1 - sign
+    angle := -angle
+  a := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
+  if fullCircle
+    a := FMul(a, fullCircle)
+    
+{{
+  FACos(x): find the angle a for which cos(a) = x
+}}
+
+PUB FACos(x) : a | y, y2, len, angle, sign
+  ' assuming a unit hypotenuse,
+  ' figure out the x that goes with y to make
+  ' a right angle triangle
+
+  sign := 0
+  x &= $7fff_ffff     ' cos(-x) = cos(x)
+  if x > $3f80_0000   ' must not be > 1.0
+    return NAN
+    
+  x := do_FScale(x, 32-TRIG_SCALE)  ' produce 2.30 number instead of 0.32
+  y2, _ := mymuldiv64(x, x, TRIG_ONE)  ' y2 = x^2
+  y2 := TRIG_ONE - y2             ' y2 = 1 - x^2
+  y := mulsqrt64(y2, TRIG_ONE)    ' y = sqrt(1 - x^2)
+
+  _, angle := xypol(x, y)
+  ' angles are 0.32 numbers: convert to 2.30
+  angle := angle sar 2
+  if angle < 0
+    sign := 1 - sign
+    angle := -angle
+  a := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
+  if fullCircle
+    a := FMul(a, fullCircle)
+    
+{{
+  FATan2(x, y): find the angle a that the point (x, y) makes with the x-axis
+}}
+
+PUB FATan2(x, y) : angle | r, sign
+  ' normalize x, y to be on the unit circle
+  r := FSqrt( Fadd( FMul(x, x), FMul(y, y) ) )
+  x := FDiv(x, r)
+  y := FDiv(y, r)
+  
+  ' now -1.0 <= x,y <= 1.0
+  ' convert to 2.30 fixed point
+  x := do_Fscale(x, 2)
+  y := do_Fscale(y, 2)
+  _, angle := xypol(x, y)
+  
+  ' angles are 0.32 numbers: convert to 2.30
+  angle := angle sar 2
+  sign := 0
+  if angle < 0
+    sign := 1
+    angle := -angle
+  angle := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
+  if fullCircle
+    angle := FMul(angle, fullCircle)
+
+PUB FATan(y) : r
+  if y == INFINITY
+    return FATan2(0.0, 1.0)
+  elseif y == -INFINITY
+    return FATan2(0.0, -1.0)
+    
+  return FATan2(1.0, y)
+  
+{ --------------------------------------------------------------
+   Conversion to/from decimal
+  -------------------------------------------------------------- }
+ 
+CON
+  MAX_DEC_EXP = 39
+  MIN_DEC_EXP = -45
+  DEC_SCALE = 10_000_000
+  DEC_MAX_DIGITS = 8
+  
+{{
+  Conversion from integer and power of 10 to a float
+}}
+PUB MkFloat(decval, exp10) : binfloat | digit, sticky, sign, decrem
+  if decval == 0
+    return 0
+
+  sign := 0
+  if decval < 0
+    decval := -decval
+    sign := 1
+  if decval == 0
+    return 0
+  if (exp10 < -45)
+    ' underflow
+    return sign<<31
+  if exp10 > 38
+    ' overflow
+    return (sign<<31)|INFINITY
+  
+  ' normalize decval to between DEC_SCALE and 10*DEC_SCALE
+  if decval +>= 10*DEC_SCALE
+    sticky := 0
+    repeat while decval +>= 10*DEC_SCALE
+      digit := decval +// 10
+      decval := decval +/ 10
+    if digit > 5 or (digit==5 and sticky)
+      decval++
+  repeat while decval < DEC_SCALE
+    decval *= 10
+
+  ' now turn "decval" into a binary floating point number
+  if decval > -45 + (DEC_MAX_DIGITS-1)
+     decval := FromUInt(decval) | (sign<<31)
+     exp10 -= (DEC_MAX_DIGITS-1)
+  else
+     decval,decrem := mymuldiv64(decval, MIN_SIG*16, DEC_SCALE)
+     decval := Pack(sign, EXP_OFFSET-4, decval, sticky|decrem)  ' the "-4" is for the scale in mymuldiv64
+
+  exp10 += 45 ' table starts at 10^-45
+  exp10 := long[@pow_of_ten_table][exp10] ' convert to float power of 10
+  binfloat := FMul(decval, exp10)
+
+
+{{
+  Conversion to base 10
+  Convert a binary float into a power of 10 and a decimal value between DEC_SCALE and 10*DEC_SCALE
+}}
+PUB Unpack10(x) : sign, exp10, decval | loptr, hiptr, midptr, binval, binexp
+  sign := x>>31
+  x := (x<<1) >> 1 ' remove sign bit
+  
+  if x == 0
+    return sign, 0, 0
+  if x >= INFINITY
+    ' NAN
+    return sign, MAX_DEC_EXP, (x-INFINITY)  ' will return 0 decval for infinity, non-zero for NaN
+    
+  hiptr := @end_pow_ten_table
+  loptr := @pow_of_ten_table
+  binval := 0
+  repeat
+    midptr := ((hiptr + loptr) >> 1) & !3
+    binval := long[midptr]
+    if midptr == loptr  ' found our target
+      quit
+    if x == binval
+      quit
+    elseif x < binval
+      hiptr := midptr
+    else
+      loptr := midptr
+
+  ' binval is the power of 10
+  exp10 := (midptr - @pow_of_ten_table) >> 2	' offset from start of table
+  exp10 := exp10 - 45                           ' first power of ten in table
+   
+  decval := FDiv(x, binval)    ' decval is float between 1 and 10
+  _, binexp, decval := Unpack(decval)
+  binexp -= EXP_OFFSET
+  if binexp < 0
+    decval >>= (-binexp)
+  else
+    decval <<= binexp
+
+' now decval is 1..10 * MIN_SIG
+  ' convert to 1..10 * DEC_SCALE
+  decval, _ := mymuldiv64(decval, DEC_SCALE, MIN_SIG)
+
+{{
+  SendFloatSci: Stream out scientific representation of a binary float x
+}}
+PUB SendFloatSci(x) | s, exp, decval, digit, nopoint
+  s, exp, decval := Unpack10(x)
+  if (exp == MAX_DEC_EXP) and (decval <> 0)
+    send("NaN")
+    return
+
+  if s
+    send("-")
+  else
+    send(" ")
+  if exp == MAX_DEC_EXP
+    send("Infinity")
+    return
+
+  if decval == 0
+    send("0.000000")
+    return
+    
+  repeat DEC_MAX_DIGITS
+    digit := decval / DEC_SCALE
+    decval := 10 * (decval // DEC_SCALE)
+    send("0" + digit)
+    if nopoint
+      send(".")
+      nopoint := 0
+  send("E")
+  if exp < 0
+    send("-")
+    exp := -exp
+  else
+    send("+")
+  send("0" + (exp / 10))
+  send("0" + (exp // 10))
+
+{{
+  SendFloatPlain: Stream out "regular" representation of decimal float x
+}}
+PUB SendFloatPlain(x) | sign, exp, decval, digit, nopoint
+  sign, exp, decval := Unpack10(x)
+  if (exp == MAX_DEC_EXP)
+    if decval <> 0
+      send(" NaN")
+    elseif sign
+      send("-Inf")
+    else
+      send(" Inf")
+    return
+  if sign
+    send("-")
+  else
+    send(" ")
+
+  if decval == 0
+    send("0")
+    return
+    
+  ' send any leading 0's necessary
+  if exp >= 0
+    repeat while decval <> 0 or exp >= 0
+      digit := decval / DEC_SCALE
+      decval := 10 * (decval // DEC_SCALE)
+      send("0" + digit)
+      if exp == 0 and decval
+        send(".")
+      --exp
+    ' send any trailing 0's needed
+    repeat while exp > 0
+      send("0")
+      --exp
+    return
+
+  ' OK, now handle negative exponents
+  send("0.")
+  exp++
+  repeat while exp < 0
+    send("0")
+    exp++
+  repeat while decval <> 0
+    digit := decval / DEC_SCALE
+    decval := 10 * (decval // DEC_SCALE)
+    send("0" + digit)
+
+{{
+  SendFloat: Stream representation based on magnitude of float
+  The "canonical" scientific form is d.dddddddE+nn
+  which is 7 digits + period + 4 exponent
+  Thus we can print up to 4 trailing/leading 0's before
+  switching to scientific form to get a shorter result
+}}
+PUB SendFloat(x) | xmag
+  xmag := x & $7fff_ffff   ' get absolute value of x
+  if xmag == 0
+    SendFloatPlain(x)
+  elseif (xmag < 1e-4) or (xmag >= 1e8)
+    SendFloatSci(x)
+  else
+    SendFloatPlain(x)
+
+{{
+  FromString(stringptr): read a float from a string
+}}
+
+PUB FromString(stringptr) : val | digit, exp, sign, sticky, userexp, userexpsign
+  val := byte[stringptr]
+  digit := byte[stringptr+1]
+  exp := byte[stringptr+2]
+  
+  ' skip leading spaces
+  repeat while byte[stringptr] == " "
+    stringptr++
+
+  ' handle leading + or -
+  ' we allow any number of identical sign characters,
+  ' but do not support mixing them
+  ' thus +++1 and ---1 are OK, but +-+1 is not
+  
+  sign := 0
+  repeat while byte[stringptr] == "-"
+    sign := 1-sign         ' for each "-" seen, toggle the sign
+    stringptr++
+  repeat while byte[stringptr] == "+"
+    stringptr++
+
+  ' OK, now handle the actual number
+  val := 0                 ' initialize read value
+  sticky := 0              ' no missing digits yet
+  exp := 0                 ' start off assuming we'll see an integer
+  digit := byte[stringptr++]
+  
+  ' special case handle NaN and Inf
+  if digit == "N" or digit == "n"
+    return NAN
+  if digit == "I" or digit == "i"
+    return INFINITY | (sign<<31)
+    
+  ' string of digits
+  repeat while (digit >= "0") and (digit <= "9")
+    digit -= "0"           ' convert from ASCII to decimal
+    
+    ' allow up to one extra digit for rounding
+    ' but stop accumulating digits after that
+    ' (we do have to remember if there are any non-zero ones though,
+    ' so we can round to nearest even correctly)
+    if val
+      ++exp
+    if val < 10*DEC_SCALE
+      val := val * 10 + digit   ' OK, accumulate
+    else
+      sticky |= digit      ' remember if we saw any non-zero digit
+    digit := byte[stringptr++]
+
+  ' handle any digits after a decimal point
+  if digit == "."
+    digit := byte[stringptr++]
+    repeat while digit >= "0" and digit <= "9"
+      digit -= "0"
+      if val==0
+        --exp
+      if val < 10*DEC_SCALE
+        val := val * 10 + digit  ' record the digit
+      else
+        sticky |= digit      ' remember any non-zero digit
+      digit := byte[stringptr++]
+
+  ' handle optional exponent
+  if digit == "e" or digit == "E"
+    digit := byte[stringptr++]
+    userexp := 0        ' initialize exponent to 0
+    userexpsign := 0
+    if digit == "+"
+      digit := byte[stringptr++]
+    elseif digit == "-"
+      digit := byte[stringptr++]
+      userexpsign := 1
+    repeat while digit >= "0" and digit <= "9"
+      userexp := 10 * userexp + (digit - "0")
+      digit := byte[stringptr++]
+
+    ' now merge the user's exponent with the one we've tracked
+    ' internally
+    ' in the usual case like 1.2E04 the internal one will be 0,
+    ' but we need to be able to handle odd cases like 12.3E+1
+    if userexpsign
+      exp := exp - userexp
+    else
+      exp := exp + userexp
+
+  ' convert the decimal + exponent to a floating point number
+
+  val := MkFloat(val, exp)  
+  val |= sign<<31
+
+{
+  Static tables
+}
+DAT
+pow_of_ten_table
+    long $00000001    ' 10^-45
+    long $00000007    ' 10^-44
+    long $00000047    ' 10^-43
+    long $000002ca    ' 10^-42
+    long $00001be0    ' 10^-41
+    long $000116c2    ' 10^-40
+    long $000ae398    ' 10^-39
+    long $006ce3ee    ' 10^-38
+    long $02081cea    ' 10^-37
+    long $03aa2425    ' 10^-36
+    long $0554ad2e    ' 10^-35
+    long $0704ec3d    ' 10^-34
+    long $08a6274c    ' 10^-33
+    long $0a4fb11f    ' 10^-32
+    long $0c01ceb3    ' 10^-31
+    long $0da24260    ' 10^-30
+    long $0f4ad2f8    ' 10^-29
+    long $10fd87b6    ' 10^-28
+    long $129e74d2    ' 10^-27
+    long $14461206    ' 10^-26
+    long $15f79688    ' 10^-25
+    long $179abe15    ' 10^-24
+    long $19416d9a    ' 10^-23
+    long $1af1c901    ' 10^-22
+    long $1c971da0    ' 10^-21
+    long $1e3ce508    ' 10^-20
+    long $1fec1e4a    ' 10^-19
+    long $219392ef    ' 10^-18
+    long $233877aa    ' 10^-17
+    long $24e69595    ' 10^-16
+    long $26901d7d    ' 10^-15
+    long $283424dc    ' 10^-14
+    long $29e12e13    ' 10^-13
+    long $2b8cbccc    ' 10^-12
+    long $2d2febff    ' 10^-11
+    long $2edbe6ff    ' 10^-10
+    long $3089705f    ' 10^-9
+    long $322bcc77    ' 10^-8
+    long $33d6bf95    ' 10^-7
+    long $358637bd    ' 10^-6
+    long $3727c5ac    ' 10^-5
+    long $38d1b717    ' 10^-4
+    long $3a83126f    ' 10^-3
+    long $3c23d70a    ' 10^-2
+    long $3dcccccd    ' 10^-1
+    long $3f800000    ' 10^0
+    long $41200000    ' 10^1
+    long $42c80000    ' 10^2
+    long $447a0000    ' 10^3
+    long $461c4000    ' 10^4
+    long $47c35000    ' 10^5
+    long $49742400    ' 10^6
+    long $4b189680    ' 10^7
+    long $4cbebc20    ' 10^8
+    long $4e6e6b28    ' 10^9
+    long $501502f9    ' 10^10
+    long $51ba43b7    ' 10^11
+    long $5368d4a5    ' 10^12
+    long $551184e7    ' 10^13
+    long $56b5e621    ' 10^14
+    long $58635fa9    ' 10^15
+    long $5a0e1bca    ' 10^16
+    long $5bb1a2bc    ' 10^17
+    long $5d5e0b6b    ' 10^18
+    long $5f0ac723    ' 10^19
+    long $60ad78ec    ' 10^20
+    long $6258d727    ' 10^21
+    long $64078678    ' 10^22
+    long $65a96816    ' 10^23
+    long $6753c21c    ' 10^24
+    long $69045951    ' 10^25
+    long $6aa56fa6    ' 10^26
+    long $6c4ecb8f    ' 10^27
+    long $6e013f39    ' 10^28
+    long $6fa18f08    ' 10^29
+    long $7149f2ca    ' 10^30
+    long $72fc6f7c    ' 10^31
+    long $749dc5ae    ' 10^32
+    long $76453719    ' 10^33
+    long $77f684df    ' 10^34
+    long $799a130c    ' 10^35
+    long $7b4097ce    ' 10^36
+    long $7cf0bdc2    ' 10^37
+    long $7e967699    ' 10^38
+end_pow_ten_table
+    long $7f800000    ' 10^39
+
+{{
+  Powers and Exponentials
+}}
+
+' calculate log2(a) when a is 1+b, for b a small number
+' assume b < $ffff, so we can scale up by 12 (at least)
+PRI SmallLog2(a) : r, rexp | b, b2, b3, one_scale, half
+  one_scale := $1_000_0000
+  b := (a - one_scale)
+  if b == 0
+    return 0, 0
+  ' scale b up to 1.28
+  b, rexp, _, _ := normalize2(b, 28)
+  half := (1<<rexp)>>1
+  
+  b2,_ := mymuldiv64(b, b, 2*one_scale)
+  b3,_ := mymuldiv64(2*b2, b, 3*one_scale)
+  ' set b2 = b2 - b3>>rexp
+  b2 -= (b3+half) sar rexp
+
+  r := b - ((b2+ half) sar rexp)
+
+  ' finally adjust r := ln(a) to be log2(a)
+  ' log2(a) = ln(a) / ln(2)
+  r, _ := mymuldiv64(r, one_scale, $b17217f)  ' ln(2) * one_scale
+  rexp := -rexp
+  
+PUB FLog2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
+  asign, aexp, a := Unpack(a)
+
+  ' some special cases
+  if a == 10.0
+    return LOG2_10
+  if a == CONST_E
+    return LOG2_E
+  if aexp == MAX_EXP and a <> 0
+    return NAN
+    
+  ' log2(0) == -infinity
+  ' but note that infinity is also stored with a 0 significand
+  ' so check for that here as well
+  if a == 0
+    if aexp == MAX_EXP
+      ' original number was infinity or -infinity
+      return asign ? NAN : INFINITY
+    return NEG_INFINITY
+
+  ' log2(-x) is NaN
+  if asign
+    return NAN
+    
+  aexp -= EXP_OFFSET
+
+  ' handle denormalized numbers by re-normalizing
+  repeat while a < MIN_SIG
+    a := a<<1
+    --aexp
+    
+  ' the significand a is now between $800_000 and $fff_fff
+  ' calculate log2 of it
+  ' note: log(2a) = log(a) - 1
+
+  rexp := EXP_OFFSET - 4  ' qlog produces a 1.27 fixed point vs. 1.23
+  rsign := 0
+  a := a<<5 ' convert to 1.28
+  one_scale := $1_000_0000
+  if a == one_scale
+    r := 0
+  elseif a < $1_001_0000
+    r, rsmexp := SmallLog2(a)
+    rexp := EXP_OFFSET - 5 + rsmexp
+  elseif a > $1_fff_0000
+    ' a is close to 2
+    ' calculate b = 2/a, which will be small
+    b, _ := mymuldiv64(one_scale<<1, one_scale, a)
+    aexp++     ' result should be 1-r, so adjust aexp
+    rsign := 1 ' flip sign of result
+    r, rsmexp := SmallLog2(b)
+    rexp := EXP_OFFSET - 5 + rsmexp
+  else
+    r := qlog(a) & $7ff_ffff
+  r := Pack(rsign, rexp, r, 1)
+
+  ' now r is a log2 for the significand
+  ' need to add in the exponent
+  r := FAdd(r, FromInt(aexp))
+
+{{
+  FPowInt(a, n): calculate a^n, where n is an integer
+}}
+
+PUB FPowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
+  asign, aexp, a := Unpack(a)
+  if n < 0
+    nsign := 1
+    n := -n
+  else
+    nsign := 0
+  if (n & 1) == 0
+    ' odd exponent -> keep sign, even -> positive
+    asign := 0
+
+  sticky := 0
+  ' a is 1.23 fixed point with 1 <= a < 2
+  ' so 1 <= a^2 < 4
+  ' thus convert a to 2.30 fixed point
+  a := a << 7
+  r := scale_one := 1<<30
+  rexp := 0
+  aexp -= EXP_OFFSET
+  
+  repeat while n > 0
+    if (n & 1)
+      r := muldiv64(a, r, scale_one)
+      rexp += aexp
+      if r < 0 ' high bit set?
+        sticky |= r&1
+        r := (r+1)>>1
+	rexp++
+    n := n>>1
+    ' square a
+    a, sticky2 := mymuldiv64(a, a, scale_one)
+    sticky |= sticky2
+    aexp += aexp  ' aexp += aexp
+    if a < 0 ' high bit set?
+      a := (a+1)>>1
+      aexp++
+
+  ' for negative exponents, produce 1/x
+  if (nsign)
+    ' watch out for denormalized numbers
+    repeat while r and r < scale_one
+      r := r<<1
+      rexp--
+    r, sticky2 := mymuldiv64(scale_one, scale_one, r)
+    sticky |= sticky2
+    rexp := -rexp
+    if r < 0
+      r := (r+1)>>1
+      sticky |= r&1
+      rexp++
+	
+  ' re-convert to fixed point
+  r := Pack(asign, rexp + EXP_OFFSET - 7, r, sticky)
+
+
+{{
+  FExp2_scale(x, scale) : calculate scale 2^x, where x is an arbitrary float and "scale" is a 4.28 fixed point scale factor
+
+  We really want to calculate 2^(x*scale)
+  If x is decomposed as (n+y), then this is (n*scale + y*scale)
+}}
+
+PRI FExp2_scale(a, scale) : r | sign, n, y, asign, aexp, rexp, sticky, tmp
+  sticky := 0
+  ' see if a >= 127.0 or a <= -127.0
+  ' this will also remove infinities
+  n := FCmp(a, 126.0)
+  if n == UNORDERED_CMP_RESULT
+    return NAN
+  elseif n >= 0
+    return INFINITY
+  else
+    'n := FCmp(a, -126.0)     ' WARNING: PNut mis-compiles -126
+    n := FCmp(a, $c2fc0000)   ' WARNING: so use hex constant instead
+    if n < 0
+      return 0
+ 
+  ' set n to the integer part of a*scale
+  ' and y to the fractional part
+
+  ' unpack a
+  asign,aexp,y := Unpack(a)
+
+  ' big exponents were ruled out above, but small ones are still possible
+  ' watch out for them: we want the actual exponent to fit in 6 bits
+  if aexp <= EXP_OFFSET - 30
+    return CONST_ONE
+    
+  ' scale y is a 9.23 bit number (really 1.23)
+  ' multiply by "scale" (a 4.28 bit number) to produce (n,y), a 13.51 bit number
+  n,y := mul64(y, scale)
+  
+  ' now normalize (based on aexp) so n is the integer part and y is the fractional part
+  ' i.e. make n,y to a 32.32 fixed point (64 bit) number
+  ' need to shift left by (aexp-EXP_OFFSET), then right by 51-32 = 19
+
+  tmp := (aexp-EXP_OFFSET) - 19
+  if tmp > 0
+    ' shift (n,y) left by tmp
+    n := (n << tmp) | (y >> (32-tmp))
+    y := y << tmp
+  else
+    tmp := -tmp
+    if tmp >= 32
+      sticky := y
+      y := n
+      n := 0
+      tmp -= 32
+    sticky |= y<<(32-tmp)
+    y := (y>>tmp) | (n<<(32-tmp))
+    n := n>>tmp
+
+  ' correct for possible negative sign (y must be unsigned)
+  if asign
+    n := -n
+    if y
+      --n
+      y := !y
+
+  ' now we have a == n + y, where 0<=y<1
+  ' (and where n is an integer)
+  ' then 2^a is 2^n * 2^y
+
+  ' we will scale at the end by 2^n
+  rexp := n
+
+  ' now calculate 2^y
+  ' we can use qexp to do this on integers normalized to 1.27 fixed point
+  ' 2^27 is 134217728
+
+  ' convert y to 0.27 fixed point
+  ' should we round while doing this?? for now no
+  sticky |= (y<<27)  ' remember any missing bits
+  y := y >> 5
+
+  if y == 0
+    r := MIN_SIG<<1
+  else
+    y |= (24<<27) ' set up for qexp
+    r := qexp(y)  ' calculate 2^y
+
+  r := Pack(0, rexp - 1 + EXP_OFFSET, r, sticky)  ' -1 is to correct for rounding
+
+{{
+  FExp2(x) : calculate 2^x, where x is an arbitrary float
+}}
+
+PUB FExp2(x) : r
+  return FExp2_scale(x, 1<<28)
+  
+
+{{
+  FPow(x, y): Calculate x^y
+}}
+PUB FPow(x, y) : r | n, tmp, nf, xsign
+  ' both kinds of 0 should act the same
+  if y == $8000_0000
+    y := 0
+  if x == $8000_0000
+    x := 0
+    xsign := 1
+  else
+    xsign := 0
+
+  ' oddly, x^0 is defined as 1 even if x is Nan!!!
+  if y == 0
+    return 1.0
+  
+  if FCmp(x, y) == UNORDERED_CMP_RESULT
+    return NAN
+
+  if y == INFINITY
+    x := FAbs(x)
+    if x > 1.0        ' regular comparison is OK here
+      return INFINITY
+    elseif x < 1.0
+      return 0
+    else
+      return NAN
+      
+  if y == NEG_INFINITY
+    x := FAbs(x)
+    if x > 1.0      ' regular comparison is OK here
+      return 0.0
+    elseif x < 1.0
+      return INFINITY
+    else
+      return NAN
+      
+  n := FTrunc(y)
+  nf := FromInt(n)
+  
+  if x == INFINITY or x == NEG_INFINITY
+    if y < 0
+      return 0
+    return ((n&1) and n < $7fff_ffff) ? x : INFINITY
+    
+  if x == 0
+    if y > 0
+      return 0
+    if (n & 1) and n < $7fff_ffff
+      return (xsign<<31)|INFINITY
+    return INFINITY
+    
+  if abs(n) < $FFFF
+    y := FSub(y, nf)
+    nf := FPowInt(x, n)
+    if y == 0
+      return nf
+  else
+    nf := ONE
+    
+  if FCmp(x, 0.0) < 0
+    return NAN
+
+  if y == 0.5
+    r := FSqrt(x)
+  elseif y == -0.5
+    r := FSqrt(x)
+    return FDiv(nf, r)
+  else
+    ' calculate x^y as 2^(y*log2(x))
+    tmp := FLog2(x)
+    tmp := FMul(tmp, y)
+    r := FExp2(tmp)
+  return FMul(nf, r)
+
+{{
+  FExp(x): Calculate e^x
+  this is 2^x*log2(e)
+}}
+PUB FExp(x) : r
+  ' log_e(x) = log_2(x) / log_2(e)
+  ' log_2(e) = log(e) / log(2)
+  'return FExp2(FMul(x, LOG2_E))
+  r := FExp2_Scale(x, $17154765)  ' LOG2_E * $1000_0000
+
+{{
+  FExp10(x): Calculate 10^x
+  this is 2^x*log2(10)
+}}
+PUB FExp10(x) : r
+  r := FExp2_Scale(x, $35269e13)  ' LOG2_10 * $1000_0000
+
+
+{{
+  FLog(x) : calculate log base e of x
+  log_e(x) = log_2(x) / log_2(e)
+}}
+PUB FLog(x) : r | l2
+  l2 := FLog2(x)
+  r := FDiv(l2, LOG2_E)
+  
+{{
+  FLog10(x) : calculate log base e of x
+  log_10(x) = log_2(x) / log_2(10)
+}}
+PUB FLog10(x) : r | l2
+  l2 := FLog2(x)
+  r := FDiv(FLog2(x), LOG2_10)
