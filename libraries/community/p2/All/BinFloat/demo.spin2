@@ -1,0 +1,35 @@
+'
+' Demo for floating point routines
+' Calculates Pi using the (very inefficient!) Leibniz series
+'   pi/4 = 1 - 1/3 + 1/5 - 1/7 + ...
+' This is a poor way to calculate pi (it's slow and inefficient, as
+' our final result shows!), but is easy to implement
+'
+
+CON
+  _clkfreq = 180_000_000
+  terms = 10_000
+  
+OBJ
+  flt : "BinFloat"
+  ser : "SmartSerial"
+  fmt : "ers_fmt"
+
+PUB main() | i, x, y, sum
+  ser.start(230_400)
+  send := @ser.tx
+  send("calculating pi...", fmt.nl())
+
+  sum := 0.0  ' initial value
+  x := 1.0
+  repeat i from 1 to terms
+    y := flt.FDiv(1.0, x)
+    if (i & 1) == 0
+      y := flt.FNeg(y)
+    sum := flt.FAdd(sum, y)
+    x := flt.FAdd(x, 2.0)
+
+  ' final result is 4*sum
+  sum := flt.FMul(4.0, sum)
+  
+  send("final result: ", flt.SendFloat(sum), fmt.nl())
