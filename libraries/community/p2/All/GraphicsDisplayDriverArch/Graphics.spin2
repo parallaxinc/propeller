@@ -1,0 +1,496 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Graphics
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.5
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Idea here is, that the graphics functions should actually be hardware independent.
+ The tricky part here is, that all functions except the pixel function, run in loops.
+ To make them as fast as possible it is desirable to implement them in PASM2. But in PASM2
+ you can not easily make use of function pointers to other objects, namely the hardware
+ dependent version of the pixel function.
+
+ Solution:
+ The program calling the graphics functions has to "install" a PASM2 version of the hardware
+ dependent pixel function in upper part of the COG-RAM. And with each call of a graphic function
+ the caller has to tell that function where to find the pixel routine.
+ This allows the PASM2 code to run inside the required loop(s) and write the pixels calculated
+ there without going back to SPIN2.
+
+ The whole concept becomes much clearer, if you simply check out the Display_Demo-file.
+
+ Usage:
+   * The program that want's to use the graphics library has to instantiate any number of
+     display drivers it want's to use for output.
+   * These display drivers need to be initialized (which also is doing a hardware init)
+   * In the COG which is calling the graphics functions, the hardware driver pixel function
+     has to be loaded into upper part of the COG-RAM. This will return the address that can
+     be used in each call of the below functions - parameter dpixel.
+   * If you want to make use of the text funtion, your program also has to instantiate any
+     number of fonts. ( current limit of 10 fonts can simply be changed by below MAX_FONTS
+     constant )
+   * The font then has to be "registered" with the addFont function. This will return an index
+     which is later needed for all functions that use the font - parameter fontnr.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+CON
+  MAX_FONTS = 10
+
+OBJ
+  scm : "pasmSMC"
+  font: "Font_Header"
+
+DAT
+  fontCnt byte 0
+  fontPtr long 0[ MAX_FONTS ]
+
+PUB addFont( adr ) : idx
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   This function needs to be used by your programs setup code,
+   in case you want to make use of font related functions.
+   The idx returned here can then be used as fontnr-parameter,
+   for example in:
+   text( dpixel, fontnr, x,y,col1,col2, string("Some Text") )
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  idx:=fontCnt
+  if fontCnt<MAX_FONTS
+    fontPtr[ fontCnt++ ]:=adr
+  else
+    return -1
+
+
+PUB pixel( dpixel, x,y,col )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   This function is a wrapper for the hardware dependent pixel
+   function, which can not easily be called by SPIN2.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+    scm.callP02( dpixel, x, y, col )
+
+
+PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
+' ,i,ch
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output text at location x,y with col1 being the text color,
+   and col2 being the background color or -1 for not changing
+   the non-character pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+    ' debug( "Text ", udec( x ), udec( y ) )
+
+    ' get the data of the font to be used for this call
+    adr:=font.getFontAdr( fontPtr[fontnr] )
+    cs:=font.getFontStartChar( fontPtr[fontnr] )
+    ce:=font.getFontEndChar( fontPtr[fontnr] )
+    w:=font.getFontWidth( fontPtr[fontnr] )
+    h:=font.getFontHeight( fontPtr[fontnr] )
+
+{{
+    repeat i from 0 to strsize( textptr )-1
+      c:=byte[textptr][i]
+      x+=w
+      if (c>=cs) & (c<=ce)
+        repeat ya from 0 to h-1
+          ch:=long[ adr + (c-cs)*h + ya ] << (32-w)
+          repeat xa from 0 to w-1
+            if ch & $8000_0000
+              scm.callP02( dpixel, x+xa, y+ya, col1 )
+            ch<<=1
+}}
+
+      org
+                mov    shift, #32
+                sub    shift, w
+                mov    bytes, w
+                sub    bytes, #1
+                shr    bytes, #3
+
+     textlp
+                rdbyte ch, textptr wz
+          if_z  ret
+
+                cmps   ch, cs WCZ
+          if_ge cmps   ce, ch WCZ
+          if_lt ret
+
+                mov    ya, #0
+                mov    cnty, h
+          linelp
+                mov    PR0, adr
+                mov    PR1, ch
+                sub    PR1, cs
+                shl    PR1, bytes
+                mul    PR1, h
+                add    PR0, PR1
+                add    PR0, ya
+                rdlong c, PR0
+
+                mov    xa, #0
+                mov    cntx, w
+
+                ' shift the MSB of w-size data to bit 31
+                shl    c, shift
+          pixlp
+                mov    PR2, col1
+                testb  c, #31 WZ
+                testb  col2, #31 WC
+          if_nz mov    PR2, col2
+    if_nz_and_c jmp    #done
+
+          pixelout
+                mov    PR0, x
+                add    PR0, xa
+                mov    PR1, y
+                add    PR1, ya
+                call   dpixel
+
+          done  shl    c, #1
+                add    xa, #1
+                djnz   cntx, #pixlp
+
+                add    ya, #1
+                djnz   cnty, #linelp
+
+                add    textptr, #1
+                add    x, w
+                jmp    #textlp
+
+          cntx  nop
+          cnty  nop
+          shift nop
+          bytes nop
+          ch    nop
+      end
+{{}}
+
+
+PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output a single character at location x,y with col1 being
+   the text color and col2 being the background color or -1 for
+   not changing the non-character pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+    ' debug( "Char ", udec( x ), udec( y ) )
+
+    ' get the data of the font to be used for this call
+    adr:=font.getFontAdr( fontPtr[fontnr] )
+    cs:=font.getFontStartChar( fontPtr[fontnr] )
+    ce:=font.getFontEndChar( fontPtr[fontnr] )
+    w:=font.getFontWidth( fontPtr[fontnr] )
+    h:=font.getFontHeight( fontPtr[fontnr] )
+
+{{
+    if (ch>=cs) & (ch<=ce)
+      repeat ya from 0 to h-1
+        c:=long[ adr + (ch-cs)*h + ya ] << (32-w)
+        repeat xa from 0 to w-1
+          if c & $8000_0000
+            scm.callP02( dpixel, x+xa, y+ya, col1 )
+          c<<=1
+}}
+
+      org
+                cmps   ch, cs WCZ
+          if_ge cmps   ce, ch WCZ
+          if_lt ret
+
+                mov    ya, #0
+                mov    shift, #32
+                sub    shift, w
+                mov    bytes, w
+                sub    bytes, #1
+                shr    bytes, #3
+                mov    cnty, h
+          linelp
+                mov    PR0, adr
+                mov    PR1, ch
+                sub    PR1, cs
+                shl    PR1, bytes
+                mul    PR1, h
+                add    PR0, PR1
+                add    PR0, ya
+                rdlong c, PR0
+
+                mov    xa, #0
+                mov    cntx, w
+
+                ' shift the MSB of w-size data to bit 31
+                shl    c, shift
+          pixlp
+                mov    PR2, col1
+                testb  c, #31 WZ
+                testb  col2, #31 WC
+          if_nz mov    PR2, col2
+    if_nz_and_c jmp    #done
+
+          pixelout
+                mov    PR0, x
+                add    PR0, xa
+                mov    PR1, y
+                add    PR1, ya
+                call   dpixel
+
+          done  shl    c, #1
+                add    xa, #1
+                djnz   cntx, #pixlp
+
+                add    ya, #1
+                djnz   cnty, #linelp
+                ret
+
+          cntx  nop
+          cnty  nop
+          shift nop
+          bytes nop
+      end
+
+
+PUB line(dpixel,xs, ys, xe, ye, cl)
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output a circle with mid-point at location x,y and with col1
+   being the outline color and col2 being the inner color or -1
+   for not changing the inside pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+      'debug( "Line ", udec( xs ), udec( ys ), udec( xe ), udec( ye ) )
+      org
+                mov    dx, xe
+                sub    dx, xs wcz
+                mov    xinc, #0
+          if_c  sub    xinc, #1
+   if_nc_and_nz add    xinc, #1
+                abs    dx
+                mov    dy, ye
+                sub    dy, ys wc
+                mov    yinc, #0
+          if_c  sub    yinc, #1
+   if_nc_and_nz add    yinc, #1
+                abs    dy
+
+                ' check if there really is something to do
+                mov    cnt, dx
+                add    cnt, dy wz
+          if_nz jmp    #draw
+                ' if endpoints are equal it is only a single pixel
+                mov    PR0, xs
+                mov    PR1, ys
+                mov    PR2, cl
+                call   dpixel
+                ret
+      draw
+                ' if xstep is bigger or equal to ystep,
+                ' then x is driving the loop
+                cmp    dx, dy wcz
+          if_lt jmp    #drv_y
+
+      drv_x     mov    xpos, xs
+                mov    ypos, ys
+                mov    dstep, #0
+                mov    cnt, dx
+      .x_loop   mov    PR2, cl
+                mov    PR0, xpos
+                mov    PR1, ypos
+                call   dpixel
+                add    dstep,dy
+                cmp    dstep, dx WCZ
+          if_gt sub    dstep, dx
+          if_gt add    ypos, yinc
+                add    xpos, xinc
+                djnz   cnt,#.x_loop
+                ret
+
+                ' if ystep is bigger, then y is driving the loop
+      drv_y     mov    xpos, xs
+                mov    ypos, ys
+                mov    dstep, #0
+                mov    cnt, dy
+      .y_loop   mov    PR2, cl
+                mov    PR0, xpos
+                mov    PR1, ypos
+                call   dpixel
+                add    dstep,dx
+                cmp    dstep, dy WCZ
+          if_gt sub    dstep, dy
+          if_gt add    xpos, xinc
+                add    ypos, yinc
+                djnz   cnt,#.y_loop
+                ret
+
+      dx        nop
+      xpos      nop
+      xinc      nop
+      dy        nop
+      ypos      nop
+      yinc      nop
+      dstep     nop
+      cnt       nop
+      end
+
+
+PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output a circle with mid-point at location x,y and with col1
+   being the outline color and col2 being the inner color or -1
+   for not changing the inside pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+      'debug( "Box ", udec( xa ), udec( ya ), udec( xe ), udec( ye ) )
+
+      org
+          ' sanitizing input for x
+          ' meaning that the x and y coordinates don't need to be in special order
+                cmp    xa, xe WCZ
+          if_ge mov    xstart, xe
+          if_lt mov    xstart, xa
+          if_ge mov    xstep, xa
+          if_ge sub    xstep, xe
+          if_lt mov    xstep, xe
+          if_lt sub    xstep, xa
+                add    xstep, #1
+
+          ' sanitizing input for y
+                cmp    ya, ye WCZ
+          if_ge mov    ystart, ye
+          if_lt mov    ystart, ya
+          if_ge mov    ystep, ya
+          if_ge sub    ystep, ye
+          if_lt mov    ystep, ye
+          if_lt sub    ystep, ya
+                add    ystep, #1
+
+        xlp
+                mov    ys, ystart
+                mov    ycnt,ystep
+
+                ' find out which color to use
+        ylp
+                cmp    xstart, xa WCZ
+          if_ne cmp    xstart, xe WCZ
+          if_ne cmp    ys, ya WCZ
+          if_ne cmp    ys, ye WCZ
+          if_e  mov    PR2, cl1
+          if_ne mov    PR2, cl2
+                ' or if color 2 is set to -1 -> no fill
+                testb  PR2, #31 WC
+          if_c  jmp    #lpcont
+
+        pixel_out
+                mov    PR0, xstart
+                mov    PR1, ys
+                call   dpixel
+
+      lpcont    add    ys, #1
+                djnz   ycnt, #ylp
+
+                add    xstart, #1
+                djnz   xstep, #xlp
+                ret
+
+      xstart    nop
+      xstep     nop
+      xcnt      nop
+      ystart    nop
+      ystep     nop
+      ycnt      nop
+      end
+
+
+PUB circle( dpixel,xc,yc,r,col1,col2 ) | d,lx1,ly1
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output a circle with mid-point at location x,y and with col1
+   being the outline color and col2 being the inner color or -1
+   for not changing the inside pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  lx1:=0
+  ly1:=r
+  d:= 3-r<<1
+  circleSectors( dpixel,xc, yc, lx1, ly1, col1)
+  if col2<>-1
+    lineSPIN( dpixel,xc-ly1+1,yc, xc+ly1-1,yc,col2) ',col2 )
+  repeat while ly1>=lx1
+    lx1++
+    if d>=0
+      ly1--
+      d:=d+(lx1-ly1)<<2+10
+      if col2<>-1
+        lineSPIN( dpixel,xc-lx1+1,yc+ly1,xc+lx1-1,yc+ly1, col2) ', col2 )
+        lineSPIN( dpixel,xc-lx1+1,yc-ly1,xc+lx1-1,yc-ly1, col2) ', col2 )
+    else
+      d:=d+lx1<<2+6
+
+    if col2<>-1
+      lineSPIN( dpixel,xc-ly1+1,yc+lx1, xc+ly1-1,yc+lx1,col2) ',col2 )
+      lineSPIN( dpixel,xc-ly1+1,yc-lx1, xc+ly1-1,yc-lx1,col2) ',col2 )
+    circleSectors( dpixel,xc,yc,lx1,ly1,col1 )
+
+
+PRI circleSectors( dpixel,xc, yc, x, y, col )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Helper for the circle function, which outputs 8 symmetric
+   pixels.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  scm.callP02( dpixel, xc+x, yc+y, col )
+  scm.callP02( dpixel, xc-x, yc+y, col )
+  scm.callP02( dpixel, xc+x, yc-y, col )
+  scm.callP02( dpixel, xc-x, yc-y, col )
+  scm.callP02( dpixel, xc+y, yc+x, col )
+  scm.callP02( dpixel, xc-y, yc+x, col )
+  scm.callP02( dpixel, xc+y, yc-x, col )
+  scm.callP02( dpixel, xc-y, yc-x, col )
+
+
+PRI lineSPIN(dpixel,xs, ys, xe, ye, cl) | dx, dy, dir, cdir, lx1,lx2,ly1,ly2
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Helper for the circle function, which uses lines to create
+   the inner of the circle. This is still needed, as the current
+   SPIN2 implementation of circle does not work together with the
+   PASM version of line.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  dx:=abs(xe-xs)
+  dy:=abs(ye-ys)
+
+  ' x is driving
+  if dx > dy
+    dir:= (ye-ys)<0?-1:1
+    ly1:=ys
+    ly2:=0
+    repeat lx1 from xs to xe
+      scm.callP02( dpixel,lx1, ly1, cl )
+      ly2+=dy
+      if ly2 > dx
+        ly2-=dx
+        ly1+=dir
+
+  else
+    ' y is driving
+    dir:= (xe-xs)<0?-1:1
+    lx1:=xs
+    lx2:=0
+    repeat ly1 from ys to ye
+      scm.callP02( dpixel,lx1, ly1, cl )
+      lx2+=dx
+      if lx2 > dy
+        lx2-=dy
+        lx1+=dir

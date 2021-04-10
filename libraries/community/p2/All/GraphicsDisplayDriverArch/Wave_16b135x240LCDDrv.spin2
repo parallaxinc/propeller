@@ -1,0 +1,371 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Wave_16b135x240LCDDrv
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.5
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Driver for the 1.3inch 240x240 16 bit color LCD display from Waveshare with a ST7789 driver
+ and SPI interface.
+ ( see http://www.waveshare.com/product/displays/lcd-oled/lcd-oled-3/1.14inch-lcd-module.htm )
+
+ Why is it called 135x240? Well, this is what the manufacturer calls it. But in the way it
+ is initialized (mostly rely on defaults), the display works as 240x135.
+
+ To be done:
+   * finish the double buffering code
+   * when Graphics.spin2 is switched to general ARGB color scheme, the pixel function needs
+     to do the conversion into 5R6G5B color format.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+
+CON
+  BUFFER_SIZE = 64800
+  BITS_PER_PIXEL = 16
+  X_RES = 240
+  X_MAX = 239
+  Y_RES = 135
+  Y_MAX = 134
+
+
+CON
+  SPI_CS_OFS   = 2
+  SPI_DOUT_OFS = 0
+  SPI_CLK_OFS  = 1
+  SPI_DC_OFS   = 3
+  SPI_RST_OFS  = 4
+
+
+OBJ
+  scm : "pasmSMC"
+
+
+VAR
+  ' number of buffers
+  ' 0: not yet initialized
+  ' 1: only one buffer for painting and writing
+  ' 2: double buffers ->
+  '       sb_paint can be used to paint next screen
+  '       sb_write can be sent to the display
+  byte buffers
+
+  sb_paint
+  sb_write
+
+  SPI_BASE, SPI_CS, SPI_DOUT, SPI_CLK, SPI_DC, SPI_RST
+
+
+PUB setup( base_pin ) | cnt, bidx
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Function to initialize driver and display. So, it should reset
+   the display and do whatever is needed to initialize it for
+   operation.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' remember the pins
+  SPI_BASE:= base_pin
+  SPI_CS  := SPI_BASE+ SPI_CS_OFS
+  SPI_DOUT:= SPI_BASE+ SPI_DOUT_OFS
+  SPI_CLK := SPI_BASE+ SPI_CLK_OFS
+  SPI_DC  := SPI_BASE+ SPI_DC_OFS
+  SPI_RST := SPI_BASE+ SPI_RST_OFS
+
+  ' initialize the pins
+  pinh( SPI_CS )
+  pinh( SPI_DC )
+  pinl( SPI_DOUT )
+  pinl( SPI_CLK )
+  pinl( SPI_RST )
+  waitms( 200 )
+  pinh( SPI_RST )
+  waitms( 500 )
+
+  ' and initialize the display
+  bidx:=0
+  pinl( SPI_CS )
+  repeat 5
+    cnt:=ws_init[ bidx++ ]
+    writeSPICommand( ws_init[ bidx++ ] )
+    if cnt>1
+      repeat cnt-1
+        writeSPIData( ws_init[ bidx++ ] )
+  pinh( SPI_CS )
+
+
+PUB addScreenBuffer( adr )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  ( should be independent of the display used )
+    Currently the dirver works with one or two screen buffers.
+    sb_paint is pointing to the buffer that is used in the
+    graphics functions.
+    sb_write is pointing to the buffer which can be send to the
+    display.
+    Adding one buffer means that only one buffer is used.
+    Adding another buffer means, that
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  case_fast buffers
+    0:
+      sb_paint:=adr
+      sb_write:=adr
+      buffers++
+    1:
+      sb_paint:=adr
+      buffers++
+    2:
+      sb_paint:=adr
+
+
+PUB switchBuffer() | tmp
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Simply switches the pointers for double buffering.
+   ( Creating next screen can be done while current screen is
+     send to the display. )
+   As an example, one COG would be using the graphics functions
+   which access the buffer pointed to by sb_paint.
+   Another COG could constantly run the screen update code, using
+   the sb_write buffer.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' missing: if the write buffer is currently used, wait
+  tmp:=sb_write
+  sb_write:=sb_paint
+  sb_paint:=tmp
+
+
+DAT
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    This is the PASM code that stays in COG-RAM for usage from
+    within the graphics functions in Graphics.spin2.
+
+    The function uses/changes PR0-PR3.
+
+    Input parameters:
+      * PR0 : X coordinate of the pixel
+      * PR1 : Y coordinate of the pixel
+      * PR2 : color of the pixel
+    Additionally used PR registers:
+      * PR3 : calculating the address in the display buffer, which
+              is currently active for painting
+
+    Being a 64k color display, each word in the
+    screen buffer actually is one pixel. So the hardware
+    dependent code below has to modify the right word.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+pixpas  WORD 0,ppend-ppstart-1
+  org
+ppstart
+            rdlong PR3, bufadr
+            ' check that the coordinate is in window
+xmax        cmps   PR0, #X_RES-1 WCZ
+ymax if_le  cmps   PR1, #Y_RES-1 WCZ
+     if_gt  ret
+     out1
+xmin        cmps   PR0, #0 WCZ
+ymin if_ge  cmps   PR1, #0 WCZ
+     if_lt  ret
+
+     out2
+            shl    PR0, #1
+            add    PR3, PR0
+            mul    PR1, #X_RES*2
+            add    PR3, PR1
+            wrword PR2, PR3
+            ret
+bufadr      long   0
+ppend
+
+
+PUB loadPixelPASM( cog_end ):adr | ad
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   This one loads the pixel routine above into the "end" of the
+   COG-RAM and returns the COG-RAM address to be used in calls
+   of functions in the Graphics-object.
+   cog_end is the last address which can be used, so for the
+   first call it is $130 (see regload description)
+   The function returns it's call address, which in turn can be
+   used as the "end" of other COG-routines.
+
+   As the PASM2 code is not loaded to a fixed address, the
+   register addresses used inside of the PASM2 code need to be
+   changed before regload. So, if you use other variables than
+   PR0-PR7 you have to call scm.setRelSource or scm.setDestination
+   functions.
+
+   Example from above:
+   ppstart
+              rdlong PR3, bufadr
+              ....
+   bufadr     long   0
+   ppend
+
+   The PASM2 code is compiled with an ORG having no dedicated
+   address, so it will start with 0. In the end the PASM2 code
+   is loaded to addres $130-size. So, the bufadr compiled into
+   the rdlong instruction is off and has to be corrected.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' prepare the pointer telling regload where to load the code to
+  pixpas[0]:= cog_end - ((@ppend>>2) - (@ppstart>>2))
+  ' add startadress to references
+  scm.setRelSource( @ppstart, pixpas[0], @ppstart, @bufadr )
+
+  ' let the PASM code know where the write buffer variable is
+  bufadr:=@sb_paint
+  regload( @pixpas )
+  return pixpas[0]
+
+
+PUB setClipping( xmi, xma, ymi, yma ) | sourcebp
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   The pixel function checks the validity of coordinates.
+   Initially the pixel code contains the min and max values as
+   given in the constants.
+   If clipping changes, this code has to reload the pixel setting
+   code with the new min and max coordinates.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' safety-net .. does not allow to set boundary outside of
+  ' coordinates, as the pixel routine could then write in
+  ' memory areas outside of the buffer
+  if xmi<0
+    xmi:=0
+  if xma>=X_RES
+    xma:=X_MAX
+  if ymi<0
+    ymi:=0
+  if yma>=Y_RES
+    yma:=Y_MAX
+
+  scm.setSource( @xmax, xma )
+  scm.setSource( @ymax, yma )
+  scm.setSource( @xmin, xmi )
+  scm.setSource( @ymin, ymi )
+  regload( @pixpas )
+
+
+PUB cogWriteBuffer()
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   This one would simply wait for a change in the sp_write
+   variable and send the whole screen-buffer content to the
+   display, if the variable is changed. So, this can be loaded
+   into a COG.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+
+PUB writeBuffer(adr, bytes) | buf,sck,sdo,scs,sdc,b
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Write buffer is called by the main program. If there are no
+   high frequency display updates needed, it is feasible to run
+   this together with the graphics functions and together with
+   main code in the same COG.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  if adr<>0
+    buf:=adr
+  else
+    buf:=sb_write
+  bytes>>=1
+  sck:=1<<SPI_CLK
+  sdo:=1<<SPI_DOUT
+  scs:=1<<SPI_CS
+  sdc:=1<<SPI_DC
+
+  pinl( SPI_CS )
+
+  writeSPICommand( $2A )
+  writeSPIData16( $00+40 )
+  writeSPIData16( X_MAX+40 )
+  writeSPICommand( $2B )
+  writeSPIData16( $00+53 )
+  writeSPIData16( Y_MAX+53 )
+  writeSPICommand( $2C )
+
+  org
+            nop
+            nop
+loop        rdword b, buf
+            shl    b, #16
+            add    buf,#2
+
+            rep    #7,#16
+            andn   OUTA,sck
+            shl    b, #1 WC
+
+     IF_C   or     OUTA,sdo
+     IF_NC  andn   OUTA,sdo
+
+            waitx  #0
+            or     OUTA,sck
+            waitx  #0
+
+            sub    bytes, #1 WZ
+     IF_NZ  jmp    #loop
+
+  end
+  pinh( SPI_CS )
+
+
+PRI writeSPI(b,c)|msb
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    Here is a block of helper functions, needed to implement the
+    SPI functions understood by the display.
+    Might be ported to PASM2 if needed.
+    Making it an object of it's own needs to be investigated.
+    The next display driver I did, did not work with this SPI
+    bus protocol and the working driver for the other display did
+    not work with this display.
+    On the other hand it is only worth the efford, if more than
+    one display shall be used in a project.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  msb:=1<<(c-1)
+  'waitus(2)
+  repeat c
+    pinl( SPI_CLK )
+    if b & msb
+      pinh( SPI_DOUT )
+    else
+      pinl( SPI_DOUT )
+    b<<=1
+    pinh( SPI_CLK )
+  'waitus( 10 )
+  pinl( SPI_CLK )
+  pinl( SPI_DOUT )
+
+
+PRI writeSPIData16(b)
+  pinh( SPI_DC )
+  writeSPI(b,16)
+
+
+PRI writeSPIData(b)
+  pinh( SPI_DC )
+  writeSPI(b,8)
+
+
+PRI writeSPICommand(b)
+  pinl( SPI_DC )
+  writeSPI(b,8)
+  pinh( SPI_DC )
+
+
+DAT
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Some data needed by the initialization.
+
+   The code examples for the waveshare do some more initialization,
+   but as learned from Clusoe's driver, all others have a default
+   that works.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ws_init     byte 1, $11
+              byte 2, $3A, $55
+              byte 2, $36, $70
+              byte 1, $21
+              byte 1, $29

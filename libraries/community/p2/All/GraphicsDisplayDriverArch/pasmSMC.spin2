@@ -1,0 +1,65 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    pasmSMC
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.5
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ pasmSMC stands for PASM2 Self Modifying Code. The current version is rather minimal and
+ popped up because of the need of modifying some values the display drivers of the
+ GraphicsDisplayDriver library.
+ The need was to update some pointers in the PASM2 code (still in HUB-RAM), which is going to
+ be loaded into different COG-RAM locations.
+
+ Later a way of calling PASM2 functions in old BIOS INT13 style has been added, where you
+ simply need to know which parameters are expected by the PASM2 code in which PR0-7 registers.
+ The scheme of the callPxx functions is to name the range of parameters that are passed.
+ callP02 means call with passing PR0 - PR2.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+
+PUB setSource( instrHUBAdr, adr )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Set the source part of a PASM instruction.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  adr &= $0000_01ff
+  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $ffff_fe00 | adr
+
+PUB setRelSource( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Convert 2 HUB-RAM addresses to a COG-RAM address and set the
+   source part of a PASM instruction to the result.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  adr := (adrVar-adrPasm)>>2 + cogAdr
+  adr &= $0000_01ff
+  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $ffff_fe00 | adr
+
+PUB setDestination( target, adr )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Set the destination part of a PASM instruction.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  adr &= $0000_01ff
+  long[ target ] := long[ target ]& $fffc_01ff | adr<<9
+
+PUB setRelDestination( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Convert 2 HUB-RAM addresses to a COG-RAM address and set the
+   destination part of a PASM instruction to the result.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  adr := (adrVar-adrPasm)>>2 + cogAdr
+  adr &= $0000_01ff
+  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $fffc_01ff | adr<<9
+
+PUB callP02( adr, val0, val1, val2 )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Call whatever function has been installed in COG-RAM at
+   address adr, by passing in 3 parameters.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  PR0:=val0
+  PR1:=val1
+  PR2:=val2
+  call( adr )
