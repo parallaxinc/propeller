@@ -77,13 +77,14 @@ CON
   DISPLAYA_BASE_PIN = 8
   DISPLAYB_BASE_PIN = 16
   DISPLAYC_BASE_PIN = 0
-  WAIT_TIME         = 2
+  WAIT_TIME         = 30
 
   FONT_ATARI  = 0
   FONT_CMD    = 1
   FONT_TECH   = 2
   FONT_AQUA   = 3
   FONT_RUB    = 4
+  FONT_DUMMY  = 5
 
   ' Use bit 0, 1, 2 to enable demo for display a, b, c
   RUN_DISP    = 7
@@ -100,6 +101,7 @@ OBJ
   font8x8c: "Font8x8_Tech"
   font8x8d: "Font8x8_Aqua"
   font8x8e: "Font8x8_Burnrubber"
+  font8x8f: "Font8x8_Dummy"
   font    : "Font_Header"
 
 DAT
@@ -112,10 +114,67 @@ VAR
   dispb_pix
   dispc_pix
 
-PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
+PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
   setup()
 
   repeat
+    sx:=font.getFontWidth( font8x8f.getFontHeader() )
+    sy:=font.getFontHeight( font8x8f.getFontHeader() )
+    graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+    c:=$fe00fe
+    repeat 126
+      repeat y from 0 to 7
+        repeat x from 0 to 15
+          if x&1
+            c>>=8
+          else
+            c<<=8
+          graphic.char( dispb_pix, FONT_DUMMY, x*(sx+2), y*(sy+2)+45, c, -1, "0"+x//10 )
+      graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
+      graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+      c:=c-$00020002
+      ' waitms( WAIT_TIME )
+
+    if RUN_DISP&1
+      y:=0
+      repeat 128
+        c:=0
+        x:=0
+        repeat 128
+          graphic.pixel( dispa_pix, x, y,c )
+          x++
+          if (x//8)==0
+            c+=$101010
+        y++
+      disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+      waitms( WAIT_TIME )
+
+    if RUN_DISP&2
+      y:=0
+      repeat 240
+        c:=$0
+        x:=0
+        repeat 240
+          graphic.pixel( dispb_pix, x, y,c )
+          x++
+          c+=$010101
+        y++
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+      waitms( WAIT_TIME )
+
+    if RUN_DISP&4
+      y:=0
+      repeat 240
+        c:=$0
+        x:=0
+        repeat 240
+          graphic.pixel( dispc_pix, x, y,c )
+          x++
+          c+=$010101
+        y++
+      disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+      waitms( WAIT_TIME )
 
     if RUN_DISP&4
       graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
@@ -143,44 +202,44 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
           graphic.pixel( dispb_pix, x, y, c )
         graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Pixel Test") )
         graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Pixel Test") )
-        graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
       disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
 
     if RUN_DISP&1
-      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$f,0)
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
       disp_a.setClipping( 0,disp_a.X_MAX,0,disp_a.Y_MAX )
       repeat y1 from 99 to 0
         repeat 2000
           x:=getrnd()//disp_a.X_RES
           y:=getrnd()//disp_a.Y_RES
-          c:=getrnd()&$0f
+          c:=getrnd()&$ffffff
           graphic.pixel( dispa_pix, x, y, c )
-        graphic.text( dispa_pix, FONT_ATARI,  11,11+y1,0,$3, string("Pixel Test") )
-        graphic.text( dispa_pix, FONT_ATARI,  10,10+y1,$f,-1, string("Pixel Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  11,11+y1,$0,$3, string("Pixel Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
       disp_a.setClipping( 0,disp_a.X_MAX,0,disp_a.Y_MAX )
 
 
     repeat f from 0 to 4
       if RUN_DISP&1
-        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$f,0)
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
         repeat y from 0 to 7
           repeat x from 0 to 15
-            c:=(x&3)*3+4
-            graphic.char( dispa_pix, f, x*8, y*8+30, $f, -1, y*16+x )
+            c:=(x*$080808)*3+$101010
+            graphic.char( dispa_pix, f, x*8, y*8+30, c, -1, y*16+x )
         graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
-        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffff,-1, string("Font Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
       if RUN_DISP&2
-        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,0)
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
         repeat y from 0 to 7
           repeat x from 0 to 15
-            c:=%00000_001000_00000*x+%00111_000111_00111
+            c:=$000400*x+$0f0f0f
             graphic.char( dispb_pix, f, x*10+45, y*10+45, c, -1, y*16+x )
         graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
-        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffff,-1, string("Font Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
@@ -190,7 +249,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
             c:=%00000_001000_00000*x+%00111_000111_00111
             graphic.char( dispc_pix, f, x*10+45, y*10+30, c, %00111_000000_00000, y*16+x )
         graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
-        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffff,-1, string("Font Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
         disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
 
       waitms( WAIT_TIME )
@@ -198,32 +257,32 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
 
     repeat REPEATS
       if RUN_DISP&1
-        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,15,0)
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
         repeat 100
           x1:=random( disp_a.X_MAX-10 ) + 5
           y1:=random( disp_a.Y_MAX-10 ) + 5
           x2:=random( disp_a.X_MAX-10 ) + 5
           y2:=random( disp_a.Y_MAX-10 ) + 5
-          c1:=getrnd()& $f
+          c1:=getrnd()& $ffffff
           'c2:=getrnd()& $f
           graphic.line(dispa_pix,x1,y1,x2, y2, c1) ', c2)
         graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
-        graphic.text( dispa_pix, FONT_ATARI,  10,10,$f,-1, string("Line Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Line Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
       if RUN_DISP&2
-        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,0)
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
         repeat 100
           x1:=random( disp_b.X_MAX-40 ) + 20
           y1:=random( disp_b.Y_MAX-40 ) + 20
           x2:=random( disp_b.X_MAX-40 ) + 20
           y2:=random( disp_b.Y_MAX-40 ) + 20
-          c1:=getrnd()&$ffff
-          c2:=getrnd()&$ffff
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
           graphic.line(dispb_pix,x1,y1,x2, y2, c1) ', c2)
         graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
         graphic.text( dispb_pix, FONT_ATARI,   9,11,$0,-1, string("Line Test") )
-        graphic.text( dispb_pix, FONT_ATARI,  20,10,$ffff,-1, string("Line Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  20,10,$ffffff,-1, string("Line Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
@@ -233,68 +292,68 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
           y1:=random( disp_c.Y_MAX-40 ) + 20
           x2:=random( disp_c.X_MAX-40 ) + 20
           y2:=random( disp_c.Y_MAX-40 ) + 20
-          c1:=getrnd()&$ffff
-          c2:=getrnd()&$ffff
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
           graphic.line(dispc_pix,x1,y1,x2, y2, c1) ', c2)
         graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
         graphic.text( dispc_pix, FONT_ATARI,   9,11,$0,-1, string("Line Test") )
-        graphic.text( dispc_pix, FONT_ATARI,  20,10,$ffff,-1, string("Line Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  20,10,$ffffff,-1, string("Line Test") )
         disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
 
       waitms( WAIT_TIME )
 
     repeat REPEATS
       if RUN_DISP&1
-        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,15,0)
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
         repeat 10
           x1:=random( disp_a.X_MAX-20 )+10
           x2:=random( disp_a.X_MAX-20 )+10
           y1:=random( disp_a.Y_MAX-20 )+10
           y2:=random( disp_a.Y_MAX-20 )+10
-          c1:=getrnd()&$0f
-          c2:=getrnd()&$0f
-          if c2>$0f
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
+          if c2>$ffffff
             c2:=-1
           graphic.box(dispa_pix,x1,y1,x2,y2,c1,c2)
 
         graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
-        graphic.text( dispa_pix, FONT_ATARI,  10,10,$f,-1, string("Box Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
       if RUN_DISP&2
-        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,0)
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
         repeat 10
           x1:=random( disp_b.X_MAX-40 ) + 20
           x2:=random( disp_b.X_MAX-40 ) + 20
           y1:=random( disp_b.Y_MAX-40 ) + 20
           y2:=random( disp_b.Y_MAX-40 ) + 20
-          c1:=getrnd()&$ffff
-          c2:=getrnd()&$ffff
-          if c2>$ffff
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
+          if c2>$ffffff
             c2:=-1
           graphic.box(dispb_pix,x1,y1,x2,y2,c1,c2)
 
         graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
         graphic.text( dispb_pix, FONT_ATARI,   9,11,$0,-1, string("Box Test") )
-        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffff,-1, string("Box Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
-        graphic.box(dispb_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
+        graphic.box(dispb_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
         repeat 10
           x1:=random( disp_c.X_MAX-40 ) + 20
           x2:=random( disp_c.X_MAX-40 ) + 20
           y1:=random( disp_c.Y_MAX-20 ) + 10
           y2:=random( disp_c.Y_MAX-20 ) + 10
-          c1:=getrnd()&$ffff
-          c2:=getrnd()&$ffff
-          if c2>$ffff
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
+          if c2>$ffffff
             c2:=-1
           graphic.box(dispc_pix,x1,y1,x2,y2,c1,c2)
 
         graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
         graphic.text( dispc_pix, FONT_ATARI,   9,11,$0,-1, string("Box Test") )
-        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffff,-1, string("Box Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
         disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
 
       waitms( WAIT_TIME )
@@ -306,40 +365,40 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
           x:=random( disp_a.X_MAX-40 )+20
           y:=random( disp_a.Y_MAX-40 )+20
           r:=random( 30 )
-          c:=getrnd()&$7+4
+          c:=getrnd()&$ffffff
           graphic.circle( dispa_pix,x,y,r,c,c>>1 )
         graphic.text( dispa_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
-        graphic.text( dispa_pix, FONT_ATARI, 10,20,$f,-1, string("Circle Test") )
+        graphic.text( dispa_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
       if RUN_DISP&2
-        graphic.box(dispb_pix,0, 0, disp_b.X_MAX, disp_b.Y_MAX, $ffff, 0)
+        graphic.box(dispb_pix,0, 0, disp_b.X_MAX, disp_b.Y_MAX, $ffffff, 0)
         repeat 10
           x:=random( disp_b.X_MAX-40 )+20
           y:=random( disp_b.Y_MAX-40 )+20
           r:=random( 60 )
-          c:=getrnd()&$ffff
-          if c2>$ffff
+          c:=getrnd()&$ffffff
+          if c2>$ffffff
             c2:=-1
           graphic.circle( dispb_pix,x,y,r,c,c>>1 )
         graphic.text( dispb_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
         graphic.text( dispb_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
-        graphic.text( dispb_pix, FONT_ATARI, 10,20,$ffff,-1, string("Circle Test") )
+        graphic.text( dispb_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
-        graphic.box(dispc_pix,0, 0, disp_c.X_MAX, disp_c.Y_MAX, $ffff, 0)
+        graphic.box(dispc_pix,0, 0, disp_c.X_MAX, disp_c.Y_MAX, $ffffff, 0)
         repeat 10
           x:=random( disp_c.X_MAX-40 )+20
           y:=random( disp_c.Y_MAX-40 )+20
           r:=random( 60 )
-          c:=getrnd()&$ffff
-          if c2>$ffff
+          c:=getrnd()&$ffffff
+          if c2>$ffffff
             c2:=-1
           graphic.circle( dispc_pix,x,y,r,c,c>>1 )
         graphic.text( dispc_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
         graphic.text( dispc_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
-        graphic.text( dispc_pix, FONT_ATARI, 10,20,$ffff,-1, string("Circle Test") )
+        graphic.text( dispc_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
         disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
 
       waitms( WAIT_TIME )
@@ -348,9 +407,9 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
     if RUN_DISP&1
       repeat x from 0 to disp_a.BUFFER_SIZE
         byte[ @screen ][ x ]:= byte[ @image1 ][ x ]
-      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$f,-1)
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,-1)
       graphic.text( dispa_pix, FONT_ATARI,  11,11,0,-1, string("Wolf is back!") )
-      graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffff,-1, string("Wolf is back!") )
+      graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Wolf is back!") )
       disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
     if RUN_DISP&2
@@ -358,17 +417,17 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
         x:=random( disp_b.X_MAX-40 )+20
         y:=random( disp_b.Y_MAX-40 )+20
         r:=random( 60 )
-        c:=getrnd()&$ffff
+        c:=getrnd()&$ffffff
         graphic.circle( dispb_pix,x,y,r,c,c>>1 )
 
-      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,0)
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
       repeat x from 0 to 127
         repeat y from 0 to 127
           word[ @screen ][ (y+45)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
-      graphic.box(dispb_pix,44,44,44+128,44+128,$ffff,-1)
+      graphic.box(dispb_pix,44,44,44+128,44+128,$ffffff,-1)
       graphic.text( dispb_pix, FONT_ATARI,  11,11,0,-1, string("-= Wolf is back! =-") )
       graphic.text( dispb_pix, FONT_ATARI,   9,11,0,-1, string("-= Wolf is back! =-") )
-      graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffff,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("-= Wolf is back! =-") )
       disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
     if RUN_DISP&4
@@ -376,17 +435,17 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f
         x:=random( disp_c.X_MAX-40 )+20
         y:=random( disp_c.Y_MAX-40 )+20
         r:=random( 60 )
-        c:=getrnd()&$ffff
+        c:=getrnd()&$ffffff
         graphic.circle( dispc_pix,x,y,r,c,c>>1 )
 
-      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
       repeat x from 0 to 127
         repeat y from 0 to 127
           word[ @screen ][ (y+5)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
-      graphic.box(dispc_pix,44,4,44+128,4+128,$ffff,-1)
+      graphic.box(dispc_pix,44,4,44+128,4+128,$ffffff,-1)
       graphic.text( dispc_pix, FONT_ATARI,  11,11,0,-1, string("-= Wolf is back! =-") )
       graphic.text( dispc_pix, FONT_ATARI,   9,11,0,-1, string("-= Wolf is back! =-") )
-      graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffff,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("-= Wolf is back! =-") )
       disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
 
     waitms( WAIT_TIME )
@@ -433,6 +492,7 @@ PUB setup() | tmp, cnt, pix_adr
   graphic.addFont( font8x8c.getFontHeader() )
   graphic.addFont( font8x8d.getFontHeader() )
   graphic.addFont( font8x8e.getFontHeader() )
+  graphic.addFont( font8x8f.getFontHeader() )
 
 
 DAT

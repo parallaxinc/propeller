@@ -30,29 +30,33 @@ PUB setSource( instrHUBAdr, adr )
   long[ instrHUBAdr ] := long[ instrHUBAdr ]& $ffff_fe00 | adr
 
 PUB setRelSource( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
+',instr,val
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Convert 2 HUB-RAM addresses to a COG-RAM address and set the
    source part of a PASM instruction to the result.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
-  adr := (adrVar-adrPasm)>>2 + cogAdr
+  adr := (adrVar-instrHUBAdr)>>2 + cogAdr
   adr &= $0000_01ff
-  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $ffff_fe00 | adr
+  'instr := (long[ adrPasm ] & %00001111_11100000_00000000_00000000)>>21
+  'val:=long[ adrVar ]
+  'debug( "setRelSource", ubin( instr ), uhex( adr ), uhex( val ) )
+  long[ adrPasm ] := (long[ adrPasm ] & $ffff_fe00) | adr
 
-PUB setDestination( target, adr )
+PUB setDestination( instrHUBAdr, adr )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Set the destination part of a PASM instruction.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
   adr &= $0000_01ff
-  long[ target ] := long[ target ]& $fffc_01ff | adr<<9
+  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $fffc_01ff | adr<<9
 
 PUB setRelDestination( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Convert 2 HUB-RAM addresses to a COG-RAM address and set the
    destination part of a PASM instruction to the result.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
-  adr := (adrVar-adrPasm)>>2 + cogAdr
+  adr := (adrVar-instrHUBAdr)>>2 + cogAdr
   adr &= $0000_01ff
-  long[ instrHUBAdr ] := long[ instrHUBAdr ]& $fffc_01ff | adr<<9
+  long[ adrPasm ] := long[ adrPasm ]& $fffc_01ff | adr<<9
 
 PUB callP02( adr, val0, val1, val2 )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

@@ -30,6 +30,22 @@ CON
   Y_RES = 128
   Y_MAX = 127
 
+  GREY_0 = $000000
+  GREY_1 = $101010
+  GREY_2 = $202020
+  GREY_3 = $303030
+  GREY_4 = $404040
+  GREY_5 = $505050
+  GREY_6 = $606060
+  GREY_7 = $707070
+  GREY_8 = $808080
+  GREY_9 = $909090
+  GREY_A = $A0A0A0
+  GREY_B = $B0B0B0
+  GREY_C = $C0C0C0
+  GREY_D = $D0D0D0
+  GREY_E = $E0E0E0
+  GREY_F = $F0F0F0
 
 CON
   SPI_CS_OFS   = 2
@@ -169,6 +185,23 @@ xmin        cmps   PR0, #0 WCZ
 ymin if_ge  cmps   PR1, #0 WCZ
      if_lt  ret
 
+            ' easy color conversion from RGB to grayscale
+            shr    PR2, #4
+            mov    PR4, PR2
+            xor    PR5, PR5
+            and    PR4, #$ff
+            add    PR5, PR4
+            mov    PR4, PR2
+            shr    PR4, #8
+            and    PR4, #$ff
+            add    PR5, PR4
+            mov    PR4, PR2
+            shr    PR4, #16
+            and    PR4, #$ff
+            add    PR5, PR4
+            qdiv   PR5, #3
+            getqx  PR2
+
             ror    PR0, #1 WC
             add    PR3, PR0
             shl    PR1, #6
@@ -218,6 +251,7 @@ PUB loadPixelPASM( cog_end ):adr | ad
   pixpas[0]:= cog_end - (@ppend>>2) + (@ppstart>>2) - 2
 
   ' add startadress to references
+  debug( "128x128" )
   scm.setRelSource( @ppstart, pixpas[0], @ppstart, @bufadr )
 
   ' let the PASM code know where the write buffer variable is

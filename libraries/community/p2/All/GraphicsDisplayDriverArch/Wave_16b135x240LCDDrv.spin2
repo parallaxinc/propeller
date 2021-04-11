@@ -171,6 +171,22 @@ ymin if_ge  cmps   PR1, #0 WCZ
      if_lt  ret
 
      out2
+            ' easy color conversion from 8R8G8B to 5R6G5B
+            mov    PR4, PR2
+            xor    PR5, PR5
+            shr    PR4, #3
+andB        and    PR4, b_mask
+            or     PR5, PR4
+            mov    PR4, PR2
+            shr    PR4, #5
+andG        and    PR4, g_mask
+            or     PR5, PR4
+            mov    PR4, PR2
+            shr    PR4, #8
+andR        and    PR4, r_mask
+            or     PR5, PR4
+            mov    PR2, PR5
+
             shl    PR0, #1
             add    PR3, PR0
             mul    PR1, #X_RES*2
@@ -178,6 +194,11 @@ ymin if_ge  cmps   PR1, #0 WCZ
             wrword PR2, PR3
             ret
 bufadr      long   0
+            '    RRRRRRRR_GGGGGGGG_BBBBBBBB
+b_mask      long   %00000000_00000000_00000_000000_11111
+g_mask      long   %00000000_00000000_00000_111111_00000
+r_mask      long   %00000000_00000000_11111_000000_00000
+
 ppend
 
 
@@ -213,7 +234,11 @@ PUB loadPixelPASM( cog_end ):adr | ad
   ' prepare the pointer telling regload where to load the code to
   pixpas[0]:= cog_end - ((@ppend>>2) - (@ppstart>>2))
   ' add startadress to references
+  debug( "240x135" )
   scm.setRelSource( @ppstart, pixpas[0], @ppstart, @bufadr )
+  scm.setRelSource( @ppstart, pixpas[0], @andB, @b_mask )
+  scm.setRelSource( @ppstart, pixpas[0], @andG, @g_mask )
+  scm.setRelSource( @ppstart, pixpas[0], @andR, @r_mask )
 
   ' let the PASM code know where the write buffer variable is
   bufadr:=@sb_paint
