@@ -111,7 +111,6 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
                 mov    shift, #32
                 sub    shift, w
                 mov    bytes, w
-                sub    bytes, #1
                 shr    bytes, #3
 
      textlp
@@ -128,10 +127,13 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
                 mov    PR0, adr
                 mov    PR1, ch
                 sub    PR1, cs
-                shl    PR1, bytes
+                mul    PR1, bytes
                 mul    PR1, h
+
                 add    PR0, PR1
-                add    PR0, ya
+                mov    PR1, ya
+                mul    PR1, bytes
+                add    PR0, PR1
                 rdlong c, PR0
 
                 mov    xa, #0
