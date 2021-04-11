@@ -101,7 +101,7 @@ OBJ
   font8x8c: "Font8x8_Tech"
   font8x8d: "Font8x8_Aqua"
   font8x8e: "Font8x8_Burnrubber"
-  font8x8f: "Font8x8_Dummy"
+  font8x8f: "Font14x11_Dummy"
   font    : "Font_Header"
 
 DAT
@@ -200,9 +200,9 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y:=getrnd()//disp_b.Y_RES
           c:=getrnd()
           graphic.pixel( dispb_pix, x, y, c )
-        graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Pixel Test") )
-        graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Pixel Test") )
-        graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_DUMMY,  11,11+y1,0,%00111_001111_00111, string("0123456789") )
+        graphic.text( dispb_pix, FONT_DUMMY,   9,11+y1,0,-1, string("0123456789") )
+        graphic.text( dispb_pix, FONT_DUMMY,  10,10+y1,$ffffff,-1, string("0123456789") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
       disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
 

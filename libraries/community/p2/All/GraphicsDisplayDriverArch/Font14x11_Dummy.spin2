@@ -27,7 +27,7 @@ font_header
 font    long long 0            ' for some reason @fonttab does not work here, it has to be done in code
 cstart  byte byte $30
 cend    byte byte $39
-sizeX   byte byte 16
+sizeX   byte byte 14
 sizeY   byte byte 11
 
 fonttab
