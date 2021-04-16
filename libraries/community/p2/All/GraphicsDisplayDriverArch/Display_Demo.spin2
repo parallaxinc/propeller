@@ -25,6 +25,7 @@ __________               __           /\
    * 128x64  1bit blue/white parallel STN LCD with 2 Avant SBN0064G chips
    * 1.27inch 128x96 ? RGB SPI OLED display from Adafruit
    * 0.96inch 128x64 blue SPI OLED display from DFRobot
+   * ePaper display
 
  The philosophy:
    * The main program is the master of everything! So, if the requirements regarding frame-rate
@@ -35,11 +36,11 @@ __________               __           /\
      be replaced during runtime.
 
  Known issues:
-   * Other font sizes have not been tested so far
+   * -
 
  Plans for the future:
    * Use a general color concept (32bit 8A8R8G8B) in the graphics functions, which will
-     automatically be converted to the display color encoding.
+     automatically be converted to the display color encoding. (8R8G8B done, missing is 8A)
    * Function for reading 24bit BMP files
    * Having a mode without screen-buffer
    * Enhance the display drivers to support display hardware windows
@@ -48,7 +49,8 @@ __________               __           /\
    * Maybe another object which supports drawing of Windows(tm;o) and other graphical stuff?
      ( Buttons, icons, sliders ... )
 
- Feel free to add a hardware driver for your specific display.
+ Feel free to add a hardware driver for your specific display and create a PR to keep things
+ together.
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 }}
 CON { timing }
@@ -77,7 +79,7 @@ CON
   DISPLAYA_BASE_PIN = 8
   DISPLAYB_BASE_PIN = 16
   DISPLAYC_BASE_PIN = 0
-  WAIT_TIME         = 30
+  WAIT_TIME         = 2000
 
   FONT_ATARI  = 0
   FONT_CMD    = 1
@@ -95,14 +97,29 @@ OBJ
   disp_a: "Wave_16GS128x128OledDrv"
   disp_b: "Wave_16b240x240LCDDrv"
   disp_c: "Wave_16b135x240LCDDrv"
+
+  {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+     This is a fun one. It can be used to send the image generated
+     for the disp_b to a debug window. If you enable debug, it
+     will do so for the line test, as it is of course pretty slow
+     to send a whole screen to the PC.
+     =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  disp_d: "Debug_16b240x240_Drv"
+
   graphic : "Graphics"
+
+  font    : "Font_Header"
   font8x8a: "Font8x8_Atari"
   font8x8b: "Font8x8_Cmd"
   font8x8c: "Font8x8_Tech"
   font8x8d: "Font8x8_Aqua"
   font8x8e: "Font8x8_Burnrubber"
+
+  {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+     This does not contain a real font, it is only some quick hack
+     test fontset.
+     =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
   font8x8f: "Font14x11_Dummy"
-  font    : "Font_Header"
 
 DAT
   ' as I share the screen buffer with all displays, I simply pick the biggest value
@@ -114,28 +131,47 @@ VAR
   dispb_pix
   dispc_pix
 
-PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
+PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy,cts,cte
   setup()
 
   repeat
-    sx:=font.getFontWidth( font8x8f.getFontHeader() )
-    sy:=font.getFontHeight( font8x8f.getFontHeader() )
-    graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
-    c:=$fe00fe
-    repeat 126
-      repeat y from 0 to 7
-        repeat x from 0 to 15
-          if x&1
-            c>>=8
-          else
-            c<<=8
-          graphic.char( dispb_pix, FONT_DUMMY, x*(sx+2), y*(sy+2)+45, c, -1, "0"+x//10 )
-      graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
-      graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
-      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
-      c:=c-$00020002
-      ' waitms( WAIT_TIME )
 
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      This part is using the direct import of a RGB Bitmap file and
+      converts it to the display specific pixel format (5R6G5B).
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    cts:=getct()
+    graphic.convRGB( dispb_pix, 0, 0, 240, 240, 240, @image2+54 )
+    cte:=getct()
+    disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+    ' debug( "Conversion time ", udec( cte-cts ) )
+    waitms( WAIT_TIME )
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      For the smaller display having the same color format, the
+      screen buffer can directly be re-used.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat y from 0 to 100 step 2
+      disp_c.writeBuffer( @screen+y*240*2,disp_c.BUFFER_SIZE )
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      And now test the patial copy of a bmp.
+      A bit uncompfortable at the moment, because the bmp image is
+      written upside down, which makes calculations cumbersome.
+      Something to be improved in future.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat x from 2 to 60
+      disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+      disp_b.setClipping( x,disp_b.X_MAX-x,x,disp_b.Y_MAX-x )
+      graphic.convRGB( dispb_pix, x, x, 240, 240, 240, @image2+54-(240*x-x)*3 )
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+    disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      Show a grayscale screen on all 3 displays
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     if RUN_DISP&1
       y:=0
       repeat 128
@@ -147,6 +183,9 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           if (x//8)==0
             c+=$101010
         y++
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,-1)
+      graphic.text( dispa_pix, FONT_ATARI,  11,11+y1,$0,$3, string("Grayscale") )
+      graphic.text( dispa_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Grayscale") )
       disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
       waitms( WAIT_TIME )
 
@@ -160,6 +199,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           x++
           c+=$010101
         y++
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,-1)
+      graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
+      graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
+      graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
       disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
       waitms( WAIT_TIME )
 
@@ -173,11 +216,20 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           x++
           c+=$010101
         y++
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,-1)
+      graphic.text( dispc_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
+      graphic.text( dispc_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
+      graphic.text( dispc_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
       disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
       waitms( WAIT_TIME )
 
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      Show some text with background color scrolling up and
+      a lot of pixels being updated with random position and color
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     if RUN_DISP&4
-      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
       disp_c.setClipping( 0,disp_c.X_MAX,0,disp_c.Y_MAX )
       repeat y1 from 99 to 0
         repeat 2000
@@ -192,7 +244,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
       ' disp_c.setClipping( 0,disp_c.X_MAX,0,disc_b.Y_MAX )
 
     if RUN_DISP&2
-      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,0)
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
       disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
       repeat y1 from 99 to 0
         repeat 2000
@@ -200,9 +252,9 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y:=getrnd()//disp_b.Y_RES
           c:=getrnd()
           graphic.pixel( dispb_pix, x, y, c )
-        graphic.text( dispb_pix, FONT_DUMMY,  11,11+y1,0,%00111_001111_00111, string("0123456789") )
-        graphic.text( dispb_pix, FONT_DUMMY,   9,11+y1,0,-1, string("0123456789") )
-        graphic.text( dispb_pix, FONT_DUMMY,  10,10+y1,$ffffff,-1, string("0123456789") )
+        graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
       disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
 
@@ -221,7 +273,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
       disp_a.setClipping( 0,disp_a.X_MAX,0,disp_a.Y_MAX )
 
 
-    repeat f from 0 to 4
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Loop through all available fonts and show them on all displays
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat f from 0 to 5
       if RUN_DISP&1
         graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
         repeat y from 0 to 7
@@ -236,14 +291,14 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
         graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
         repeat y from 0 to 7
           repeat x from 0 to 15
-            c:=$000400*x+$0f0f0f
+            c:=%00000_001000_00000*x+%00111_000111_00111
             graphic.char( dispb_pix, f, x*10+45, y*10+45, c, -1, y*16+x )
         graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
         graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
-        graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
+        graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
         repeat y from 0 to 7
           repeat x from 0 to 15
             c:=%00000_001000_00000*x+%00111_000111_00111
@@ -255,6 +310,11 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
       waitms( WAIT_TIME )
 
 
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw 100 random lines with random colors per loop and display
+       the result. If debug is enabled, the content of display_b
+       is also sent to a display emulation debug window.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     repeat REPEATS
       if RUN_DISP&1
         graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
@@ -284,6 +344,8 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
         graphic.text( dispb_pix, FONT_ATARI,   9,11,$0,-1, string("Line Test") )
         graphic.text( dispb_pix, FONT_ATARI,  20,10,$ffffff,-1, string("Line Test") )
         disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+        ' also show this in a debug window
+        disp_d.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
       if RUN_DISP&4
         graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
@@ -302,6 +364,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
 
       waitms( WAIT_TIME )
 
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw some random boxes
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     repeat REPEATS
       if RUN_DISP&1
         graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
@@ -311,7 +377,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y1:=random( disp_a.Y_MAX-20 )+10
           y2:=random( disp_a.Y_MAX-20 )+10
           c1:=getrnd()&$ffffff
-          c2:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
           if c2>$ffffff
             c2:=-1
           graphic.box(dispa_pix,x1,y1,x2,y2,c1,c2)
@@ -328,7 +394,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y1:=random( disp_b.Y_MAX-40 ) + 20
           y2:=random( disp_b.Y_MAX-40 ) + 20
           c1:=getrnd()&$ffffff
-          c2:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
           if c2>$ffffff
             c2:=-1
           graphic.box(dispb_pix,x1,y1,x2,y2,c1,c2)
@@ -346,7 +412,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y1:=random( disp_c.Y_MAX-20 ) + 10
           y2:=random( disp_c.Y_MAX-20 ) + 10
           c1:=getrnd()&$ffffff
-          c2:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
           if c2>$ffffff
             c2:=-1
           graphic.box(dispc_pix,x1,y1,x2,y2,c1,c2)
@@ -358,6 +424,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
 
       waitms( WAIT_TIME )
 
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw some random circles
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     repeat REPEATS
       if RUN_DISP&1
         graphic.box(dispa_pix,0, 0, disp_a.X_MAX, disp_a.Y_MAX, $0f, 0)
@@ -366,7 +436,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y:=random( disp_a.Y_MAX-40 )+20
           r:=random( 30 )
           c:=getrnd()&$ffffff
-          graphic.circle( dispa_pix,x,y,r,c,c>>1 )
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.circle( dispa_pix,x,y,r,c,c2 )
         graphic.text( dispa_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
         graphic.text( dispa_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
         disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
@@ -378,9 +451,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y:=random( disp_b.Y_MAX-40 )+20
           r:=random( 60 )
           c:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
           if c2>$ffffff
             c2:=-1
-          graphic.circle( dispb_pix,x,y,r,c,c>>1 )
+          graphic.circle( dispb_pix,x,y,r,c,c2 )
         graphic.text( dispb_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
         graphic.text( dispb_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
         graphic.text( dispb_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
@@ -393,9 +467,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
           y:=random( disp_c.Y_MAX-40 )+20
           r:=random( 60 )
           c:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
           if c2>$ffffff
             c2:=-1
-          graphic.circle( dispc_pix,x,y,r,c,c>>1 )
+          graphic.circle( dispc_pix,x,y,r,c,c2 )
         graphic.text( dispc_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
         graphic.text( dispc_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
         graphic.text( dispc_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
@@ -403,7 +478,10 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
 
       waitms( WAIT_TIME )
 
-    ' Show the wolf image
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw the wolf image, which needs some conversion for the
+       RGB displays.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
     if RUN_DISP&1
       repeat x from 0 to disp_a.BUFFER_SIZE
         byte[ @screen ][ x ]:= byte[ @image1 ][ x ]
@@ -413,6 +491,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
       disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
 
     if RUN_DISP&2
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
       repeat 10
         x:=random( disp_b.X_MAX-40 )+20
         y:=random( disp_b.Y_MAX-40 )+20
@@ -420,7 +499,6 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
         c:=getrnd()&$ffffff
         graphic.circle( dispb_pix,x,y,r,c,c>>1 )
 
-      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
       repeat x from 0 to 127
         repeat y from 0 to 127
           word[ @screen ][ (y+45)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
@@ -431,6 +509,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
       disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
 
     if RUN_DISP&4
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
       repeat 10
         x:=random( disp_c.X_MAX-40 )+20
         y:=random( disp_c.Y_MAX-40 )+20
@@ -438,7 +517,6 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy
         c:=getrnd()&$ffffff
         graphic.circle( dispc_pix,x,y,r,c,c>>1 )
 
-      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
       repeat x from 0 to 127
         repeat y from 0 to 127
           word[ @screen ][ (y+5)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
@@ -477,6 +555,14 @@ PUB setup() | tmp, cnt, pix_adr
   disp_c.addScreenBuffer( @screen )
   disp_c.writeBuffer( 0, disp_c.BUFFER_SIZE )
 
+  ' here is the fun ... using a DEBUG window to emulate a real display
+  disp_d.setup()
+  disp_d.addScreenBuffer( @screen )
+  disp_d.writeBuffer( 0, disp_b.BUFFER_SIZE )
+  ' in opposite to the other displays, this one does not need a pixel function,
+  ' it can simply show what the real display driver has written into the screen buffer
+  ' only resolution and color-encoding has to match to make this work
+
   ' $130 is the end of COG-RAM which can be used for loading functions (see SPIN2 documentation: REGLOAD)
   ' The function writing a pixel is loaded at the end of COG-RAM for the first display driver.
   ' As return value, you get the address to call in COG-RAM, which is also the new end
@@ -484,7 +570,6 @@ PUB setup() | tmp, cnt, pix_adr
   ' So the second driver can 'install' it's pixel function in front of that and also returns a pointer
   dispb_pix:=disp_b.loadPixelPASM( dispa_pix )
   dispc_pix:=disp_c.loadPixelPASM( dispb_pix )
-  debug( "Free COG-RAM:", udec( dispc_pix ), "/", udec( $130 ) )
 
   ' register the available font objects in graphics object
   graphic.addFont( font8x8a.getFontHeader() )
@@ -1521,3 +1606,6 @@ byte $CC, $CD, $CD, $DE, $EE, $ED, $CA, $54
 byte $43, $33, $33, $22, $21, $10, $01, $11
 byte $12, $23, $33, $33, $33, $33, $34, $44
 byte $44, $33, $22, $21, $10, $00, $00, $00
+
+image2
+file "Eibsee.bmp"

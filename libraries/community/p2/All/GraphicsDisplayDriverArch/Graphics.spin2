@@ -111,7 +111,9 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
                 mov    shift, #32
                 sub    shift, w
                 mov    bytes, w
+                sub    bytes, #1
                 shr    bytes, #3
+                add    bytes, #1
 
      textlp
                 rdbyte ch, textptr wz
@@ -213,7 +215,9 @@ PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
                 mov    shift, #32
                 sub    shift, w
                 mov    bytes, w
+                sub    bytes, #1
                 shr    bytes, #3
+                add    bytes, #1
                 mov    cnty, h
           linelp
                 mov    PR0, adr
@@ -418,7 +422,7 @@ PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
       end
 
 
-PUB circle( dpixel,xc,yc,r,col1,col2 ) | d,lx1,ly1
+PUB circle( dpixel,xc,yc,r,col1,col2 ) | xs,xe,y,d,lx1,ly1
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output a circle with mid-point at location x,y and with col1
    being the outline color and col2 being the inner color or -1
@@ -427,12 +431,15 @@ PUB circle( dpixel,xc,yc,r,col1,col2 ) | d,lx1,ly1
    The commented out code is the original SPIN2 version.
    Only for reference and will be removed sooner or later.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+{{
   lx1:=0
   ly1:=r
   d:= 3-r<<1
   circleSectors( dpixel,xc, yc, lx1, ly1, col1)
   if col2<>-1
     lineSPIN( dpixel,xc-ly1+1,yc, xc+ly1-1,yc,col2) ',col2 )
+
   repeat while ly1>=lx1
     lx1++
     if d>=0
@@ -441,60 +448,206 @@ PUB circle( dpixel,xc,yc,r,col1,col2 ) | d,lx1,ly1
       if col2<>-1
         lineSPIN( dpixel,xc-lx1+1,yc+ly1,xc+lx1-1,yc+ly1, col2) ', col2 )
         lineSPIN( dpixel,xc-lx1+1,yc-ly1,xc+lx1-1,yc-ly1, col2) ', col2 )
+
     else
       d:=d+lx1<<2+6
 
     if col2<>-1
       lineSPIN( dpixel,xc-ly1+1,yc+lx1, xc+ly1-1,yc+lx1,col2) ',col2 )
       lineSPIN( dpixel,xc-ly1+1,yc-lx1, xc+ly1-1,yc-lx1,col2) ',col2 )
+
     circleSectors( dpixel,xc,yc,lx1,ly1,col1 )
+  return
+}}
+  org
+        xor   lx1,lx1
+        mov   ly1, r
+        mov   d, #3
+        shl   r, #1
+        sub   d, r
+        mov   newy, ly1
+        sub   newy, #1
+
+  clp
+        call  #lin
+        cmp   ly1, newy WZ
+  if_e  sub   newy, #1
+        call  #sectors
+        cmps  ly1, lx1  WCZ
+  if_lt ret
+
+        add   lx1, #1
+        cmps  null, d  WCZ
+  if_lt sub   ly1, #1
+        mov   PR0, lx1
+  if_lt sub   PR0, ly1
+        shl   PR0, #2
+        add   d, PR0
+        add   d, #6
+  if_lt add   d, #4
+        jmp   #clp
+
+lin
+        cmp    col2, minus1 WZ
+  if_e  ret
+
+        mov    xs, xc
+        sub    xs, ly1
+        mov    xe, xc
+        add    xe, ly1
+        cmps   xe, xs WCZ
+  if_be ret
+
+ linlp1 mov    PR0, xs
+        mov    PR1, yc
+        add    PR1, lx1
+        mov    PR2, col2
+        call   dpixel
+        mov    PR0, xs
+        mov    PR1, yc
+        sub    PR1, lx1
+        mov    PR2, col2
+        call   dpixel
+
+        add    xs, #1
+        cmp    xe, xs WZ
+ if_ne  jmp    #linlp1
+
+        cmps   newy, ly1 WCZ
+ if_ne  ret
+
+        mov    xs, xc
+        sub    xs, lx1
+        mov    xe, xc
+        add    xe, lx1
+        cmps   xe, xs WCZ
+  if_be ret
+
+ linlp2 mov    PR0, xs
+        mov    PR1, yc
+        sub    PR1, ly1
+        mov    PR2, col2
+        call   dpixel
+        mov    PR0, xs
+        mov    PR1, yc
+        add    PR1, ly1
+        mov    PR2, col2
+        call   dpixel
+
+        add    xs, #1
+        cmp    xe, xs WZ
+ if_ne  jmp    #linlp2
+
+        ret
+
+sectors
+        mov    PR0, xc
+        add    PR0, lx1
+        mov    PR1, yc
+        add    PR1, ly1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc-x, yc+y, col )
+        mov    PR0, xc
+        sub    PR0, lx1
+        mov    PR1, yc
+        add    PR1, ly1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc+x, yc-y, col )
+        mov    PR0, xc
+        add    PR0, lx1
+        mov    PR1, yc
+        sub    PR1, ly1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc-x, yc-y, col )
+        mov    PR0, xc
+        sub    PR0, lx1
+        mov    PR1, yc
+        sub    PR1, ly1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc+y, yc+x, col )
+        mov    PR0, xc
+        add    PR0, ly1
+        mov    PR1, yc
+        add    PR1, lx1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc-y, yc+x, col )
+        mov    PR0, xc
+        sub    PR0, ly1
+        mov    PR1, yc
+        add    PR1, lx1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc+y, yc-x, col )
+        mov    PR0, xc
+        add    PR0, ly1
+        mov    PR1, yc
+        sub    PR1, lx1
+        mov    PR2, col1
+        call   dpixel
+'  scm.callP02( dpixel, xc-y, yc-x, col )
+        mov    PR0, xc
+        sub    PR0, ly1
+        mov    PR1, yc
+        sub    PR1, lx1
+        mov    PR2, col1
+        jmp    dpixel
+
+  null long 0
+  minus1 long -1
+  newy  long 0
+  end
+{{}}
 
 
-PRI circleSectors( dpixel,xc, yc, x, y, col )
+PUB convRGB( dpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-   Helper for the circle function, which outputs 8 symmetric
-   pixels.
+   This function converts a 24 bit per pixel RGB BMP file data
+   into the screen buffer.
+   Please note: The p_buffer has to point to the right pixel
+     location in the data. This way it is also possible to
+     write different rectangles of the stored data to different
+     boxes in the screen-buffer.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
-  scm.callP02( dpixel, xc+x, yc+y, col )
-  scm.callP02( dpixel, xc-x, yc+y, col )
-  scm.callP02( dpixel, xc+x, yc-y, col )
-  scm.callP02( dpixel, xc-x, yc-y, col )
-  scm.callP02( dpixel, xc+y, yc+x, col )
-  scm.callP02( dpixel, xc-y, yc+x, col )
-  scm.callP02( dpixel, xc+y, yc-x, col )
-  scm.callP02( dpixel, xc-y, yc-x, col )
 
+   org
+         mov     xoffset, bw
+         sub     xoffset, w
+         add     xoffset, #1
 
-PRI lineSPIN(dpixel,xs, ys, xe, ye, cl) | dx, dy, dir, cdir, lx1,lx2,ly1,ly2
-{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-   Helper for the circle function, which uses lines to create
-   the inner of the circle. This is still needed, as the current
-   SPIN2 implementation of circle does not work together with the
-   PASM version of line.
-   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
-  dx:=abs(xe-xs)
-  dy:=abs(ye-ys)
+         mov     yp, y
+         add     yp, h
+ ylp
+         mov     xs, x
+         mov     xe, x
+         add     xe, w
+ xlp
+         xor     PR2, PR2
+         rdbyte  col, p_buffer
+         add     p_buffer, #1
+         setbyte PR2, col, #0
+         rdbyte  col, p_buffer
+         add     p_buffer, #1
+         setbyte PR2, col, #1
+         rdbyte  col, p_buffer
+         add     p_buffer, xoffset
+         setbyte PR2, col, #2
+         mov     PR0, xs
+         mov     PR1, yp
+         call    dpixel
 
-  ' x is driving
-  if dx > dy
-    dir:= (ye-ys)<0?-1:1
-    ly1:=ys
-    ly2:=0
-    repeat lx1 from xs to xe
-      scm.callP02( dpixel,lx1, ly1, cl )
-      ly2+=dy
-      if ly2 > dx
-        ly2-=dx
-        ly1+=dir
+         add     xs, #1
+         cmp     xs, xe WZ
+   if_ne jmp     #xlp
 
-  else
-    ' y is driving
-    dir:= (xe-xs)<0?-1:1
-    lx1:=xs
-    lx2:=0
-    repeat ly1 from ys to ye
-      scm.callP02( dpixel,lx1, ly1, cl )
-      lx2+=dx
-      if lx2 > dy
-        lx2-=dy
-        lx1+=dir
+         sub     yp, #1
+         cmp     yp, y WZ
+   if_ne jmp     #ylp
+
+         ret
+ xoffset long 0
+   end
