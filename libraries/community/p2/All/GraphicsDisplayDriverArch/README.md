@@ -1,3 +1,16 @@
+# Graphics Display Driver Arch
+
+By: MagIO2
+
+Language: Spin2 & PASM2
+
+Created: 10-APR-2021
+
+Category: display
+
+Description:
+Graphic Display Drivers
+
 For discussions:
 https://forums.parallax.com/discussion/173278/display-driver-architecture#latest
 
@@ -13,3 +26,5 @@ Changelog:
   * Now the color that is passed to the Graphics functions has 8R8G8B format and is converted to device format in the pixel functions.
   * That previous change made a bug visible, hidden in pasmSMC.spin2. Update the relative address for COG variables did only work for the first instruction so far ;o)
   * The calculation of the adress for accessing the font data was only working for 8x8 fonts and has been fixed.
+
+License: MIT (see end of source code)
