@@ -1,0 +1,154 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Font8x8_Aqua
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.5
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Font file for some "Aqua" font.
+ Pixel data cloned from a P1 graphics driver called AIGeneric v 2.1 written by
+      Doug,Hippy,OBC,Baggers
+
+ The changes are made to allow having generic text function that can use any font from 1x1 ;o) up
+ to 32 x n pixels per character. This is done by using the Font_Header "interface".
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+
+PUB getFontHeader():adr
+  font:=@fonttab
+  return @font_header
+
+DAT
+font_header
+font    long long 0            ' for some reason @fonttab does not work here, it has to be done in code
+cstart  byte byte $30
+cend    byte byte $39
+sizeX   byte byte 14
+sizeY   byte byte 11
+
+fonttab
+        word word %0000000000000000     ' 0
+        word word %0111110001111100     '
+        word word %1111111011111110     '
+        word word %1100011011000110     '
+        word word %1101011011010110     '
+        word word %1100011011000110     '
+        word word %1111111011111110     '
+        word word %0111110001111100     '
+        word word %1100011011000110     '
+        word word %1111111011111110     '
+        word word %0111110001111100     '
+
+        word word %0000000000000000     ' 1
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+        word word %0011000000110000     '
+
+        word word %0000000000110000     ' 2
+        word word %1111110000110000    ' .
+        word word %1111111000110000     '
+        word word %0000011000110000     '
+        word word %0111110000110000     '
+        word word %1100000000110000     '
+        word word %1111111000110000     '
+        word word %1111111000110000     '
+        word word %1100000000110000     '
+        word word %1111111000110000     '
+        word word %1111111000110000     '
+
+        word word %0000000000110000     ' 3
+        word word %1111110000110000     '
+        word word %1111111000110000     '
+        word word %0000010000110000     '
+        word word %0011110000110000     '
+        word word %0000010000110000     '
+        word word %1111111000110000     '
+        word word %1111110000110000     '
+        word word %0000010000110000     '
+        word word %1111111000110000     '
+        word word %1111110000110000     '
+
+        word word %0000000000110000     ' 4
+        word word %1100000000110000     '
+        word word %1100110000110000     '
+        word word %1100110000110000     '
+        word word %1100110000110000     '
+        word word %0111111000110000     '
+        word word %0001100000110000     '
+        word word %0001100000110000     '
+        word word %0111111000110000     '
+        word word %0001100000110000     '
+        word word %0001100000110000     '
+
+        word word %0000000000110000     ' 5
+        word word %1111110000110000     '
+        word word %1111110000110000     '
+        word word %1101000000110000     '
+        word word %1111110000110000     '
+        word word %0000011000110000     '
+        word word %1111111000110000     '
+        word word %1111110000110000     '
+        word word %0000011000110000     '
+        word word %1111111000110000     '
+        word word %1111110000110000     '
+
+        word word %0000000000110000     ' 6
+        word word %0111111000110000     '
+        word word %1111111000110000     '
+        word word %1100000000110000     '
+        word word %1111110000110000     '
+        word word %1100011000110000     '
+        word word %1111111000110000     '
+        word word %0111110000110000     '
+        word word %1100011000110000     '
+        word word %1111111000110000     '
+        word word %0111110000110000     '
+
+        word word %0000000000110000     ' 7
+        word word %1111111000110000     '
+        word word %1111111000110000     '
+        word word %1000011000110000     '
+        word word %0000110000110000     '
+        word word %0001100000110000     '
+        word word %0011000000110000     '
+        word word %0110000000110000     '
+        word word %0001100000110000     '
+        word word %0011000000110000     '
+        word word %0110000000110000     '
+
+        word word %0000000000110000     ' 8
+        word word %0111110000110000     '
+        word word %1111111000110000     '
+        word word %1100011000110000     '
+        word word %0111110000110000     '
+        word word %1100011000110000     '
+        word word %1111111000110000     '
+        word word %0111110000110000     '
+        word word %1100011000110000     '
+        word word %1111111000110000     '
+        word word %0111110000110000     '
+
+        word word %0000000000110000     ' 9
+        word word %0111110000110000     '
+        word word %1111111000110000     '
+        word word %1100011000110000     '
+        word word %0111111000110000     '
+        word word %0000011000110000     '
+        word word %1111111000110000     '
+        word word %1111100000110000     '
+        word word %0000011000110000     '
+        word word %1111111000110000     '
+        word word %1111100000110000     '
+
+' end of font
