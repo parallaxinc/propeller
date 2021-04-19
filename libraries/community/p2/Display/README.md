@@ -1,5 +1,7 @@
 [ANSI VGA Text](../All/ansi_vgatext)
 
+[Graphics Display Driver Arch](../All/GraphicsDisplayDriverArch)
+
 [ILI9341](../All/ili9341)
 
 [ISP HUB75 Matrix Driver](../All/isp_hub75_matrix)
