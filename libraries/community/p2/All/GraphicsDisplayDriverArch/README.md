@@ -1,4 +1,4 @@
-# Graphics Display Driver Arch
+# Graphics Display Driver Architecture
 
 By: MagIO2
 
@@ -10,6 +10,14 @@ Category: display
 
 Description:
 Graphic Display Drivers
+
+Currently it covers some functionality I'd call a 0.5 version ;o) But it is already usable for projects.
+Key features:
+
+  * a device independent graphics lib with pixel, line, circle, box and text drawing
+  * flexible code for different fonts at the same time, if needed (5 included so far)
+  * hardware drivers are nearly plug and play (so far 3 included)
+  * exchanging the display means no code change needed (except the resolution also changes)
 
 For discussions:
 https://forums.parallax.com/discussion/173278/display-driver-architecture#latest
