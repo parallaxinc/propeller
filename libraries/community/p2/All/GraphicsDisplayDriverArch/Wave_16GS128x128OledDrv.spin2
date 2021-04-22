@@ -7,7 +7,7 @@ __________               __           /\
  |______  /\___  >___|  /__|_ \/ ____/____  >
         \/     \/     \/     \/\/         \/    Wave_16GS128x128OledDrv
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Version 0.5
+ Version 0.6
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Driver for the 1.5inch 128x128 16 grayscale OLED display from Waveshare with a SSD1327 driver
  and SPI interface.
@@ -74,6 +74,14 @@ VAR
   SPI_BASE, SPI_CS, SPI_DOUT, SPI_CLK, SPI_DC, SPI_RST
 
 
+DAT
+display_header
+pixPasm long long 0
+setClip long long 0
+sizeX   word word 128
+sizeY   word word 128
+
+
 PUB setup( base_pin ) | cnt, bidx
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Function to initialize driver and display. So, it should reset
@@ -109,6 +117,8 @@ PUB setup( base_pin ) | cnt, bidx
     if cnt>1
       repeat cnt-1
         writeSPICommand( ws_init[ bidx++ ] )
+
+  setClip:=@setClipping
 
 
 PUB addScreenBuffer( adr )
@@ -251,13 +261,14 @@ PUB loadPixelPASM( cog_end ):adr | ad
   pixpas[0]:= cog_end - (@ppend>>2) + (@ppstart>>2) - 2
 
   ' add startadress to references
-  debug( "128x128" )
+  'debug( "128x128" )
   scm.setRelSource( @ppstart, pixpas[0], @ppstart, @bufadr )
 
   ' let the PASM code know where the write buffer variable is
   bufadr:=@sb_paint
   regload( @pixpas )
-  return pixpas[0]
+  pixPasm:=pixpas[0]
+  return @display_header
 
 
 PUB setClipping( xmi, xma, ymi, yma ) | sourcebp
@@ -435,3 +446,28 @@ DAT
               byte 2, $FD, $12
               byte 2, $a0, $51
               byte 1, $af            ' turn on
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+

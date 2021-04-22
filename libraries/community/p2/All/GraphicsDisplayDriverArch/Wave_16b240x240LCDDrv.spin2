@@ -7,7 +7,7 @@ __________               __           /\
  |______  /\___  >___|  /__|_ \/ ____/____  >
         \/     \/     \/     \/\/         \/    Wave_16b240x240LCDDrv
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Version 0.5
+ Version 0.6
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Driver for the 1.3inch 240x240 16 bit color LCD display from Waveshare with a ST7789 driver
  and SPI interface.
@@ -74,6 +74,14 @@ VAR
   SPI_BASE, SPI_CS, SPI_DOUT, SPI_CLK, SPI_DC, SPI_RST
 
 
+DAT
+display_header
+pixPasm long long 0
+setClip long long 0
+sizeX   word word 240
+sizeY   word word 240
+
+
 PUB setup( base_pin ) | cnt, bidx
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Function to initialize driver and display. So, it should reset
@@ -110,6 +118,7 @@ PUB setup( base_pin ) | cnt, bidx
         writeSPIData( ws_init[ bidx++ ] )
   pinh( SPI_CS )
 
+  setClip:=@setClipping
 
 PUB addScreenBuffer( adr )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -250,7 +259,7 @@ PUB loadPixelPASM( cog_end ):adr | ad
   ' prepare the pointer telling regload where to load the code to
   pixpas[0]:= cog_end - ((@ppend>>2) - (@ppstart>>2))
   ' add startadress to references
-  debug( "240x240" )
+  'debug( "240x240" )
   scm.setRelSource( @ppstart, pixpas[0], @ppstart, @bufadr )
   scm.setRelSource( @ppstart, pixpas[0], @andB, @b_mask )
   scm.setRelSource( @ppstart, pixpas[0], @andG, @g_mask )
@@ -259,7 +268,8 @@ PUB loadPixelPASM( cog_end ):adr | ad
   ' let the PASM code know where the write buffer variable is
   bufadr:=@sb_paint
   regload( @pixpas )
-  return pixpas[0]
+  pixPasm:=pixpas[0]
+  return @display_header
 
 
 PUB setClipping( xmi, xma, ymi, yma ) | sourcebp
@@ -320,10 +330,10 @@ PUB writeBuffer(adr, bytes) | buf,sck,sdo,scs,sdc,b
   pinl( SPI_CS )
 
   writeSPICommand( $2A )
-  writeSPIData16( $00 )
+  writeSPIData16( 0 )
   writeSPIData16( X_MAX )
   writeSPICommand( $2B )
-  writeSPIData16( $00 )
+  writeSPIData16( 0 )
   writeSPIData16( Y_MAX )
   writeSPICommand( $2C )
 
@@ -410,3 +420,28 @@ DAT
               byte 2, $36, $60
               byte 1, $21
               byte 1, $29
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+

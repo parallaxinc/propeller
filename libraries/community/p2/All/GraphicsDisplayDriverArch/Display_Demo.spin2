@@ -7,7 +7,7 @@ __________               __           /\
  |______  /\___  >___|  /__|_ \/ ____/____  >
         \/     \/     \/     \/\/         \/    Display_Demo
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Version 0.5
+ Version 0.6
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  This is basically the code which was written to test the graphics & display & font driver code.
  It is against good coding guidelines by purpose. Good coding of course means to figure out which
@@ -53,6 +53,8 @@ __________               __           /\
  together.
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 }}
+
+
 CON { timing }
 
   CLK_FREQ = 200_000_000                                        ' system freq as a constant
@@ -94,6 +96,8 @@ CON
   REPEATS     = 10
 
 OBJ
+  displays: "Display_Manager"
+
   disp_a: "Wave_16GS128x128OledDrv"
   disp_b: "Wave_16b240x240LCDDrv"
   disp_c: "Wave_16b135x240LCDDrv"
@@ -108,7 +112,7 @@ OBJ
 
   graphic : "Graphics"
 
-  font    : "Font_Header"
+  font    : "Font_Manager"
   font8x8a: "Font8x8_Atari"
   font8x8b: "Font8x8_Cmd"
   font8x8c: "Font8x8_Tech"
@@ -127,9 +131,17 @@ DAT
 
 VAR
   tstart, tend
+
+  ' historical: no need to remember anymore.
   dispa_pix
   dispb_pix
   dispc_pix
+
+  ' actually no need to remember.
+  dispa_head
+  dispb_head
+  dispc_head
+
 
 PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy,cts,cte
   setup()
@@ -199,7 +211,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy,cts,cte
           x++
           c+=$010101
         y++
-      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffff,-1)
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,-1)
       graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
       graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
       graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
@@ -216,7 +228,7 @@ PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy,cts,cte
           x++
           c+=$010101
         y++
-      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,-1)
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,-1)
       graphic.text( dispc_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
       graphic.text( dispc_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
       graphic.text( dispc_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
@@ -566,18 +578,25 @@ PUB setup() | tmp, cnt, pix_adr
   ' $130 is the end of COG-RAM which can be used for loading functions (see SPIN2 documentation: REGLOAD)
   ' The function writing a pixel is loaded at the end of COG-RAM for the first display driver.
   ' As return value, you get the address to call in COG-RAM, which is also the new end
-  dispa_pix:=disp_a.loadPixelPASM( $130 )
+  dispa_head:=disp_a.loadPixelPASM( $130 )
+  displays.addDisplay( dispa_head )
+  dispa_pix:=displays.getPixelPASM( 0 )
   ' So the second driver can 'install' it's pixel function in front of that and also returns a pointer
-  dispb_pix:=disp_b.loadPixelPASM( dispa_pix )
-  dispc_pix:=disp_c.loadPixelPASM( dispb_pix )
+  dispb_head:=disp_b.loadPixelPASM( dispa_pix )
+  displays.addDisplay( dispb_head )
+  dispb_pix:=displays.getPixelPASM( 1 )
 
-  ' register the available font objects in graphics object
-  graphic.addFont( font8x8a.getFontHeader() )
-  graphic.addFont( font8x8b.getFontHeader() )
-  graphic.addFont( font8x8c.getFontHeader() )
-  graphic.addFont( font8x8d.getFontHeader() )
-  graphic.addFont( font8x8e.getFontHeader() )
-  graphic.addFont( font8x8f.getFontHeader() )
+  dispc_head:=disp_c.loadPixelPASM( dispb_pix )
+  displays.addDisplay( dispc_head )
+  dispc_pix:=displays.getPixelPASM( 2 )
+
+  ' register the available font objects in font manager object
+  font.addFont( font8x8a.getFontHeader() )
+  font.addFont( font8x8b.getFontHeader() )
+  font.addFont( font8x8c.getFontHeader() )
+  font.addFont( font8x8d.getFontHeader() )
+  font.addFont( font8x8e.getFontHeader() )
+  font.addFont( font8x8f.getFontHeader() )
 
 
 DAT
@@ -1609,3 +1628,28 @@ byte $44, $33, $22, $21, $10, $00, $00, $00
 
 image2
 file "Eibsee.bmp"
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+
