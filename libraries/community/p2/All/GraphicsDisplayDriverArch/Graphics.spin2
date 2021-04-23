@@ -7,7 +7,7 @@ __________               __           /\
  |______  /\___  >___|  /__|_ \/ ____/____  >
         \/     \/     \/     \/\/         \/    Graphics
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Version 0.5
+ Version 0.6
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Idea here is, that the graphics functions should actually be hardware independent.
  The tricky part here is, that all functions except the pixel function, run in loops.
@@ -38,44 +38,29 @@ __________               __           /\
      which is later needed for all functions that use the font - parameter fontnr.
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 }}
+
+
 CON
-  MAX_FONTS = 10
+
 
 OBJ
-  scm : "pasmSMC"
-  font: "Font_Header"
-
-DAT
-  fontCnt byte 0
-  fontPtr long 0[ MAX_FONTS ]
-
-PUB addFont( adr ) : idx
-{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-   This function needs to be used by your programs setup code,
-   in case you want to make use of font related functions.
-   The idx returned here can then be used as fontnr-parameter,
-   for example in:
-   text( dpixel, fontnr, x,y,col1,col2, string("Some Text") )
-   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
-
-  idx:=fontCnt
-  if fontCnt<MAX_FONTS
-    fontPtr[ fontCnt++ ]:=adr
-  else
-    return -1
+  scm     : "pasmSMC"
+  font    : "Font_Manager"
+  displays: "Display_Manager"
 
 
-PUB pixel( dpixel, x,y,col )
+PUB pixel( dordpixel, x,y,col )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    This function is a wrapper for the hardware dependent pixel
    function, which can not easily be called by SPIN2.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    if dordpixel<displays.MAX_DISPLAYS
+      dordpixel:=displays.getPixelPASM( dordpixel )
 
-    scm.callP02( dpixel, x, y, col )
+    scm.callP02( dordpixel, x, y, col )
 
 
-PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
-' ,i,ch
+PUB text( dordpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output text at location x,y with col1 being the text color,
    and col2 being the background color or -1 for not changing
@@ -87,25 +72,17 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
 
     ' debug( "Text ", udec( x ), udec( y ) )
 
-    ' get the data of the font to be used for this call
-    adr:=font.getFontAdr( fontPtr[fontnr] )
-    cs:=font.getFontStartChar( fontPtr[fontnr] )
-    ce:=font.getFontEndChar( fontPtr[fontnr] )
-    w:=font.getFontWidth( fontPtr[fontnr] )
-    h:=font.getFontHeight( fontPtr[fontnr] )
+    ' if dordpixel is low, it is supposed to be the display id
+    ' and the pixePasm location needs to be requested
+    if dordpixel<displays.MAX_DISPLAYS
+      dordpixel:=displays.getPixelPASM( dordpixel )
 
-{{
-    repeat i from 0 to strsize( textptr )-1
-      c:=byte[textptr][i]
-      x+=w
-      if (c>=cs) & (c<=ce)
-        repeat ya from 0 to h-1
-          ch:=long[ adr + (c-cs)*h + ya ] << (32-w)
-          repeat xa from 0 to w-1
-            if ch & $8000_0000
-              scm.callP02( dpixel, x+xa, y+ya, col1 )
-            ch<<=1
-}}
+    ' get the data of the font to be used for this call
+    adr:=font.getFontAdr( fontnr )
+    cs :=font.getFontStartChar( fontnr )
+    ce :=font.getFontEndChar( fontnr )
+    w  :=font.getFontWidth( fontnr )
+    h  :=font.getFontHeight( fontnr )
 
       org
                 mov    shift, #32
@@ -155,7 +132,7 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
                 add    PR0, xa
                 mov    PR1, y
                 add    PR1, ya
-                call   dpixel
+                call   dordpixel
 
           done  shl    c, #1
                 add    xa, #1
@@ -174,10 +151,103 @@ PUB text( dpixel, fontnr, x,y,col1,col2, textptr ) | c,cs,ce,w,h,xa,ya,adr
           bytes nop
           ch    nop
       end
-{{}}
 
 
-PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
+PUB textw( dordpixel, fontnr, x,y,col1,col2, textptr, s ) | c,cs,ce,w,h,xa,ya,adr
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Output text at location x,y with col1 being the text color,
+   and col2 being the background color or -1 for not changing
+   the non-character pixels.
+
+   The commented out code is the original SPIN2 version.
+   Only for reference and will be removed sooner or later.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+    ' debug( "Text ", udec( x ), udec( y ) )
+
+    ' if dordpixel is low, it is supposed to be the display id
+    ' and the pixePasm location needs to be requested
+    if dordpixel<displays.MAX_DISPLAYS
+      dordpixel:=displays.getPixelPASM( dordpixel )
+
+    ' get the data of the font to be used for this call
+    adr:=font.getFontAdr( fontnr )
+    cs :=font.getFontStartChar( fontnr )
+    ce :=font.getFontEndChar( fontnr )
+    w  :=font.getFontWidth( fontnr )
+    h  :=font.getFontHeight( fontnr )
+
+      org
+                mov    shift, #32
+                sub    shift, w
+                mov    bytes, w
+                sub    bytes, #1
+                shr    bytes, #3
+                add    bytes, #1
+
+     textlp
+                sub    s, #1 WZ
+          if_z  ret
+                rdbyte ch, textptr
+
+                cmps   ch, cs WCZ
+          if_ge cmps   ce, ch WCZ
+          if_lt ret
+
+                mov    ya, #0
+                mov    cnty, h
+          linelp
+                mov    PR0, adr
+                mov    PR1, ch
+                sub    PR1, cs
+                mul    PR1, bytes
+                mul    PR1, h
+
+                add    PR0, PR1
+                mov    PR1, ya
+                mul    PR1, bytes
+                add    PR0, PR1
+                rdlong c, PR0
+
+                mov    xa, #0
+                mov    cntx, w
+
+                ' shift the MSB of w-size data to bit 31
+                shl    c, shift
+          pixlp
+                mov    PR2, col1
+                testb  c, #31 WZ
+                testb  col2, #31 WC
+          if_nz mov    PR2, col2
+    if_nz_and_c jmp    #done
+
+          pixelout
+                mov    PR0, x
+                add    PR0, xa
+                mov    PR1, y
+                add    PR1, ya
+                call   dordpixel
+
+          done  shl    c, #1
+                add    xa, #1
+                djnz   cntx, #pixlp
+
+                add    ya, #1
+                djnz   cnty, #linelp
+
+                add    textptr, #1
+                add    x, w
+                jmp    #textlp
+
+          cntx  nop
+          cnty  nop
+          shift nop
+          bytes nop
+          ch    nop
+      end
+
+
+PUB char( dordpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output a single character at location x,y with col1 being
    the text color and col2 being the background color or -1 for
@@ -189,22 +259,18 @@ PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
 
     ' debug( "Char ", udec( x ), udec( y ) )
 
-    ' get the data of the font to be used for this call
-    adr:=font.getFontAdr( fontPtr[fontnr] )
-    cs:=font.getFontStartChar( fontPtr[fontnr] )
-    ce:=font.getFontEndChar( fontPtr[fontnr] )
-    w:=font.getFontWidth( fontPtr[fontnr] )
-    h:=font.getFontHeight( fontPtr[fontnr] )
+    ' if dordpixel is low, it is supposed to be the display id
+    ' and the pixePasm location needs to be requested
+    if dordpixel<displays.MAX_DISPLAYS
+      dordpixel:=displays.getPixelPASM( dordpixel )
 
-{{
-    if (ch>=cs) & (ch<=ce)
-      repeat ya from 0 to h-1
-        c:=long[ adr + (ch-cs)*h + ya ] << (32-w)
-        repeat xa from 0 to w-1
-          if c & $8000_0000
-            scm.callP02( dpixel, x+xa, y+ya, col1 )
-          c<<=1
-}}
+
+    ' get the data of the font to be used for this call
+    adr:=font.getFontAdr( fontnr )
+    cs :=font.getFontStartChar( fontnr )
+    ce :=font.getFontEndChar( fontnr )
+    w  :=font.getFontWidth( fontnr )
+    h  :=font.getFontHeight( fontnr )
 
       org
                 cmps   ch, cs WCZ
@@ -249,7 +315,7 @@ PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
                 add    PR0, xa
                 mov    PR1, y
                 add    PR1, ya
-                call   dpixel
+                call   dordpixel
 
           done  shl    c, #1
                 add    xa, #1
@@ -266,7 +332,7 @@ PUB char( dpixel, fontnr, x,y,col1,col2,ch) | c,cs,ce,w,h,xa,ya,adr
       end
 
 
-PUB line(dpixel,xs, ys, xe, ye, cl)
+PUB line(dordpixel,xs, ys, xe, ye, cl)
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output a circle with mid-point at location x,y and with col1
    being the outline color and col2 being the inner color or -1
@@ -276,8 +342,14 @@ PUB line(dpixel,xs, ys, xe, ye, cl)
    Only for reference and will be removed sooner or later.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
 
+  ' if dordpixel is low, it is supposed to be the display id
+  ' and the pixePasm location needs to be requested
+  if dordpixel<displays.MAX_DISPLAYS
+    dordpixel:=displays.getPixelPASM( dordpixel )
+
+
       'debug( "Line ", udec( xs ), udec( ys ), udec( xe ), udec( ye ) )
-      org
+  org
                 mov    dx, xe
                 sub    dx, xs wcz
                 mov    xinc, #0
@@ -299,7 +371,7 @@ PUB line(dpixel,xs, ys, xe, ye, cl)
                 mov    PR0, xs
                 mov    PR1, ys
                 mov    PR2, cl
-                call   dpixel
+                call   dordpixel
                 ret
       draw
                 ' if xstep is bigger or equal to ystep,
@@ -314,7 +386,7 @@ PUB line(dpixel,xs, ys, xe, ye, cl)
       .x_loop   mov    PR2, cl
                 mov    PR0, xpos
                 mov    PR1, ypos
-                call   dpixel
+                call   dordpixel
                 add    dstep,dy
                 cmp    dstep, dx WCZ
           if_gt sub    dstep, dx
@@ -331,7 +403,7 @@ PUB line(dpixel,xs, ys, xe, ye, cl)
       .y_loop   mov    PR2, cl
                 mov    PR0, xpos
                 mov    PR1, ypos
-                call   dpixel
+                call   dordpixel
                 add    dstep,dx
                 cmp    dstep, dy WCZ
           if_gt sub    dstep, dy
@@ -348,10 +420,10 @@ PUB line(dpixel,xs, ys, xe, ye, cl)
       yinc      nop
       dstep     nop
       cnt       nop
-      end
+  end
 
 
-PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
+PUB box(dordpixel,xa,ya,xe,ye,cl1,cl2) | ys
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output a circle with mid-point at location x,y and with col1
    being the outline color and col2 being the inner color or -1
@@ -363,7 +435,12 @@ PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
 
       'debug( "Box ", udec( xa ), udec( ya ), udec( xe ), udec( ye ) )
 
-      org
+  ' if dordpixel is low, it is supposed to be the display id
+  ' and the pixePasm location needs to be requested
+  if dordpixel<displays.MAX_DISPLAYS
+    dordpixel:=displays.getPixelPASM( dordpixel )
+
+  org
           ' sanitizing input for x
           ' meaning that the x and y coordinates don't need to be in special order
                 cmp    xa, xe WCZ
@@ -404,7 +481,7 @@ PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
         pixel_out
                 mov    PR0, xstart
                 mov    PR1, ys
-                call   dpixel
+                call   dordpixel
 
       lpcont    add    ys, #1
                 djnz   ycnt, #ylp
@@ -422,7 +499,7 @@ PUB box(dpixel,xa,ya,xe,ye,cl1,cl2) | ys
       end
 
 
-PUB circle( dpixel,xc,yc,r,col1,col2 ) | xs,xe,y,d,lx1,ly1
+PUB circle( dordpixel,xc,yc,r,col1,col2 ) | xs,xe,y,d,lx1,ly1
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Output a circle with mid-point at location x,y and with col1
    being the outline color and col2 being the inner color or -1
@@ -432,33 +509,11 @@ PUB circle( dpixel,xc,yc,r,col1,col2 ) | xs,xe,y,d,lx1,ly1
    Only for reference and will be removed sooner or later.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
 
-{{
-  lx1:=0
-  ly1:=r
-  d:= 3-r<<1
-  circleSectors( dpixel,xc, yc, lx1, ly1, col1)
-  if col2<>-1
-    lineSPIN( dpixel,xc-ly1+1,yc, xc+ly1-1,yc,col2) ',col2 )
+  ' if dordpixel is low, it is supposed to be the display id
+  ' and the pixePasm location needs to be requested
+  if dordpixel<displays.MAX_DISPLAYS
+    dordpixel:=displays.getPixelPASM( dordpixel )
 
-  repeat while ly1>=lx1
-    lx1++
-    if d>=0
-      ly1--
-      d:=d+(lx1-ly1)<<2+10
-      if col2<>-1
-        lineSPIN( dpixel,xc-lx1+1,yc+ly1,xc+lx1-1,yc+ly1, col2) ', col2 )
-        lineSPIN( dpixel,xc-lx1+1,yc-ly1,xc+lx1-1,yc-ly1, col2) ', col2 )
-
-    else
-      d:=d+lx1<<2+6
-
-    if col2<>-1
-      lineSPIN( dpixel,xc-ly1+1,yc+lx1, xc+ly1-1,yc+lx1,col2) ',col2 )
-      lineSPIN( dpixel,xc-ly1+1,yc-lx1, xc+ly1-1,yc-lx1,col2) ',col2 )
-
-    circleSectors( dpixel,xc,yc,lx1,ly1,col1 )
-  return
-}}
   org
         xor   lx1,lx1
         mov   ly1, r
@@ -502,12 +557,12 @@ lin
         mov    PR1, yc
         add    PR1, lx1
         mov    PR2, col2
-        call   dpixel
+        call   dordpixel
         mov    PR0, xs
         mov    PR1, yc
         sub    PR1, lx1
         mov    PR2, col2
-        call   dpixel
+        call   dordpixel
 
         add    xs, #1
         cmp    xe, xs WZ
@@ -527,12 +582,12 @@ lin
         mov    PR1, yc
         sub    PR1, ly1
         mov    PR2, col2
-        call   dpixel
+        call   dordpixel
         mov    PR0, xs
         mov    PR1, yc
         add    PR1, ly1
         mov    PR2, col2
-        call   dpixel
+        call   dordpixel
 
         add    xs, #1
         cmp    xe, xs WZ
@@ -546,65 +601,64 @@ sectors
         mov    PR1, yc
         add    PR1, ly1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc-x, yc+y, col )
         mov    PR0, xc
         sub    PR0, lx1
         mov    PR1, yc
         add    PR1, ly1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc+x, yc-y, col )
         mov    PR0, xc
         add    PR0, lx1
         mov    PR1, yc
         sub    PR1, ly1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc-x, yc-y, col )
         mov    PR0, xc
         sub    PR0, lx1
         mov    PR1, yc
         sub    PR1, ly1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc+y, yc+x, col )
         mov    PR0, xc
         add    PR0, ly1
         mov    PR1, yc
         add    PR1, lx1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc-y, yc+x, col )
         mov    PR0, xc
         sub    PR0, ly1
         mov    PR1, yc
         add    PR1, lx1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc+y, yc-x, col )
         mov    PR0, xc
         add    PR0, ly1
         mov    PR1, yc
         sub    PR1, lx1
         mov    PR2, col1
-        call   dpixel
+        call   dordpixel
 '  scm.callP02( dpixel, xc-y, yc-x, col )
         mov    PR0, xc
         sub    PR0, ly1
         mov    PR1, yc
         sub    PR1, lx1
         mov    PR2, col1
-        jmp    dpixel
+        jmp    dordpixel
 
   null long 0
   minus1 long -1
   newy  long 0
   end
-{{}}
 
 
-PUB convRGB( dpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
+PUB convRGB( dordpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    This function converts a 24 bit per pixel RGB BMP file data
    into the screen buffer.
@@ -614,7 +668,12 @@ PUB convRGB( dpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
      boxes in the screen-buffer.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
 
-   org
+  ' if dordpixel is low, it is supposed to be the display id
+  ' and the pixePasm location needs to be requested
+  if dordpixel<displays.MAX_DISPLAYS
+    dordpixel:=displays.getPixelPASM( dordpixel )
+
+  org
          mov     xoffset, bw
          sub     xoffset, w
          add     xoffset, #1
@@ -638,7 +697,7 @@ PUB convRGB( dpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
          setbyte PR2, col, #2
          mov     PR0, xs
          mov     PR1, yp
-         call    dpixel
+         call    dordpixel
 
          add     xs, #1
          cmp     xs, xe WZ
@@ -650,4 +709,29 @@ PUB convRGB( dpixel, x,y,w,h, bw, p_buffer ) | yp, xs, xe, col
 
          ret
  xoffset long 0
-   end
+  end
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+

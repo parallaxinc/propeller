@@ -7,7 +7,7 @@ __________               __           /\
  |______  /\___  >___|  /__|_ \/ ____/____  >
         \/     \/     \/     \/\/         \/    pasmSMC
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Version 0.5
+ Version 0.6
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  pasmSMC stands for PASM2 Self Modifying Code. The current version is rather minimal and
  popped up because of the need of modifying some values the display drivers of the
@@ -22,12 +22,14 @@ __________               __           /\
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 }}
 
+
 PUB setSource( instrHUBAdr, adr )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Set the source part of a PASM instruction.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
   adr &= $0000_01ff
   long[ instrHUBAdr ] := long[ instrHUBAdr ]& $ffff_fe00 | adr
+
 
 PUB setRelSource( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
 ',instr,val
@@ -42,12 +44,14 @@ PUB setRelSource( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
   'debug( "setRelSource", ubin( instr ), uhex( adr ), uhex( val ) )
   long[ adrPasm ] := (long[ adrPasm ] & $ffff_fe00) | adr
 
+
 PUB setDestination( instrHUBAdr, adr )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Set the destination part of a PASM instruction.
    =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
   adr &= $0000_01ff
   long[ instrHUBAdr ] := long[ instrHUBAdr ]& $fffc_01ff | adr<<9
+
 
 PUB setRelDestination( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -58,6 +62,7 @@ PUB setRelDestination( instrHUBAdr, cogAdr, adrPasm, adrVar ) | adr
   adr &= $0000_01ff
   long[ adrPasm ] := long[ adrPasm ]& $fffc_01ff | adr<<9
 
+
 PUB callP02( adr, val0, val1, val2 )
 {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
    Call whatever function has been installed in COG-RAM at
@@ -67,3 +72,28 @@ PUB callP02( adr, val0, val1, val2 )
   PR1:=val1
   PR2:=val2
   call( adr )
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+
