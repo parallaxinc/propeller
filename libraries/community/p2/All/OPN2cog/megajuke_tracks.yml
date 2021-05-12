@@ -1,0 +1,203 @@
+- 
+  file: sega.vgm
+  title: Sega Logo
+  game: Sonic the Hedgehog
+  composer: '???'
+  note: SEEEEEEEEEEEEEEEEEGAAAAAAAAAAAAAAAAAAAA!
+- 
+  file: SonicTitle.vgm
+  title: Title Screen
+  game: Sonic the Hedgehog
+  composer: Masato Nakamura
+-
+  file: greenhill.vgm
+  title: Green Hill Zone
+  game: Sonic the Hedgehog
+  composer: Masato Nakamura
+-
+  file: marble.vgm
+  title: Marble Zone
+  game: Sonic the Hedgehog
+  composer: Masato Nakamura
+-
+  file: starlight.vgm
+  title: Star Light Zone
+  game: Sonic the Hedgehog
+  composer: Masato Nakamura
+-
+  file: scrapbrain.vgz
+  title: Scrap Brain Zone
+  game: Sonic the Hedgehog
+  composer: Masato Nakamura
+-
+  file: rage.vgm
+  title: The Street of Rage (Intro)
+  game: Streets of Rage
+  composer: Yuzu Koshiro
+  note: This tune really highlights the low sample rate of the PSG emulation
+-
+  file: FightingInTheStreet.vgz
+  title: Fighting in the Street
+  game: Streets of Rage
+  composer: Yuzu Koshiro
+-
+  file: MoonBeach.vgz
+  title: Moon Beach
+  game: Streets of Rage
+  composer: Yuzu Koshiro
+-
+  file: rageend.vgm
+  title: Good Ending
+  game: Streets of Rage
+  composer: Yuzu Koshiro
+-
+  file: MagicalSoundShower.vgz
+  title: Magical Sound Shower
+  game: OutRun
+  composer: Hiroshi Kawaguchi
+-
+  file: flashbackch3.vgm
+  title: Sound Test 03
+  game: 'Flashback: The Quest for Identity'
+  composer: Jean Baudlot, Fabrice Visserot
+  note: 'Note: uses CH3 special mode and sounds terrible without it'
+-
+  file: risevoice.vgm
+  title: Rise from your Grave! (voice)
+  game: Altered Beast
+  composer: '???'
+-
+  file: rise.vgm
+  title: Rise from your Grave!
+  game: Altered Beast
+  composer: Tohru Nakabayashi
+  note: 'Note: Uses CH3 special mode!'
+-
+  file: tt_title.vgz
+  title: Title / Credits
+  game: Time Trax (unreleased)
+  composer: Tim Follin
+- 
+  file: tt_briefing.vgz
+  title: Mission Briefing
+  game: Time Trax (unreleased)
+  composer: Tim Follin
+- 
+  file: tt_138.vgz
+  title: Stages 1, 3, 8
+  game: Time Trax (unreleased)
+  composer: Tim Follin
+- 
+  file: tt_257.vgz
+  title: Stages 2, 5, 7
+  game: Time Trax (unreleased)
+  composer: Tim Follin
+- 
+  file: tt_46.vgz
+  title: Stages 4, 6
+  game: Time Trax (unreleased)
+  composer: Tim Follin
+-
+  file: konami.vgm
+  title: Konami Logo
+  game: 'Castlevania: Bloodlines'
+  composer: '???'
+-
+  file: soul.vgm
+  title: Reincarnated Soul
+  game: 'Castlevania: Bloodlines'
+  composer: Michiru Yamane
+-
+  file: sinking.vgm
+  title: The Sinking Old Sanctuary
+  game: 'Castlevania: Bloodlines'
+  composer: Michiru Yamane
+-
+  file: ironblue.vgm
+  title: Iron-Blue Intention
+  game: 'Castlevania: Bloodlines'
+  composer: Michiru Yamane
+-
+  file: nameless.vgm
+  title: Requiem for the Nameless Victims
+  game: 'Castlevania: Bloodlines'
+  composer: Michiru Yamane
+- 
+  file: asterix.vgm
+  title: Title Theme
+  game: Asterix and the Great Rescue
+  composer: Nathan McCree
+  note: 'Note: Uses SSG-EG'
+-
+  file: asterix_rome.vgm
+  title: Rome
+  game: Asterix and the Great Rescue
+  composer: Nathan McCree
+-
+  file: emeraldhill.vgm
+  title: Emerald Hill Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: chemicalplant.vgz
+  title: Chemical Plant Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: hilltop.vgm
+  title: Hill Top Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: aquatic.vgm
+  title: Aquatic Ruins Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: casino.vgm
+  title: Casino Night Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: oilocean.vgm
+  title: Oil Ocean Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: metropolis.vgz
+  title: Metropolis Zone
+  game: Sonic the Hedgehog 2
+  composer: Masato Nakamura
+-
+  file: SplashWave.vgz
+  title: Splash Wave
+  game: OutRun
+  composer: Hiroshi Kawaguchi
+-
+  file: SeekingTreasure.vgz
+  title: Seeking Treasure
+  game: Landstalker
+  composer: Motoaki Takenouchi
+-
+  file: mgarden.vgm
+  title: Marble Garden Zone Act 2
+  game: Sonic the Hedgehog 3
+  composer: Miyoko Takaoka
+  note: 'Note: This really highlights the EG clicking issue...'
+-
+  file: S3StaffRoll.vgz
+  title: Staff Roll
+  game: Sonic the Hedgehog 3
+  composer: Michael Jackson, Brad Buxer
+  note: |
+    MJ allegedly went uncredited in Sonic 3 because he was
+    dissatisfied with how crappy the sound driver they used was.
+    Yeah, those are some scratchy samples alright...
+-
+  file: Ending.vgm
+  title: Ending
+  game: Sonic the Hedgehog 2 (Game Gear)
+  composer: Gatao, Nao Chan, Dawasa
+  note: (PSG-only tune!)
+
+  

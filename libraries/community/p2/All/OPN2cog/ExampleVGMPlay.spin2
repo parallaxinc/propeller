@@ -1,0 +1,134 @@
+'
+'' A minimalistic VGM dump player.
+
+'' Notes:
+''  - Some VGMs don't loop or have glitches at the loop point. IDK why.
+''  - VGMs exported by TFM/VGM Music maker won't play correctly due to toggling key-on
+''    without any delay inbetween off and on. This is incorrect behaviour on real HW, too.
+''    (If I read NukedOPN's handling of the Key-On register right, that is)
+
+CON
+    _CLKFREQ = 250_000_000
+
+    SPEED_DIV = 1
+
+    leftPin  = 48
+    rightPin = 49
+
+VAR
+  long waitFor,readptr
+  long database,dataptr
+  long loopptr,loopleft,looplength
+  byte buffer[64]
+
+OBJ
+  OPN2 : "OPN2cog"
+
+PUB Main() | continue, i, cmd
+
+
+  OPN2.start(leftPin, rightPin, 3, true)    ' Start OPN2cog
+
+
+  '"Handle" vgm header (ignore it)
+
+  readptr := @thevgm+long[@thevgm+$34]+$34
+  if readptr == @thevgm+$34
+    readptr := @thevgm+$40
+  loopptr := @thevgm+long[@thevgm+$1C]+$1C
+  looplength := long[@thevgm+$20]
+  loopleft := looplength
+
+  repeat i from 0 to 5
+    OPN2.setCHPanning(i,1,1)
+
+  ' Below is a minimalistic implementation of the ".vgm" format
+  ' Have a look at the .vgm file format documentation for a better understanding
+  waitFor := getct() + 10_000_000
+  repeat
+
+    continue := true
+    repeat while continue
+
+      if loopleft < 0
+        if looplength
+          loopleft += looplength
+          readptr := loopptr
+
+      getn(@buffer, 1)            ' Read a command byte
+      cmd := buffer[0]
+      case cmd
+        $50:             ' PSG write
+          getn(@buffer, 1)          ' Read the regsiter value from sd
+          OPN2.writePSGport(buffer[0])     ' Write the value to SNEcog
+
+        $52,$53:          ' OPN2 write
+          getn(@buffer, 2) ' reg value and address
+          i := buffer[0]
+          if cmd == $53
+            i+=256
+          OPN2.setOPN2Register(i,buffer[1])
+          ' Don't do anything with this yet..
+
+
+        $80..$8F:     ' Data bank DAC write + wait
+          'debug("DAC cmd ",uhex_byte(byte[database][dataptr]))
+          'wypin(48 addpins 1,byte[database][dataptr++]<<7)
+          OPN2.setOPN2Register($2A,byte[database][dataptr++])
+          if cmd <> $80
+            waitSamples(cmd & 15)
+            continue := false
+
+        $70..$7F:     ' Wait a short amount of time
+          waitSamples((cmd & 15)+1)
+          continue := false
+
+
+        $61:         ' Wait an arbitrary amount of time
+          getn(@buffer, 2)
+          waitSamples(buffer[0] | (buffer[1]<<8))
+          continue := false
+
+        $62:         ' Wait 1/60 of a second
+          waitSamples(735)
+          continue := false
+
+        $63:         ' Wait 1/50 of a second
+          waitSamples(882)
+          continue := false
+
+        $E0: ' data bank seek
+           getn(@buffer, 4)
+           dataptr:= long[@buffer]
+
+        $67: ' data bank init
+           getn(@buffer,6)
+           if buffer[1] == 0
+             database:=readptr
+             dataptr:=0
+             readptr+=long[@buffer+2]
+
+
+        $66: return
+
+
+    OPN2.flipRegisters()                  ' Update the sound registers
+    waitct(waitFor)                  ' Wait until the right time to
+
+PRI waitSamples(n) | ct
+  if readptr >= loopptr
+    loopleft -= n
+  waitFor += ((_CLKFREQ/44100*SPEED_DIV) * (n) ) #> 50
+  ct:= getct()
+  if waitFor-ct < 100
+    waitfor := getct() + 100
+  'waitFor := getct() + waitFor
+
+
+PRI getn(buf,n)
+  bytemove(buf,readptr,n)
+  readptr+=n
+
+DAT
+
+thevgm file "greenhill.vgm"
