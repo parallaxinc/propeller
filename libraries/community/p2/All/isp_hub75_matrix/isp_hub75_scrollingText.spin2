@@ -18,7 +18,7 @@ CON { public control values }
 #0, DIR_UNKNOWN, DIR_TO_LEFT, DIR_TO_RIGHT
 
 ' enum: scrolling duration
-#0, SCROLL_UNKNOWN, SCROLL_FOREVER, SCROLL_ONCE, SCROLL_ONCE_TO_CLEAR
+#0, SCROLL_UNKNOWN, SCROLL_FOREVER, SCROLL_ONCE, SCROLL_ONCE_TO_CLEAR, SCROLL_N_TIMES
 
 MAX_SCROLL_CHARS_TO_BUFFER = 10 * 3     ' 3 lines wide, max 10 chars per line
 MAX_SCROLL_COLORS_TO_BUFFER = MAX_SCROLL_CHARS_TO_BUFFER    ' one color per character
@@ -28,7 +28,7 @@ MAX_SCROLL_CHAR_LONGS = (MAX_SCROLL_CHAR_BYTES / 4)
 
 MAX_SCROLL_COLOR_BYTES = ((((MAX_SCROLL_COLORS_TO_BUFFER * screen.DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4)
 MAX_SCROLL_COLOR_LONGS = (MAX_SCROLL_COLOR_BYTES / 4)
-    'DISPLAY_SIZE_IN_BYTES = (((MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
+    'DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
 
 MAX_LONGS_PER_CHAR_BITMAP = 2
 
@@ -77,6 +77,7 @@ VAR { globals - instance variables }
 
     byte    scrollMode          ' configure before use!
     byte    scrollDirection     ' configure before use!
+    byte    scrollNbrTimes      ' configure before use!
     byte    isSetup
     byte    instanceID
 
@@ -89,6 +90,7 @@ PUB initialize()
     bScrolling := FALSE
     ctCharsToScroll := 0
     scrollMode := SCROLL_UNKNOWN
+    scrollNbrTimes := 0
     instanceID := instanceNumber++
     remainingPixToScroll := 0
     isSetup := TRUE ' yes, now we are!
@@ -106,20 +108,29 @@ PUB setFontInfo(nbrTextColumns, charWidth, charHeight, leadingGap, horizontalGap
     selectedTextFont := textFont
 
 ' EXAMPLES
-'    scrollText(row, column, widthInChars, "hello world", display.DIR_LEFT, rgbColor)
+'    configureScrollLoopCount(row, column, widthInChars, "hello world", display.DIR_LEFT, rgbColor)
 PUB isIdle() : statusValue
     '' Return T/F where T means this scroller instance is IDLE
     statusValue := isSetup && isScrollingComplete()
     'debug("stx:isIdle(", udec_(instanceID), ") RET=", sdec_(statusValue))
 
-PUB scrollText(loopMode) | bValidRequest
+PUB configureScrollLoopMode(loopMode)
+    '' Specify scrolling text duration (forever, once, twice, etc.)
+    configureScrollLoopCount(loopMode, 0)
+
+PUB configureScrollLoopCount(loopMode, count) | bValidRequest, validCount
     '' Specify scrolling text duration (forever, once, twice, etc.)
     bValidRequest := TRUE
+    validCount := 0 #> count <# 10
     case loopMode
         SCROLL_FOREVER:
         SCROLL_ONCE:
         SCROLL_ONCE_TO_CLEAR:
             bValidRequest := TRUE
+            scrollNbrTimes := 0
+        SCROLL_N_TIMES:
+            bValidRequest := TRUE
+            scrollNbrTimes := count
         other:
             bValidRequest := FALSE
 
@@ -130,10 +141,12 @@ PUB scrollText(loopMode) | bValidRequest
         if loopMode == SCROLL_ONCE_TO_CLEAR
             remainingPixToScroll := (ctCharsToScroll * (charWidthInPix + horizontalGapInPix))
             ' bug 3 chars short font8A
+        elseif loopMode == SCROLL_N_TIMES
+            remainingPixToScroll := (((ctCharsToScroll * (charWidthInPix + horizontalGapInPix)) * scrollNbrTimes) - horizontalGapInPix) - windowWidthInPix
         else
             remainingPixToScroll := ((ctCharsToScroll * (charWidthInPix + horizontalGapInPix)) - horizontalGapInPix) - windowWidthInPix
             ' bug 1 char short font 8A
-    debug("stx:scrlTxt() ", udec(instanceID), ", ", udec(remainingPixToScroll), udec(ctCharsToScroll), udec(maxVisibleChars), udec(charWidthInPix), udec(horizontalGapInPix))
+    'debug("stx:scrlTxt() ", udec(instanceID), ", ", udec(remainingPixToScroll), udec(ctCharsToScroll), udec(maxVisibleChars), udec(charWidthInPix), udec(horizontalGapInPix))
 
 
 PUB scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbColor) | nextToAppearIndex, colIndex, charColumn
@@ -151,7 +164,7 @@ PUB scrollTextAtRCOfColor(row, column, widthInChars, pZString, direction, rgbCol
         ' if our string is shorter than our window then right is string-end, else right is window-end
         nextToAppearIndex := min(maxVisibleChars, ctCharsToScroll)
 
-        debug("- scrollTxAtRCOfClr() ", udec(instanceID), ", RC=(", udec_(row), udec_(column), "), ", zstr(pZString), ", CT=", udec_(ctCharsToScroll), ", VIS=", udec_(maxVisibleChars), ", NTAI=", udec_(nextToAppearIndex))
+        'debug("- scrollTxAtRCOfClr() ", udec(instanceID), ", RC=(", udec_(row), udec_(column), "), ", zstr(pZString), ", CT=", udec_(ctCharsToScroll), ", VIS=", udec_(maxVisibleChars), ", NTAI=", udec_(nextToAppearIndex))
         if ctCharsToScroll > 0
             bytemove(@scrollChars, pZString, ctCharsToScroll)
             topRow := row
@@ -200,7 +213,7 @@ PUB animateScroll()
         '   while tail is loosing right most pixel (offset dictates)
         ' all chars are in the char buffer "scrollChars"
         'if instanceID == 0
-        debug("stx:as(", udec_(instanceID), ") ", udec(charPixOffset), udec(firstVisCharIndex), udec(remainingPixToScroll))
+        'debug("stx:as(", udec_(instanceID), ") ", udec(charPixOffset), udec(firstVisCharIndex), udec(remainingPixToScroll))
 
         ' place char bits
         if scrollDirection == DIR_TO_LEFT
@@ -246,7 +259,7 @@ PRI placeCharsAtRCWithColor(row, column, charOffset, windowWidth, startCharIndex
     remainWindowPix := windowWidth
     endColumn := column
     insetInPix := charOffset
-    debug("stx:plcC() ", udec(maxCharIndex), udec(headWidthInPix), udec(remainWindowPix), udec(endColumn), udec(insetInPix))
+    'debug("stx:plcC() ", udec(maxCharIndex), udec(headWidthInPix), udec(remainWindowPix), udec(endColumn), udec(insetInPix))
 
     ' for width of visible window
     repeat charIndex from 0 to maxCharIndex
@@ -349,7 +362,7 @@ PRI placeBitmapBackAtRCWithColor(row, column, bitInset, nbrCharBits, pCharBitmap
                 pixColor := cRowBits & (1 << cBitOffset) > 0 ? rgbColor : $000000
                 pixColumn := column + (nbrCharBits - 1) - colOffset
                 ' dont paint off edge of matrix
-                if pixColumn < screen.MAX_PHYSICAL_COLUMNS
+                if pixColumn < screen.MAX_DISPLAY_COLUMNS
                     pixels.drawPixelAtRC(pixRow, pixColumn, pixColor)
                 colOffset--
 

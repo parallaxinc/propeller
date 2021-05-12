@@ -79,8 +79,8 @@ PUB correctedColor(color) : adjustedColor
     '' Correct a color using generic gamma
     adjustedColor := color
     'return
-    'adjustedColor := ((color * defaultBrightness) >> 8) & $ff
     adjustedColor := byte[@gamma][adjustedColor]
+    adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
     adjustedColor := dutyCycleForIntensity(adjustedColor)
 
 PUB gammaPeek(color) : adjustedColor | gammmaIndex, lowColor, highColor
@@ -109,7 +109,6 @@ PUB gammaPeek(color) : adjustedColor | gammmaIndex, lowColor, highColor
 PUB correctedSingleColor(led, colorValue) : adjustedColor | pGammaTable
     '' Correct the color for a specific LED (R, G, or B)
     adjustedColor := colorValue
-    'adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
     case led
         LED_RED:
             pGammaTable := @gamma
@@ -122,6 +121,7 @@ PUB correctedSingleColor(led, colorValue) : adjustedColor | pGammaTable
 
     if bGammaEnable
         adjustedColor := byte[pGammaTable][adjustedColor]
+    adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
     adjustedColor := dutyCycleForIntensity(adjustedColor)
 
 PUB rgbColorFromDegrees(degrees) : rcbColor | offset60, fract60, red, green, blue
