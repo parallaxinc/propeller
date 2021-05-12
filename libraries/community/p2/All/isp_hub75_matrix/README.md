@@ -6,7 +6,9 @@ Language: Spin2 / Pasm2
 
 Created: 03-DEC-2020
 
-Upadted: 19-FEB-2021
+Updated: 12-MAY-2021
+
+Version: 0.9.0
 
 Category: display
 

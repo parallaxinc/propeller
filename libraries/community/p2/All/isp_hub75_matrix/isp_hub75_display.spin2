@@ -33,6 +33,7 @@ SCROLL_UNKNOWN      = scroller.SCROLL_UNKNOWN
 SCROLL_FOREVER      = scroller.SCROLL_FOREVER
 SCROLL_ONCE         = scroller.SCROLL_ONCE
 SCROLL_ONCE_TO_CLEAR = scroller.SCROLL_ONCE_TO_CLEAR
+SCROLL_N_TIMES = scroller.SCROLL_N_TIMES
 
 ' FIXME: UNDONE make this user configurable
 MAX_SCROLLING_REGIONS = 3
@@ -46,7 +47,7 @@ OBJ { Objects Used by this Object }
     screen      : "isp_hub75_screenAccess"
     pixels      : "isp_hub75_screenUtils"
     color       : "isp_hub75_color"
-    panel       : "isp_hub75_panel"
+    panelSet    : "isp_hub75_panel"
     fonts       : "isp_hub75_fonts"
     scroller[MAX_SCROLLING_REGIONS] : "isp_hub75_scrollingText"
 
@@ -67,6 +68,10 @@ VAR { Object Instance Variables }
     byte    horizontalGapInPix
     byte    verticalGapInPix
     byte    hBitmapOffsetInPix
+    byte    maxPanelTextLines
+    byte    maxPanelTextColumns
+    byte    panelFixupOffetInPix
+
     byte    bScan_1_4
     byte    bSwapRB
 
@@ -80,12 +85,13 @@ PUB start() : ok | scrollerIndex, dvrConfig, driverConfigRaw
         debug("dsp:Geometry BAD in isp_hub75_hwGeometry.spin2!")
         abort
 
-
     debug("dsp:start()")
-    ok := cog := panel.start()   ' send buffer to driver
+    ok := cog := panelSet.start()   ' send buffer to driver
     if ok == -1
         debug("dsp:underlying drivers failed!")
         abort
+
+    debug("dsp: BFFR screen[", udec_long_(screen.DISPLAY_SIZE_IN_LONGS), "] 0x", uhex_long_(@screen0))
 
     dvrConfig, driverConfigRaw := screen.getDriverFlags()
     bScan_1_4 := (dvrConfig & screen.SCAN_4) > 0 ? True : False
@@ -108,33 +114,51 @@ PUB start() : ok | scrollerIndex, dvrConfig, driverConfigRaw
 PUB stop()
     '' Stop the underlying driver(s)
     if cog
-        panel.stop()
+        panelSet.stop()
         cog := 0
 
 PUB clearScreen()
     '' Clear the panel to BLACK
     longfill(@screen0, 0, screen.DISPLAY_SIZE_IN_LONGS)
-    commitScreenToPanel()
+    commitScreenToPanelSet()
+
+PUB clearScreenBuffer()
+    '' Clear the panel to BLACK
+    longfill(@screen0, 0, screen.DISPLAY_SIZE_IN_LONGS)
 
 PUB fillScreen(rgbColor) | row, column
     '' Fill the display with 24-bit color value
-    repeat row from 0 to screen.MAX_PHYSICAL_ROWS - 1
-        repeat column from 0 to screen.MAX_PHYSICAL_COLUMNS - 1
+    repeat row from 0 to screen.MAX_DISPLAY_ROWS - 1
+        repeat column from 0 to screen.MAX_DISPLAY_COLUMNS - 1
             pixels.drawPixelAtRC(row, column, rgbColor)
 
-PUB fillPanel(threeBitColor)
-    '' Fill screen but without PWM (for testing underlying driver)
-    panel.fillPanel(threeBitColor)
+DAT
+bDidShowOnce long   FALSE
 
-PUB commitScreenToPanel()
+PUB fillPanel(panelIndex, rgbColor) | row, column, columnOffsetToPanel
+    '' Fill the specified panel (of panelSet) with 24-bit color value
+    columnOffsetToPanel := panelIndex * screen.MAX_PANEL_COLUMNS
+    repeat row from 0 to screen.MAX_PANEL_ROWS - 1
+        repeat column from 0 to screen.MAX_PANEL_COLUMNS - 1
+            'if row == 0 and (column < 4 or column > screen.MAX_PANEL_COLUMNS - 4)
+                'if not bDidShowOnce
+                '    debug("- fillPanel row=0 col=", udec_(column), ", ", udec(columnOffsetToPanel))
+            pixels.drawPixelAtRC(row, column + columnOffsetToPanel, rgbColor)
+    'bDidShowOnce := TRUE
+
+PUB fillScreenNoPWM(threeBitColor)
+    '' Fill screen but without PWM (for testing underlying driver)
+    panelSet.fillScreenNoPWM(threeBitColor)
+
+PUB commitScreenToPanelSet()
     '' Write sceen to panel driver PWM frames (while alternating PWM frame sets)
     'debug("dsp: commit!")
 
     if bScan_1_4
-        panel.convertScreen2PWM_14(@screen0, bSwapRB)
-        'panel.convertScreen2PWM_14_spin(@screen0, bSwapRB)
+        panelSet.convertScreen2PWM_14(@screen0, bSwapRB)
+        'panelSet.convertScreen2PWM_14_spin(@screen0, bSwapRB)
     else
-        panel.convertScreen2PWM(@screen0, bSwapRB)
+        panelSet.convertScreen2PWM(@screen0, bSwapRB)
 
 
 { --------------     Text Handling     -------------- }
@@ -149,54 +173,56 @@ PUB homeCursor()
     '' Return the cursor to top left corner of our display
     setCursor(0, 0)
 
+PUB setCursorOnPanel(line, column, panelIndex) | boundedPanelIndex, panelOffsetInChars, boundedColumn, tmpCharOffsetInPix, desiredCharOffsetInPix, fixUpInPix
+    '' Position the text cursor to row, column of the selected panel
+    boundedPanelIndex := 0 #> panelIndex <# screen.MAX_PANELS - 1
+    boundedColumn := 0 #> column <# maxPanelTextColumns - 1
+    cursorLine := 0 #> line <# maxPanelTextLines - 1
+    panelOffsetInChars := (boundedPanelIndex * maxPanelTextColumns) + boundedColumn
+    cursorColumn := panelOffsetInChars
+    tmpCharOffsetInPix := leftOffsetInPix + (cursorColumn * (charWidthInPix + horizontalGapInPix))
+    desiredCharOffsetInPix := leftOffsetInPix + (screen.MAX_PANEL_COLUMNS * boundedPanelIndex) + (boundedColumn * (charWidthInPix + horizontalGapInPix))
+    panelFixupOffetInPix := (tmpCharOffsetInPix < desiredCharOffsetInPix) ? desiredCharOffsetInPix - tmpCharOffsetInPix: 0
+
+PRI offsetToTextOnPanel(line, column, panelIndex) : panelLine, panelColumn | gridRow, gridColumn, boundedPanelIndex, boundedColumn, tmpCharOffsetInPix, panelOffsetInChars, desiredCharOffsetInPix
+    boundedPanelIndex := 0 #> panelIndex <# screen.MAX_PANELS - 1
+    boundedColumn := 0 #> column <# maxPanelTextColumns - 1
+    panelLine := 0 #> line <# maxPanelTextLines - 1
+    panelOffsetInChars := (boundedPanelIndex * maxPanelTextColumns) + boundedColumn
+    panelColumn := panelOffsetInChars
+    tmpCharOffsetInPix := leftOffsetInPix + (cursorColumn * (charWidthInPix + horizontalGapInPix))
+    desiredCharOffsetInPix := leftOffsetInPix + (screen.MAX_PANEL_COLUMNS * boundedPanelIndex) + (boundedColumn * (charWidthInPix + horizontalGapInPix))
+    'panelFixupOffetInPix := (tmpCharOffsetInPix < desiredCharOffsetInPix) ? desiredCharOffsetInPix - tmpCharOffsetInPix: 0
+
+PUB homeCursorOnPanel(panelIndex)
+    '' Return the cursor to top left corner of the selected panel
+    setCursorOnPanel(0, 0, panelIndex)
+
 PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
     '' Select font and update text grid size
     ' currently we only support our 8x8 and 5x7 fonts
+    panelFixupOffetInPix := 0
     case newFont
         TEXT_FONT_DEFAULT..TEXT_FONT_5x7:
             charHeightInPix := 7
             charWidthInPix := 5
             hBitmapOffsetInPix := 0
-            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 1))
-            maxTextColumns := (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 1))
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
-            verticalGapInPix := vUnusedPix / maxTextLines
-            horizontalGapInPix := hUnusedPix / maxTextColumns
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
-            topOffsetInPix := (vUnusedPix + 1) >> 1
-            leftOffsetInPix := (hUnusedPix + 1) >> 1
+            maxTextLines := (screen.MAX_DISPLAY_ROWS / (charHeightInPix + 1))
+            maxTextColumns := (screen.MAX_DISPLAY_COLUMNS / (charWidthInPix + 1))
 
         TEXT_FONT_8x8A:
             charHeightInPix := 7
             charWidthInPix := 7
             hBitmapOffsetInPix := 1
-            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
-            maxTextColumns :=  (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
-            verticalGapInPix := vUnusedPix / maxTextLines
-            horizontalGapInPix := hUnusedPix / maxTextColumns
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
-            topOffsetInPix := (vUnusedPix + 1) >> 1
-            leftOffsetInPix := (hUnusedPix + 1) >> 1
+            maxTextLines := (screen.MAX_DISPLAY_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
+            maxTextColumns :=  (screen.MAX_DISPLAY_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
 
         TEXT_FONT_8x8B:
             charHeightInPix := 8
             charWidthInPix := 8
             hBitmapOffsetInPix := 0
-            maxTextLines := (screen.MAX_PHYSICAL_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
-            maxTextColumns :=  (screen.MAX_PHYSICAL_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * charHeightInPix)
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * charWidthInPix)
-            verticalGapInPix := vUnusedPix / maxTextLines
-            horizontalGapInPix := hUnusedPix / maxTextColumns
-            vUnusedPix := screen.MAX_PHYSICAL_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
-            hUnusedPix := screen.MAX_PHYSICAL_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
-            topOffsetInPix := (vUnusedPix + 1) >> 1
-            leftOffsetInPix := (hUnusedPix + 1) >> 1
+            maxTextLines := (screen.MAX_DISPLAY_ROWS / (charHeightInPix + 0))  ' 7x7 fonts in 8x8 tile have blank row below so don't add one
+            maxTextColumns :=  (screen.MAX_DISPLAY_COLUMNS / (charWidthInPix + 0))  ' 7x7 fonts in 8x8 tile have blank col after so don't add one
 
         OTHER:
             debug("*ERROR* unknown text size*")
@@ -204,11 +230,33 @@ PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
 
     selectedTextFont := newFont
 
+    vUnusedPix := screen.MAX_DISPLAY_ROWS - (maxTextLines * charHeightInPix)
+    hUnusedPix := screen.MAX_DISPLAY_COLUMNS - (maxTextColumns * charWidthInPix)
+    verticalGapInPix := vUnusedPix / maxTextLines
+    horizontalGapInPix := hUnusedPix / maxTextColumns
+    vUnusedPix := screen.MAX_DISPLAY_ROWS - (maxTextLines * (charHeightInPix + verticalGapInPix))
+    hUnusedPix := screen.MAX_DISPLAY_COLUMNS - (maxTextColumns * (charWidthInPix + horizontalGapInPix))
+    topOffsetInPix := (vUnusedPix + 1) >> 1
+    leftOffsetInPix := (hUnusedPix + 1) >> 1
+
+    maxPanelTextLines := ((screen.MAX_PANEL_ROWS - topOffsetInPix) / (charHeightInPix + verticalGapInPix))
+    maxPanelTextColumns := ((screen.MAX_PANEL_COLUMNS - leftOffsetInPix) / (charWidthInPix + horizontalGapInPix))
+
+    'debug("dsp:TEXT: ", udec(maxTextColumns), udec(maxTextLines))
+
     'debug("dsp:font ", udec(charHeightInPix), udec(charWidthInPix), udec(maxTextLines), udec(maxTextColumns), udec(verticalGapInPix), udec(horizontalGapInPix), udec(topOffsetInPix), udec(leftOffsetInPix))
 
     ' configure our scrollers for font choice
     repeat scrollerIndex from 0 to MAX_SCROLLING_REGIONS - 1
         scroller[scrollerIndex].setFontInfo(maxTextColumns, charWidthInPix, charHeightInPix, leftOffsetInPix, horizontalGapInPix, hBitmapOffsetInPix, selectedTextFont)
+
+PUB numberTextLines() : nbrTextLines
+    '' return the number of text-rows for the currently selected font
+    nbrTextLines := maxTextLines
+
+PUB numberTextColumns() : nbrTextColumns
+    '' return the number of text-columns for the currently selected font
+    nbrTextColumns := maxTextColumns
 
 PUB setTextColor(rgbColor)
     '' Set 24-bit color for subsequent text display
@@ -240,37 +288,46 @@ PUB setCharAtLnCol(line, column, cChar)
     '' Write character to display at R,C using current text color
     setColoredCharAtLnCol(line, column, cChar, currTextColor)
 
-PUB setColoredCharAtLnCol(line, column, cChar, rgbColor) | pCharBitMap, tlScreenOffset, tlCharOffset, cLineIndex, cColumnIndex, sRowPixIndex, sColumnPixIndex, cBitIdx, cByteIdx, cRowBits, pixColumn
+PUB setColoredCharAtLnCol(line, column, cChar, rgbColor) | pCharBitMap, tlScreenOffset, tlCharOffset, cLineIdx, cColumnIdx, sRowPixIdx, sColumnPixIdx, cBitIdx, cByteIdx, cRowBits, pixColumn
     '' Write cChar to display R,C using rgbColor
     'debug("dsp:setCharAtCursor @LnCol(", udec_(line), ",", udec_(column), "), char=", uhex_(cChar), ", RGB=", uhex_long_(rgbColor), udec(topOffsetInPix), udec(leftOffsetInPix))
-    cLineIndex := 0 #> line <# maxTextLines - 1
-    cColumnIndex :=  0 #> column <# maxTextColumns - 1
+    cLineIdx := 0 #> line <# maxTextLines - 1
+    cColumnIdx :=  0 #> column <# maxTextColumns - 1
     ' get pointer to character bitmap
     pCharBitMap := fonts.getCharAddrForFont(selectedTextFont, cChar)
     'debug("- pChar=", uhex_long(pCharBitMap))
     ' NOTE: cursor is 0-relative so add in our top/left offset to get row/col and mult by char size in pix
-    sRowPixIndex := topOffsetInPix + (cLineIndex * (charHeightInPix + verticalGapInPix))
-    sColumnPixIndex := leftOffsetInPix + (cColumnIndex * (charWidthInPix + horizontalGapInPix))
+    sRowPixIdx := topOffsetInPix + (cLineIdx * (charHeightInPix + verticalGapInPix))
+    ' NOTE: panelFixupOffetInPix is only non-zero when we are placing text on specific panel!
+    sColumnPixIdx := leftOffsetInPix + panelFixupOffetInPix + (cColumnIdx * (charWidthInPix + horizontalGapInPix))
+
 
     repeat cByteIdx from 0 to charHeightInPix - 1
         cRowBits := byte[pCharBitMap][cByteIdx]
         'debug("- char row(", udec_(cByteIdx), ") ", ubin(cRowBits))
         repeat cBitIdx from charWidthInPix - 1 to 0
-            pixColumn := sColumnPixIndex + cBitIdx
+            pixColumn := sColumnPixIdx + cBitIdx
             if (cRowBits & (1 << ((charWidthInPix - 1) - cBitIdx))) > 0
-                pixels.drawPixelAtRC(sRowPixIndex + cByteIdx, pixColumn, rgbColor)
+                pixels.drawPixelAtRC(sRowPixIdx + cByteIdx, pixColumn, rgbColor)
             'else
-            '    pixels.drawPixelAtRC(sRowPixIndex + cByteIdx, pixColumn, $ff0000)
+            '    pixels.drawPixelAtRC(sRowPixIdx + cByteIdx, pixColumn, $ff0000)
 
 { --------------     Scrolling Text     -------------- }
 ' EXAMPLES
-'    scrollText(row, column, widthInChars, "hello world", display.DIR_LEFT, rgbColor)
+'    configureScrollLoopMode(scrollerID, display.SCROLL_ONCE)
+'    configureScrollLoopCount(scrollerID, display.SCROLL_N_TIMES, 2)
 
-PUB scrollText(indexAllocated, loopCount)
-    'debug("dsp:scrollText() ", udec(indexAllocated))
+PUB configureScrollLoopMode(indexAllocated, loopMode)
+    'debug("dsp:configureScrollLoopMode() ", udec(indexAllocated))
     '' Specify scrolling text duration (forever, once, twice)
     if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
-        scroller[indexAllocated].scrollText(loopCount)
+        scroller[indexAllocated].configureScrollLoopMode(loopMode)
+
+PUB configureScrollLoopCount(indexAllocated, loopMode, loopCount)
+    'debug("dsp:configureScrollLoopCount() ", udec(indexAllocated))
+    '' Specify scrolling text duration (forever, once, twice)
+    if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
+        scroller[indexAllocated].configureScrollLoopCount(loopMode, loopCount)
 
 
 PUB scrollTextOnLine(line, pZString, direction) : indexAllocated
@@ -278,20 +335,40 @@ PUB scrollTextOnLine(line, pZString, direction) : indexAllocated
     indexAllocated := scrollColoredTextOnLn(line, pZString, direction, currTextColor)
 
 
-PUB scrollColoredTextOnLn(line, pZString, direction, rgbColor) : indexAllocated  | cLineIndex, cColumnIndex, widthInChars, sRowPixIndex, sColumnPixIndex
+PUB scrollColoredTextOnLn(line, pZString, direction, rgbColor) : indexAllocated  | cLineIdx, cColumnIdx, widthInChars, sRowPixIdx, sColumnPixIdx
     '' Place scolling text on line N [0 - N-1], of pZString scrolling in direction using rgbColor
     'debug("dsp:scrollColoredTextOnLn()")
     ' ensure we are asked to use a good location
-    cLineIndex := 0 #> line <# maxTextLines - 1
-    cColumnIndex :=  0
+    cLineIdx := 0 #> line <# maxTextLines - 1
+    cColumnIdx :=  0
     ' convert line info to row,col
     ' NOTE: cursor is 0-relative so add in our top/left offset to get row/col and mult by char size in pix
     widthInChars := maxTextColumns
-    sRowPixIndex := topOffsetInPix + (cLineIndex * (charHeightInPix + verticalGapInPix))
-    sColumnPixIndex := leftOffsetInPix + (cColumnIndex * (charWidthInPix + horizontalGapInPix))
+    sRowPixIdx := topOffsetInPix + (cLineIdx * (charHeightInPix + verticalGapInPix))
+    sColumnPixIdx := leftOffsetInPix + (cColumnIdx * (charWidthInPix + horizontalGapInPix))
 
-    indexAllocated := scrollTextAtRCOfColor(sRowPixIndex, sColumnPixIndex, widthInChars, pZString, direction, rgbColor)
+    indexAllocated := scrollTextAtRCOfColor(sRowPixIdx, sColumnPixIdx, widthInChars, pZString, direction, rgbColor)
 
+PUB scrollTextOnLnOfNPanels(line, panelIndex, panelCount, pZString, direction) : indexAllocated
+    '' Place scolling text on line N, of pZString scrolling in direction using current text color
+    indexAllocated := scrollColoredTextOnLnOfNPanels(line, panelIndex, panelCount, pZString, direction, currTextColor)
+
+PUB scrollColoredTextOnLnOfNPanels(line, panelIndex, panelCount, pZString, direction, rgbColor) : indexAllocated | cLineIdx, cColumnIdx, widthInChars, sRowPixIdx, sColumnPixIdx, panelLine, panelColumn, boundedPanelIdx, cPanelCt, offsetPixelRows, offsetPixelColumns
+    '' Place scolling text on line N [0 - N-1], of pZString scrolling in direction using rgbColor
+    'debug("dsp:scrollColoredTextOnLnOfNPanels()")
+    boundedPanelIdx := 0 #> panelIndex <# screen.MAX_PANELS - 1
+    cPanelCt := 1 #> panelCount <# screen.MAX_PANELS
+    cLineIdx := 0 #> line <# maxTextLines - 1
+    cColumnIdx :=  0
+    widthInChars := ((cPanelCt * screen.MAX_PANEL_COLUMNS) - (2 * leftOffsetInPix)) / (charWidthInPix + horizontalGapInPix)
+    'panelLine, panelColumn := offsetToTextOnPanel(cLineIdx, cColumnIdx, panelIndex)
+    offsetPixelRows, offsetPixelColumns := screen.offsetToPanel(panelIndex)
+    ' ensure we are asked to use a good location
+    ' convert line info to row,col
+    ' NOTE: cursor is 0-relative so add in our top/left offset to get row/col and mult by char size in pix
+    sRowPixIdx := topOffsetInPix + (cLineIdx * (charHeightInPix + verticalGapInPix))
+    sColumnPixIdx := offsetPixelColumns + leftOffsetInPix
+    indexAllocated := scrollTextAtRCOfColor(sRowPixIdx, sColumnPixIdx, widthInChars, pZString, direction, rgbColor)
 
 PUB scrollTextAtRC(row, column, widthInChars, pZString, direction) : indexAllocated
     '' Place scolling text at absolute R,C, of pZString scrolling in direction using current text color
@@ -350,6 +427,32 @@ PUB drawBoxOfColor(topRow, leftColumn, width, height, filled, rgbColor) | rightC
         drawLineOfColor(bottomRow, leftColumn, bottomRow, rightColumn, rgbColor)    ' horiz bottom
         drawLineOfColor(topRow, leftColumn, bottomRow, leftColumn, rgbColor)    ' vert left
 
+PUB drawPanelBox(panelIndex, topRow, leftColumn, width, height, filled)
+    '' Draw in desired panel a box outline/filled of width x height at R,C (using current text color)
+    drawPanelBoxOfColor(panelIndex, topRow, leftColumn, width, height, filled, currTextColor)
+
+PUB drawPanelBoxOfColor(panelIndex, topRow, leftColumn, width, height, filled, rgbColor) | rightColumn, bottomRow, rowIndex, offsetPixelRows, offsetPixelColumns
+    '' Draw in desired panel a box outline/filled of width x height at R,C using rgbColor
+    offsetPixelRows, offsetPixelColumns := screen.offsetToPanel(panelIndex)
+    topRow :=  0 #> topRow <# screen.MAX_PANEL_ROWS - 1
+    leftColumn :=  0 #> leftColumn <# screen.MAX_PANEL_COLUMNS - 1
+    height :=  0 #> height <# screen.MAX_PANEL_ROWS - 1
+    width :=  0 #> width <# screen.MAX_PANEL_COLUMNS - 1
+    rightColumn := leftColumn + width - 1
+    bottomRow := topRow + height - 1
+    ' offset everything to desired panel
+    topRow += offsetPixelRows
+    bottomRow += offsetPixelRows
+    leftColumn += offsetPixelColumns
+    rightColumn += offsetPixelColumns
+    if filled == TRUE
+        repeat rowIndex from 0 to height - 1
+            drawLineOfColor(topRow + rowIndex, leftColumn, topRow + rowIndex, rightColumn, rgbColor)    ' horiz row
+    else
+        drawLineOfColor(topRow, leftColumn, topRow, rightColumn, rgbColor)    ' horiz top
+        drawLineOfColor(topRow, rightColumn, bottomRow, rightColumn, rgbColor)    ' vert right
+        drawLineOfColor(bottomRow, leftColumn, bottomRow, rightColumn, rgbColor)    ' horiz bottom
+        drawLineOfColor(topRow, leftColumn, bottomRow, leftColumn, rgbColor)    ' vert left
 
 PUB drawLine(fmRow, fmColumn, toRow, toColumn)
     '' Draw line fromRC -> toRC using current text color (currently limited to horzontal/vertical lines)
@@ -357,10 +460,10 @@ PUB drawLine(fmRow, fmColumn, toRow, toColumn)
 
 PUB drawLineOfColor(fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, dx, dy, ctr, incr, intD
     '' Draw line fromRC -> toRC using rgbColor (currently limited to horzontal/vertical lines)
-    fmRow :=  0 #> fmRow <# screen.MAX_PHYSICAL_ROWS - 1
-    fmColumn :=  0 #> fmColumn <# screen.MAX_PHYSICAL_COLUMNS - 1
-    toRow :=  0 #> toRow <# screen.MAX_PHYSICAL_ROWS - 1
-    toColumn :=  0 #> toColumn <# screen.MAX_PHYSICAL_COLUMNS - 1
+    fmRow :=  0 #> fmRow <# screen.MAX_DISPLAY_ROWS - 1
+    fmColumn :=  0 #> fmColumn <# screen.MAX_DISPLAY_COLUMNS - 1
+    toRow :=  0 #> toRow <# screen.MAX_DISPLAY_ROWS - 1
+    toColumn :=  0 #> toColumn <# screen.MAX_DISPLAY_COLUMNS - 1
     'debug("seg:drwLn fmRC=(", udec_(fmRow), ",", udec_(fmColumn), "), toRC=(", udec_(toRow), ",", udec_(toColumn), "), RGB=(", uhex_long(rgbColor), ")")
     if fmRow == toRow
         ' draw Horizontal Line
@@ -382,6 +485,20 @@ PUB drawLineOfColor(fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, d
             else
                 plotLineHigh(fmColumn, fmRow, toColumn, toRow, rgbColor)
 
+PUB drawPanelLine(panelIndex, fmRow, fmColumn, toRow, toColumn)
+    '' Draw line fromRC -> toRC using current text color (currently limited to horzontal/vertical lines)
+    drawPanelLineOfColor(panelIndex, fmRow, fmColumn, toRow, toColumn, currTextColor)
+
+PUB drawPanelLineOfColor(panelIndex, fmRow, fmColumn, toRow, toColumn, rgbColor) | row, column, dx, dy, ctr, incr, intD, desiredPanelIndex, offsetPixelRows, offsetPixelColumns
+    '' Draw line fromRC -> toRC using rgbColor (currently limited to horzontal/vertical lines)
+    fmRow :=  0 #> fmRow <# screen.MAX_PANEL_ROWS - 1
+    fmColumn :=  0 #> fmColumn <# screen.MAX_PANEL_COLUMNS - 1
+    toRow :=  0 #> toRow <# screen.MAX_PANEL_ROWS - 1
+    toColumn :=  0 #> toColumn <# screen.MAX_PANEL_COLUMNS - 1
+    desiredPanelIndex :=  0 #> panelIndex <# screen.MAX_PANELS - 1
+    offsetPixelRows, offsetPixelColumns := screen.offsetToPanel(panelIndex)
+    'debug("seg:drwLn fmRC=(", udec_(fmRow), ",", udec_(fmColumn), "), toRC=(", udec_(toRow), ",", udec_(toColumn), "), RGB=(", uhex_long(rgbColor), ")")
+    drawLineOfColor(fmRow + offsetPixelRows, fmColumn + offsetPixelColumns, toRow + offsetPixelRows, toColumn + offsetPixelColumns, rgbColor)
 
 PRI plotLineLow(x0, y0, x1, y1, rgbColor) | row, column, dy, dx, D, yi
     dx := x1 - x0

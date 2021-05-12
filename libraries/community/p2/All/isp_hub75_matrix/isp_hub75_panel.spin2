@@ -17,6 +17,10 @@ CON { I/O PINs }
 
 ' None
 
+CON { calculated sizes }
+
+PWM_FRAMESET_SIZE_IN_LONGS = screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS
+
 OBJ
 
     screen      : "isp_hub75_screenAccess"
@@ -28,9 +32,10 @@ VAR { driver instance variables }
 
     long    cog
     long    bus           ' ram/flash
-    long    pwmFrames1[screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
-    long    pwmFrames2[screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
+    long    pwmFrames1[PWM_FRAMESET_SIZE_IN_LONGS]
+    long    pwmFrames2[PWM_FRAMESET_SIZE_IN_LONGS]
     long    nDumpPassNbr
+    long    frameSetLenInLongs
     byte    usePwmFrameset1
 
 ' ----------------------------------------------------------
@@ -43,6 +48,12 @@ PUB start() : ok
     if ok == -1
         debug("- PNL: underlying drivers failed!")
         abort
+
+    frameSetLenInLongs := PWM_FRAMESET_SIZE_IN_LONGS
+    debug("- PNL: PHYScols=", udec_long_(screen.MAX_PHYSICAL_COLUMNS), " PHYSrows=", udec_long_(screen.MAX_PHYSICAL_ROWS))
+    debug("- PNL: maxPwmFrames=", udec_long_(screen.MAX_PWM_FRAMES), " PwmFrameSizeInLongs=", udec_long_(screen.MAX_PWM_FRAME_SIZE_IN_LONGS))
+    debug("- PNL: BFFR pwm[1][", udec_long_(frameSetLenInLongs), "] 0x", uhex_long_(@pwmFrames1))
+    debug("- PNL: BFFR pwm[2][", udec_long_(PWM_FRAMESET_SIZE_IN_LONGS), "] 0x", uhex_long_(@pwmFrames2))
 
     usePwmFrameset1 := TRUE
     nDumpPassNbr := 0
@@ -60,9 +71,9 @@ PRI waits(nSeconds)
     repeat nSeconds
         waitms(1000)    ' 1 seconds
 
-PUB fillPanel(threeBitColor)
+PUB fillScreenNoPWM(threeBitColor)
     '' Fill screen but without PWM (for testing underlying driver)
-    matrix.fillPanel(threeBitColor)
+    matrix.fillScreenNoPWM(threeBitColor)
 
 VAR { spin timing support }
 
@@ -148,7 +159,7 @@ for8SScreen
 next8SLine
                 ' calc nPwmRGB12ByteIdx: offset into PWM buffer
                     mov     nTargLineIdx, nPhysLineIdx      ' start with phys row number
-                    '  if low-half rows of panel...
+                    '  if low-half rows of panelSet...
                     cmp     nPhysLineIdx, oneHalfLineCt     wc
     if_nc           jmp     #bottom8SRows
 top8SRows           ' determine calcs to use for top half of panel - Rows [0-15]
@@ -312,7 +323,7 @@ greenPwmBits        long    0
 bluePwmBits         long    0
 colorValue24bit     long    0
 pwmBitCtr           long    0
-currPwmBitIdx    long    0
+currPwmBitIdx       long    0
 bitsBGR             long    0
 pPwmFrameByte       long    0
 currPwmBits         long    0
@@ -386,16 +397,16 @@ nextPixel
                     call    #cvtCurr2pwm
                     mov     bluePwmBitsBot, currPwmBits
 
-                    ' FYI GAMMA correction, brightness are adjusted as the byte is place into our source screen buffer!!
+                    ' FYI GAMMA correction, brightness are adjusted as the byte is placed into our source screen buffer!!
 
                     ' write color information to our PWM buffers
-                    ' expand 24-bit pixel into 8 pwm frames of 3-bit pixel
+                    ' expand 24-bit pixel into N pwm frames of 3-bit pixel
                     ' for ea. bit do...
                     mov     bitCount, #screen.MAX_PWM_FRAMES        ' MAX PWM FRAME bits to scan in LONG
                     xor     currBitNumber, currBitNumber            ' start with bit0 of [0-MAX_PWM_FRAMES - 1]
 nextBit
                     ' calculate offset to frame for this bit #
-                    '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX 8 pwm frames so limit our index
+                    '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX N pwm frames so limit our index
                     '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
                     '   pPwmFrameByt := @long[getActivePwmBuffer()][nFrameOffset]
                     mov     pPwmFrameByt, currBitNumber
@@ -544,7 +555,7 @@ VAR { buffer addresses }
     long    pScreenInMemory
 
 PRI setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit) | nBffrR, nBffrC, isRGB2, byteIdx, maskBitsBGR, bitsBGR, currPwmColorBits, showDebug
-    '  write color bits to a PWM frame at frame[r][c]
+    '  write color bits to a PWM frame at frame[r][c]    UNUSED FOR NOW
     nBffrR := 0 #> nPanelRow <# screen.MAX_PHYSICAL_ROWS - 1
     nBffrC := 0 #> nPanelCol <# screen.MAX_PHYSICAL_COLUMNS - 1
     isRGB2 := (nBffrR > 15) ? TRUE : FALSE
@@ -557,6 +568,7 @@ PRI setPanelColorBitsForRC(pPwmFrame, nPanelRow, nPanelCol, rBit, gBit, bBit) | 
         bitsBGR <<= 3    ' mov color bits into rgb2 position
         maskBitsBGR <<= 3
     ' FIXME: UNDONE WAS PANEL_COLUMNS ??
+    ' FIXME: missing offset to panel and using panel_colums
     byteIdx := (nBffrR * screen.MAX_PHYSICAL_COLUMNS) + nBffrC
 
     currPwmColorBits := byte[pPwmFrame][byteIdx] & !maskBitsBGR
@@ -578,7 +590,7 @@ PRI markEnd(message) | elapsed
     'elapsed := elapsed +/ (clkfreq/1000) ' convert to milliseconds
     elapsed := elapsed +/ (clkfreq/1000000) ' convert to useconds
     'elapsed := elapsed +/ (clkfreq/1000) ' convert to useconds
-    debug("- runtime ", zstr_(message), ": ", udec_long(elapsed), " uS")
+    'debug("- runtime ", zstr_(message), ": ", udec_long(elapsed), " uS")
 
 PRI isDebugLocn(nRow, nCol) : status
     status := FALSE

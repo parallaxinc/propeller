@@ -59,21 +59,28 @@ CON { reinterpret the users selections for driver internal use }
     MAX_PANEL_COLUMNS = user.MAX_PANEL_COLUMNS
 
     ' how many panels are connected
-    MAX_PANELS = user.MAX_PANELS
     MAX_PANELS_PER_ROW =  user.MAX_PANELS_PER_ROW
     MAX_PANELS_PER_COLUMN =  user.MAX_PANELS_PER_COLUMN
+    MAX_PANELS = MAX_PANELS_PER_ROW * MAX_PANELS_PER_COLUMN
 
     ' how big is our overall display
     MAX_DISPLAY_COLUMNS = MAX_PANELS_PER_ROW * MAX_PANEL_COLUMNS
     MAX_DISPLAY_ROWS = MAX_PANELS_PER_COLUMN * MAX_PANEL_ROWS
 
+    MAX_DISPLAY_ROW_IN_BYTES = MAX_DISPLAY_COLUMNS
+    MAX_DISPLAY_ROW_IN_LONGS = (MAX_DISPLAY_ROW_IN_BYTES + 3) / 4
+
     ' we have to generate clocks and latching based on physical size of hardware
-    MAX_PHYSICAL_COLUMNS = MAX_DISPLAY_COLUMNS
-    MAX_PHYSICAL_ROWS = MAX_DISPLAY_ROWS
+    MAX_PHYSICAL_COLUMNS = MAX_PANELS * MAX_PANEL_COLUMNS
+    MAX_PHYSICAL_ROWS = MAX_PANEL_ROWS
 
     ' what is our PWM frame size
-    MAX_PWM_FRAME_SIZE_IN_BYTES = ((MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS) / 2)
-    MAX_PWM_FRAME_SIZE_IN_LONGS = MAX_PWM_FRAME_SIZE_IN_BYTES / 4
+    MAX_PWM_FRAME_SIZE_IN_BYTES = (MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS) / 2
+    MAX_PWM_FRAME_SIZE_IN_LONGS = (MAX_PWM_FRAME_SIZE_IN_BYTES + 3) / 4
+
+    ' what is one row within our PWM buffer
+    MAX_PWM_ROW_SIZE_IN_BYTES = MAX_PHYSICAL_COLUMNS
+    MAX_PWM_ROW_SIZE_IN_LONGS = MAX_PWM_ROW_SIZE_IN_BYTES / 4
 
     ' driver COG internal buffer size
     MAX_COG_BUFFER_SIZE_IN_BYTES = 1024
@@ -87,8 +94,15 @@ CON { reinterpret the users selections for driver internal use }
     ' --------------------------------------------------------------------------
     '
     MAX_PWM_FRAMES = 16     ' compiled color depth
+
+    MAX_PWM_ROWS_IN_COG_BUFFER = MAX_COG_BUFFER_SIZE_IN_LONGS / MAX_PWM_ROW_SIZE_IN_LONGS
+    MAX_SUBPAGE_SIZE_IN_LONGS = MAX_PWM_ROWS_IN_COG_BUFFER * MAX_PWM_ROW_SIZE_IN_LONGS
+    MAX_SUBPAGE_SIZE_IN_BYTES = MAX_SUBPAGE_SIZE_IN_LONGS * 4
+    MAX_PWM_ROW_SIZE_IN_BYTES = MAX_SUBPAGE_SIZE_IN_BYTES / MAX_PWM_ROWS_IN_COG_BUFFER
+
     ' this then is the count of subpages within a single PWM frame
-    MAX_PWM_SUBPAGES = MAX_PWM_FRAME_SIZE_IN_LONGS / MAX_COG_BUFFER_SIZE_IN_LONGS
+    MAX_PWM_SUBPAGES = MAX_PWM_FRAME_SIZE_IN_LONGS / MAX_SUBPAGE_SIZE_IN_LONGS
+
 
     DISPLAY_BITS_PER_COLOR = 24
     PANEL_BITS_PER_COLOR = 3
@@ -116,7 +130,7 @@ CON { reinterpret the users selections for driver internal use }
     '   PWM Buffer: 6144/6 = 1024 (1k Bytes)
     '    but we in this driver version,, we have 16 PWM buffers so our buffer
     '    space is 6kB + 1kB * 16 (16kB) = 22k Bytes total of static buffer for a
-    '    single 64x32 pixel panel.
+    '    single 64x32 pixel panelSet.
     '
     ' NOTE: the next panel type we are adding is a 1/8 scan panel meaning 4 lines
     '  of pixels are written for each line. This was 2 lines (RGB1, RGB2) but in
@@ -147,6 +161,26 @@ PUB setScreen(pScreen)
 PUB screenAddress() : pScreen
     '' Return the address of the external screen buffer
     pScreen := pExtScreen
+
+PUB offsetToPanel(panelIndex) : offsetPixelRows, offsetPixelColumns | gridRow, gridColumn
+    '' return x,y offset to specified panel from top-left corner of display
+    offsetPixelRows := offsetPixelColumns := 0
+    if MAX_PANELS > 0
+        panelIndex :=  0 #> panelIndex <# MAX_PANELS - 1
+        if MAX_PANELS_PER_ROW == 1
+            ' we have a column of panels
+            offsetPixelRows := panelIndex * MAX_PANEL_ROWS
+        elseif MAX_PANELS_PER_COLUMN == 1
+            ' we have a row of panels
+            offsetPixelColumns := panelIndex * MAX_PANEL_COLUMNS
+        else
+            ' we have a grid of panels: MAX_PANELS_PER_ROW x MAX_PANELS_PER_COLUMN
+            gridRow := panelIndex / MAX_PANELS_PER_ROW
+            gridColumn := panelIndex // MAX_PANELS_PER_ROW
+            offsetPixelRows := gridRow * MAX_PANEL_ROWS
+            offsetPixelColumns := gridColumn * MAX_PANEL_COLUMNS
+
+    return offsetPixelRows, offsetPixelColumns
 
 PUB getDriverFlags() : desiredFlags, origFlags
     desiredFlags := origFlags := PANEL_DRIVER_CHIP

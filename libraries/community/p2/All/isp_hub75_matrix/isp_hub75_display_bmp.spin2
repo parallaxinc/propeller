@@ -44,8 +44,8 @@ PRI loadBitmap(pBitmapFile) | nPanelCol, nPanelRow, blue, green, red, haveError,
         abort
 
    ' fill screen buffer
-    repeat nPanelRow from 0 to screen.MAX_PHYSICAL_ROWS - 1
-        repeat nPanelCol from 0 to screen.MAX_PHYSICAL_COLUMNS - 1
+    repeat nPanelRow from 0 to screen.MAX_DISPLAY_ROWS - 1
+        repeat nPanelCol from 0 to screen.MAX_DISPLAY_COLUMNS - 1
             'debug("loadBitmap() - RC=(", udec_(nPanelRow), ", ", udec_(nPanelCol), ")")
             showDebug := FALSE
             if isDebugLocn(nPanelRow, nPanelCol)
@@ -101,7 +101,7 @@ PRI validateBmpFile(pBmpFileImage) : bValidStatus | pFileHeader, i, iStart, iEnd
     ' XYZZYpnl debug(" - Img-start @0x", uhex_(iStart))
     ' XYZZYpnl debug(" - Img-end @0x", uhex_(iEnd))
 
-    if biWidth <> screen.MAX_PHYSICAL_COLUMNS or biHeight <> screen.MAX_PHYSICAL_ROWS
+    if biWidth <> screen.MAX_DISPLAY_COLUMNS or biHeight <> screen.MAX_DISPLAY_ROWS
         ' XYZZYpnl debug(" !! invalid BMP size! [NOT 64x32]")
         bValidStatus := FALSE
 
@@ -123,11 +123,11 @@ PRI validateBmpFile(pBmpFileImage) : bValidStatus | pFileHeader, i, iStart, iEnd
     'screen.dbgMemDump(@fileEndMsg, iEnd-32-1, 32)
 
 PRI get24BitBMPColorForRC(nRow, nColumn) : red, green, blue | pixColorAddr
-	if(nRow > screen.MAX_PHYSICAL_ROWS - 1)
-		debug("- ERROR bad nRow value [", udec_(nRow), " > ", udec_(screen.MAX_PHYSICAL_ROWS - 1), "]")
+	if(nRow > screen.MAX_DISPLAY_ROWS - 1)
+		debug("- ERROR bad nRow value [", udec_(nRow), " > ", udec_(screen.MAX_DISPLAY_ROWS - 1), "]")
 
-	if(nColumn > screen.MAX_PHYSICAL_COLUMNS - 1)
-		debug("- ERROR bad nColumn value [", udec_(nColumn), " > ", udec_(screen.MAX_PHYSICAL_COLUMNS - 1), "]")
+	if(nColumn > screen.MAX_DISPLAY_COLUMNS - 1)
+		debug("- ERROR bad nColumn value [", udec_(nColumn), " > ", udec_(screen.MAX_DISPLAY_COLUMNS - 1), "]")
 
     pixColorAddr := getPixelAddressForBMPRowColumn(nRow, nColumn)
     ' our intername .bmp file byte order is BGR!
@@ -137,7 +137,7 @@ PRI get24BitBMPColorForRC(nRow, nColumn) : red, green, blue | pixColorAddr
 
 PRI getPixelAddressForBMPRowColumn(nRow, nColumn) : pixColorAddr | rowIndex, columnIndex, nOffset, fileBitsBase, showDebug
 	' Row is inverted in .BMP file...
-	rowIndex := (screen.MAX_PHYSICAL_ROWS - 1) - nRow
+	rowIndex := (screen.MAX_DISPLAY_ROWS - 1) - nRow
 
 	' Column is normal in file...
 	columnIndex := nColumn
@@ -148,7 +148,7 @@ PRI getPixelAddressForBMPRowColumn(nRow, nColumn) : pixColorAddr | rowIndex, col
         showDebug := TRUE ' FALSE  ' turn off debug
 
 	' now offset is simple (just multiply by 3! [bytes of color])
-    nOffset := ((rowIndex * screen.MAX_PHYSICAL_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
+    nOffset := ((rowIndex * screen.MAX_DISPLAY_COLUMNS) + columnIndex) * screen.DISPLAY_BYTES_PER_COLOR
 
     fileBitsBase := @byte[pBitmapFileInMemory][bfOffBits]   ' get base of image in file (skip header)
     pixColorAddr := @byte[fileBitsBase][nOffset]    ' add in offset to 24-bit color
