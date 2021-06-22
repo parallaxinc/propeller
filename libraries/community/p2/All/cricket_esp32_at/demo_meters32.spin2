@@ -1,0 +1,168 @@
+' Title        : Cricket ESP32 AT ,  Demo 32 Channel Voltage Monitor
+' Purpose      : Demo , webserver , monitor 32 voltages , voltages simulated
+' Date         :
+' Author       : mcalyer
+' Requirements : esp_drv,esp_wifi,esp_tcp,esp_webserver,esp_logon,debug
+'                html file "meters32.html"
+' References   : 1. https://developers.google.com/chart/interactive/docs/gallery/gauge '
+' Terms of Use : See end
+' Verison  Date      Change log
+' 1.0      06/24/21  First release
+
+
+CON
+  _clkfreq      = 200_000_000
+
+  ' logon app types
+  ESP_TOUCH            =  wifi.ESP_TOUCH
+  AIR_KISS             =  wifi.AIR_KISS
+  ESP_TOUCH_AIR_KISS   =  wifi.ESP_TOUCH_AIR_KISS
+
+  'logon options
+  FORCE_LOG_OFF    = 1'
+  NO_FORCE_LOG_OFF = 0
+
+  ' HTTP request types
+  HTTP_REQ_PAGE_HTML     =  ws.HTTP_REQ_PAGE_HTML
+  HTTP_REQ_PAGE_GZ       =  ws.HTTP_REQ_PAGE_GZ
+  HTTP_REQ_GET_TEXT      =  ws.HTTP_REQ_GET_TEXT
+  HTTP_REQ_GET_JSON      =  ws.HTTP_REQ_GET_JSON
+
+  'Request options
+  HTTP_REQ_MATCH_PARTIAL =  ws.HTTP_REQ_MATCH_PARTIAL
+
+  'json buffer
+  DATA_BUF_SIZE = 256
+
+VAR
+
+DAT
+
+   index_html_size long  index_html_end - index_html
+   index_html      file  "meters32.html"
+   index_html_end
+   data_buf  byte 0[DATA_BUF_SIZE]
+   data_ptr  long 0
+
+
+OBJ
+   esp  : "esp_drv"
+   wifi : "esp_wifi"
+   tcp  : "esp_tcp"
+   ws   : "esp_webserver"
+  logon : "esp_logon"
+
+
+pub demo() | status,connect,error,long info[8]
+
+    '****************** Initalize *****************************
+    ' Initialize pin usage : rx,tx uart,esp32 enable , baud rate
+    esp.init(19,18,24,115200)
+
+    '****************************** Logon **********************
+    ' 1 .log on using android/apple phone app Espressif Esp Touch , you have 120 seconds
+    '    Note : Requires 2.4G connection
+    status,connect,error := logon.logon(0,0,ESP_TOUCH,120,0,NO_FORCE_LOG_OFF)
+    ' 2. log on with embedded ssid , password
+    '    status,connect,error := logon.logon(string("ssid"),string("password"),0,10,0,NO_FORCE_LOG_OF
+    ' 3. log on with embedded ssid , password  and static ip'
+         'ip[0] := string("192.168.1.253")  static ip
+         'ip[1] := string("192.168.1.254")  gateway
+         'ip[2] := string("255.255.255.0")  netmask
+         'status,connect,error := logon.logon(string("ssid"),string("password"),0,10,@ip,NO_FORCE_LOG_OFF)
+
+    if !!connect
+      debug("Log on Error")
+      abort
+
+    '***************** Connection Info ************************
+
+    debug("Log on OK")
+    if !!status := wifi.get_sta_ap_connect_info(@info)
+      debug("ip      : " , zstr_(info[0]))
+      debug("mac     : " , zstr_(info[1]))
+      debug("gateway : " , zstr_(info[2]))
+      debug("netmask : " , zstr_(info[3]))
+      debug("bssid   : " , zstr_(info[4]))
+      debug("rssi    : " , zstr_(info[5]))
+      debug("channel : " , zstr_(info[6]))
+
+    '******************** WebServer ***************************
+    ' Once webserver starts : enter ip in browser or use mDNS local network name cricket.local
+
+    ' Server init
+    ws.server_init()
+
+    ' Register for http requests
+    ws.http_register_request(HTTP_REQ_PAGE_HTML,string("GET /"),@index_html,index_html_size)
+    ws.http_register_request(HTTP_REQ_GET_JSON,string("GET /volts"),@json_A32,0)
+
+    ' Start webserver , mDNS local network name "cricket.local"
+    ' Enter local network name or ip in browser
+    ' "C" = cog it  ,  0 = do not run in cog
+
+    if status := ws.start_server(string("cricket"),"C")
+      debug("Web server Error : " , uhex(status))
+      abort
+
+   'Loop forever
+    repeat
+      waitms(1000)
+
+ '*************** Response to "GET /volts" Request ****************
+
+' This gets called when "GET /volts" request occurs
+pub json_A32(sptr) : r | i
+    ' make json array {"volts":["v1","v2",...."v32"]} text string
+    bytefill(@data_buf,0,DATA_BUF_SIZE)
+    data_ptr := 0
+    send := @char_add
+    send("{",34,string("volts"),34,":","[")
+    repeat i from 0 to 30
+      send(34,sim_volts(),34,44)
+    send(34,sim_volts(),34,"]","}")
+    return @data_buf
+
+pub str_add(s) | sz
+    sz := strsize(s)
+    bytemove(@data_buf + data_ptr,s,sz)
+    data_ptr += sz
+
+pub char_add(d)
+    if d > $FF
+      str_add(d)
+      return
+    data_buf[data_ptr] := d
+    data_ptr += 1
+
+pub sim_volts() : s | k
+    s := string("_._")
+    k :=  getct()
+    k := ??k +// 33
+    byte[s]   := k+/10  + $30
+    byte[s+2] := k+//10 + $30
+
+
+
+ {{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

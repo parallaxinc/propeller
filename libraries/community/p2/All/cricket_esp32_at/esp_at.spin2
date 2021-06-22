@@ -1,0 +1,66 @@
+' Title            : Cricket ESP32 AT  , Basic AT Commands
+' Purpose          : Basic AT commands
+' Date             :
+' Author           : mcalyer
+' Requirements     : esp_drv
+' References       : 1. https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
+'                  : 2. https://docs.espressif.com/_/downloads/esp-at/en/release-v2.1.0.0_esp32/pdf/
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      06/16/21  First release
+
+
+CON
+  'Error code
+   mod   = $01   ' obj
+   f01   = 1     ' get_ver_info()
+   f02   = 2
+   f03   = 3
+
+VAR
+
+
+OBJ
+   esp  : "esp_drv"
+
+
+pub null()
+
+
+'*******************  AT Basic Commands **************************
+
+pub get_ver_info() : status , atver , sdkver , cptime , binver
+    esp.cmd_str(string("AT+GMR"))
+    esp.cmd_send()
+    if status := esp.error(mod,f01,esp.get_resp(50))
+      return
+    atver  := esp.get_str_indexed(0)
+    sdkver := esp.get_str_indexed(1)
+    cptime := esp.get_str_indexed(2)
+    binver := esp.get_str_indexed(3)
+
+
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
