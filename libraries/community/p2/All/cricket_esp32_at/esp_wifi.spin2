@@ -1,0 +1,253 @@
+' Title            : Cricket ESP32 AT , wifi
+' Purpose          : Wifi interface
+' Date             :
+' Author           : mcalyer
+' Requirements     : esp_drv , esp_strings spin2 objects
+' References       : 1. https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
+'                  : 2. https://docs.espressif.com/_/downloads/esp-at/en/release-v2.1.0.0_esp32/pdf/
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      06/24/21  First release
+
+
+
+
+CON
+
+  'WIFI Modes
+  WIFI_DISABLE         = "0"
+  WIFI_STATION         = "1"
+  WIFI_SOFTAP          = "2"
+  WIFI_SOFTAP_STATION  = "3"
+  WIFI_CONNECTED_AP    = "4"
+
+  'Smart Config Modes
+  ESP_TOUCH            = "1"
+  AIR_KISS             = "2"
+  ESP_TOUCH_AIR_KISS   = "3"
+
+  'local store for key info
+  NET_INFO_STORE_SZ    = 18
+
+  'Errror codes
+  mod   = $02  'obj
+  f01   = 1    'set_host_name(host_name)
+  f02   = 2    'set_dhcp(enable)
+  f03   = 3    'set_sta_ip(ip,gateway,netmask)
+  f04   = 4    'set_wifi_mode(mode)
+  f05   = 5    'get_wifi_mode()
+  f06   = 6    'log_on_ap(ssid,pwd,nsec)
+  f07   = 7    'disconnect_ap()
+  f08   = 8    'get_ap_connect_info()
+  f09   = 9    'get_sta_ip()
+  f10   = 10   'get_sta_mac()
+  f11   = 11
+  f12   = 12   'mDNS(enable,host_name,service_name,port)
+  f13   = 13   'start_smart_conf(type)
+  f14   = 14   'stop_smart_conf()
+  f15   = 15   'autoconnect(enable)
+  f16   = 16   'auto_smart_conf(type,nsec)
+  f17   = 17
+
+VAR
+
+
+
+DAT
+  wifi_mode   byte  0
+  ssta_ip     byte  0[NET_INFO_STORE_SZ]
+  smac        byte  0[NET_INFO_STORE_SZ]
+  sgateway    byte  0[NET_INFO_STORE_SZ]
+  snetmask    byte  0[NET_INFO_STORE_SZ]
+  sbssid      byte  0[NET_INFO_STORE_SZ]
+  srssi       byte  0[NET_INFO_STORE_SZ]
+  schannel    byte  0[NET_INFO_STORE_SZ]
+
+OBJ
+  esp  : "esp_drv"
+
+
+pub null()
+
+'*******************  AT WiFi STA Commands ***************************
+
+pub set_host_name(host_name) : status
+    esp.cmd_str(string("AT+CWHOSTNAME="))
+    send := @esp.cmd_chars_add
+    send(34,host_name,34)
+    esp.cmd_send()
+    return esp.error(mod,f01,esp.get_resp(50))
+
+pub set_dhcp(enable): status
+    esp.cmd_str(string("AT+CWDHCP="))
+    send := @esp.cmd_chars_add
+    send(enable,44,wifi_mode)
+    esp.cmd_send()
+    return esp.error(mod,f02,esp.get_resp(50))
+
+pub set_sta_ip(ip,gateway,netmask) : status
+    esp.cmd_str(string("AT+CIPSTA="))
+    send := @esp.cmd_chars_add
+    send(34,ip,34)
+    if gateway && netmask
+      send(44,34,gateway,34,44,34,netmask,34)
+    esp.cmd_send()
+    return esp.error(mod,f03,esp.get_resp(50))
+
+pub set_wifi_mode(mode) : status
+    esp.cmd_str(string("AT+CWMODE="))
+    esp.cmd_chars_add(mode)
+    esp.cmd_send()
+    if status := esp.error(mod,f04,esp.get_resp(50))
+      return
+    wifi_mode := mode
+
+pub get_wifi_mode() : status , mode | hs
+    hs :=  esp.cmd_str(string("AT+CWMODE?"))
+    esp.cmd_send()
+    if status :=  esp.error(mod,f05,esp.get_resp(100))
+      return
+    mode := esp.get_str_indexed(0) + hs - $30
+
+pub log_on_ap(ssid,pwd,nsec) : status , error  | hs
+    hs  := esp.cmd_str(string("AT+CWJAP="))
+    send := @esp.cmd_chars_add
+    send(34,ssid,34,",",34,pwd,34)
+    esp.cmd_send()
+    status := esp.error(mod,f06,esp.get_resp(nsec * 1000))
+    if status.byte[0] == esp.RESP_ERROR
+      error  := esp.get_str_indexed(0)+ hs
+      error  := byte[error] - $30
+
+pub disconnect_ap() : status
+    esp.cmd_str(string("AT+CWQAP"))
+    esp.cmd_send()
+    return esp.error(mod,f07,esp.get_resp(200))
+
+pub get_ap_connect_info() : status , ssid  , bssid , channel , rssi  | hs
+    hs := esp.cmd_str(string("AT+CWJAP?"))
+    esp.cmd_send()
+    if status := esp.error(mod,f08,esp.get_resp(2000))
+      return
+    ssid    := esp.get_str_from_list_ex(hs,0,0)
+    bssid   := esp.get_str_from_list_ex(hs,0,1)
+    channel := esp.get_str_from_list_ex(hs,0,2)
+    rssi    := esp.get_str_from_list_ex(hs,0,3)
+    rssi    := net_info_store(@srssi,rssi,0)
+    channel := net_info_store(@schannel,channel,0)
+    bssid   := net_info_store(@sbssid,bssid,1)
+
+pub get_sta_ip() : status,ip,gateway,netmask | hs
+    hs := esp.cmd_str(string("AT+CIPSTA?"))
+    esp.cmd_send()
+    if status := esp.error(mod,f09,esp.get_resp(200))
+      return
+    ip      := esp.get_str_split_colon(esp.get_str_indexed(0)+ hs)
+    gateway := esp.get_str_split_colon(esp.get_str_indexed(1)+ hs)
+    netmask := esp.get_str_split_colon(esp.get_str_indexed(2)+ hs)
+    ip      := net_info_store(@ssta_ip,ip,1)
+    gateway := net_info_store(@sgateway,gateway,1)
+    netmask := net_info_store(@snetmask,netmask,1)
+
+pub get_sta_mac(): status , mac | hs
+    hs := esp.cmd_str(string("AT+CIPSTAMAC?"))
+    esp.cmd_send()
+    if status := esp.error(mod,f10,esp.get_resp(100))
+      return
+    mac := esp.get_str_indexed(0) + hs
+    mac := net_info_store(@smac,mac,1)
+
+pub mDNS(enable,host_name,service_name,port): status
+    esp.cmd_str(string("AT+MDNS="))
+    send := @esp.cmd_chars_add
+    if 0 == enable
+      send(0)
+    else
+      port := esp.convert_dec_value_to_str(port)
+      send(enable,44,34,host_name,34,44,34,service_name,34,44,port)
+    esp.cmd_send()
+    return esp.error(mod,f12,esp.get_resp(100))
+
+pub autoconnect(enable): status
+    esp.cmd_str(string("AT+CWAUTOCONN="))
+    esp.cmd_chars_add(enable)
+    esp.cmd_send()
+    return esp.error(mod,f15,esp.get_resp(50))
+
+'***************************** Smart Config ***********************
+
+pub start_smart_conf(type) : status
+    esp.cmd_str(string("AT+CWSTARTSMART="))
+    esp.cmd_chars_add(type)
+    esp.cmd_send()
+    return esp.error(mod,f13,esp.get_resp(200))
+
+pub stop_smart_conf() : status
+    esp.cmd_str(string("AT+CWSTOPSMART"))
+    esp.cmd_send()
+    return esp.error(mod,f14,esp.get_resp(50))
+
+pub auto_smart_conf(type,nsec) : status | sptr
+    if status := start_smart_conf(type)
+      return
+    repeat nsec
+      status , sptr := esp.get_resp_find_str(string("WIFI GOT IP"),100)
+      if sptr
+        quit
+      waitms(1000)
+    status := esp.error(mod,f16,status)
+    waitms(1000)
+    stop_smart_conf()
+    waitms(1000)
+
+'*************************** utility **********************************
+
+pub get_sta_ap_connect_info(bptr) : status
+    status,_,_,_    := get_sta_ip()
+    if status
+      return
+    status,_,_,_,_ := get_ap_connect_info()
+    if status
+      return
+    status,_ := get_sta_mac()
+    if status
+      return
+    long[bptr][0],long[bptr][1],long[bptr][2],long[bptr][3] := @ssta_ip,@smac,@sgateway,@snetmask
+    long[bptr][4],long[bptr][5],long[bptr][6] := @sbssid,@srssi,@schannel
+
+pub net_info_str(s) : p
+    p := s+1
+    byte[p][strsize(s) - 2] := 0
+
+pub net_info_store(ds,s,f) : r
+    bytefill(ds,0,NET_INFO_STORE_SZ)
+    if 1 == f
+      s := net_info_str(s)
+    bytemove(ds,s,strsize(s))
+    return ds
+
+
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

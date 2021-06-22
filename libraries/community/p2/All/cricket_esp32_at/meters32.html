@@ -1,0 +1,108 @@
+<html>
+  <head>
+   <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">  
+  
+   <link rel="icon" href="data:,">
+   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+   <script type="text/javascript">
+      google.charts.load('current', {'packages':['gauge']});
+      google.charts.setOnLoadCallback(drawChart);	
+	  
+	  var data_01,data_02,data_03,data_04,data_05,data_06,data_07,data_08;
+	  var datum = [data_01,data_02,data_03,data_04,data_05,data_06,data_07,data_08];	
+      var chart_01,chart_02,chart_03,chart_04;
+	  var charts = [chart_01,chart_02,chart_03,chart_04];
+      var options = {width:1200,height:120,max:3.3};	
+	  
+	  var meter_names   = ['analog 01','analog 02','analog 03','analog 04','analog 05','analog_06','analog_07','analog_08'];
+	  meter_names.push('analog 09','analog 10','analog 11','analog 12','analog 13','analog_14','analog_15','analog_16'); 
+	  meter_names.push('analog 17','analog 18','analog 19','analog 20','analog 21','analog_22','analog_23','analog_24','analog 25','analog 26','analog 27','analog 28'); 
+	  meter_names.push('analog 29','analog 30','analog 31','analog 32'); 
+     	  
+	  
+    function drawChart() {
+	    var i = 0;
+		for(let ds=0;ds<4;ds++) {
+		    datum[ds] = google.visualization.arrayToDataTable([
+                 ['Label', 'Value'],
+                 [meter_names[i],0],
+                 [meter_names[i+1],0],
+                 [meter_names[i+2],0],
+		         [meter_names[i+3],0],
+				 [meter_names[i+4],0],
+                 [meter_names[i+5],0],
+		         [meter_names[i+6],0],
+				 [meter_names[i+7],0]
+                 ]);
+            i = i + 8		    
+		}        
+       	
+        var chart_div = ['chart_div_01','chart_div_02','chart_div_03','chart_div_04']		
+		for(let ds=0;ds<4;ds++) {charts[ds] = new google.visualization.Gauge(document.getElementById(chart_div[ds]));} 
+        for(let dr=0;dr<4;dr++) {charts[dr].draw(datum[dr],options);}
+       	
+    }
+	
+	
+	  	
+    </script>
+  </head>
+  <body>
+    <h1>P2 32 Channel Voltage Monitor Demo</h1> 
+    <div id="chart_div_01" style="width: 1200px; height: 120px;"></div>
+	<div id="chart_div_02" style="width: 1200px; height: 120px;"></div>
+	<div id="chart_div_03" style="width: 1200px; height: 120px;"></div>
+	<div id="chart_div_04" style="width: 1200px; height: 120px;"></div>
+  </body>
+  <script type="text/javascript">
+     var mdata = 0	
+     var send_ready = -1;
+     var interval_time = 2000	
+     setInterval(send_request,interval_time);
+	 
+	function send_request() {
+	  if (-1 == send_ready) {
+	    send_ready = 1;
+		request();  
+	  }
+	  if (0 == send_ready) {
+	    send_ready = 1;	
+        meter_update()
+        request(); 	
+      }	     		  
+	}
+	function request() {	 
+	  var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {           		
+            mdata = JSON.parse(this.responseText);
+            send_ready = 0;				
+        } 
+       };  
+       xhttp.ontimeout = function() {	   
+	     send_ready = 0;			
+		 console.log("Timeout");
+	   };	   
+       xhttp.open("GET", "/volts", true);	   
+	   xhttp.timeout = interval_time * 3;	  
+       xhttp.send();
+	}	
+	
+	function meter_update() {	
+      var i = 0;       
+	  for(let ds=0;ds<4;ds++) {
+	    for(let d=0;d<8;d++) {
+		  var j = parseFloat(mdata.volts[i],10);
+		  datum[ds].setValue(d,1,j);
+		  i++;
+		}
+	  }		
+	  for(let dr=0;dr<4;dr++) {
+	    charts[dr].draw(datum[dr],options);
+	  }       
+    }
+	
+	
+	
+  </script>
+</html>

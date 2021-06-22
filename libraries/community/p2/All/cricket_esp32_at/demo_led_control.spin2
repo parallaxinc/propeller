@@ -1,0 +1,157 @@
+' Title        : Cricket ESP32 AT ,  LED Control Demo
+' Purpose      : Webserver , Turn P2 LEDs , P56,P57 on/off
+' Date         :
+' Author       : mcalyer
+' Requirements : esp_drv,esp_wifi,esp_webserver,esp_logon,debug
+'                html file "led_ctrl.html"
+' Terms of Use : See end
+' Verison  Date      Change log
+' 1.0      06/16/21  First release
+
+
+CON
+  _clkfreq      = 200_000_000
+
+  ' logon app types
+  ESP_TOUCH            =  wifi.ESP_TOUCH
+  AIR_KISS             =  wifi.AIR_KISS
+  ESP_TOUCH_AIR_KISS   =  wifi.ESP_TOUCH_AIR_KISS
+
+  'logon options
+  FORCE_LOG_OFF    = 1'
+  NO_FORCE_LOG_OFF = 0
+
+  ' HTTP request types
+  HTTP_REQ_PAGE_HTML     =  ws.HTTP_REQ_PAGE_HTML
+  HTTP_REQ_PAGE_GZ       =  ws.HTTP_REQ_PAGE_GZ
+  HTTP_REQ_GET_TEXT      =  ws.HTTP_REQ_GET_TEXT
+  HTTP_REQ_GET_JSON      =  ws.HTTP_REQ_GET_JSON
+
+  'Request options
+  HTTP_REQ_MATCH_PARTIAL =  ws.HTTP_REQ_MATCH_PARTIAL
+
+
+VAR
+
+DAT
+   'web page
+   led_html_size       long  led_html_end - led_html
+   led_html            file  "led_control.html"
+   led_html_end
+
+OBJ
+  wifi  : "esp_wifi"
+  ws    : "esp_webserver"
+  logon : "esp_logon"
+  esp   : "esp_drv"
+  tcp   : "esp_tcp"
+
+pub demo() | status,connect,error,long info[8]
+
+    '****************** Initalize *****************************
+    ' Initialize pin usage : rx,tx uart,esp32 reset,baud rate 1MHZ
+    esp.init(19,18,24,115200)
+
+    pinlow(56)     ' leds off
+    pinlow(57)
+
+    '****************************** Logon **********************
+    ' 1 .log on using android/apple phone app Espressif Esp Touch , you have 120 seconds
+    status,connect,error := logon.logon(0,0,ESP_TOUCH,120,0,NO_FORCE_LOG_OFF)
+    ' 2. log on with embedded ssid , password
+    '    status,connect,error := logon.logon(string("ssid"),string("password"),0,10,0,NO_FORCE_LOG_OF
+    ' 3. log on with embedded ssid , password  and static ip'
+         'ip[0] := string("192.168.1.253")  static ip
+         'ip[1] := string("192.168.1.254")  gateway
+         'ip[2] := string("255.255.255.0")  netmask
+         'status,connect,error := logon.logon(string("ssid"),string("password"),0,10,@ip,NO_FORCE_LOG_OFF)
+
+
+    if !!connect
+      debug("Log on Error")
+      abort
+
+    '***************** Connection Info ************************
+
+    debug("Log on OK")
+    if !!status := wifi.get_sta_ap_connect_info(@info)
+      debug("ip      : " , zstr_(info[0]))
+      debug("mac     : " , zstr_(info[1]))
+      debug("gateway : " , zstr_(info[2]))
+      debug("netmask : " , zstr_(info[3]))
+      debug("bssid   : " , zstr_(info[4]))
+      debug("rssi    : " , zstr_(info[5]))
+      debug("channel : " , zstr_(info[6]))
+
+    '******************** Web Server ***************************
+    ' Server init
+    ws.server_init()
+
+    ' Register for http requests
+    ' HTTP_REQ_MATCH_PARTIAL example : match /P56/ with /P56/ON or /P56/OFF ,  result is calls same function for on/off
+    ws.http_register_request(HTTP_REQ_PAGE_HTML,string("GET /"),@led_html,led_html_size)
+    ws.http_register_request(HTTP_REQ_GET_TEXT | HTTP_REQ_MATCH_PARTIAL ,string("GET /P56/"),@P56,0)
+    ws.http_register_request(HTTP_REQ_GET_TEXT | HTTP_REQ_MATCH_PARTIAL ,string("GET /P57/"),@P57,0)
+
+    ' Start webserver , mDNS local network name "cricket"
+    ' "C" = run in cog , 0 = no cog
+    ' Use browser , set address to ip
+    if status := ws.start_server(string("cricket"),"C")
+      debug("Web server Error : " , uhex(status))
+      abort
+
+    'Loop
+    repeat
+      waitms(1000)
+
+
+  '**************** Response to requests ***********
+
+' Called when "GET /P56/" request occurs
+' Turn P56 LEDS on/off , send led state back
+pub P56(sptr) : s
+    'sptr = request path , "GET /P56/ON" or ""GET /P56/OFF"
+    sptr := sptr + 9     ' get on/off string
+    if strcomp(sptr,s := string("ON"))
+      pinhigh(56)
+    elseif strcomp(sptr, s := string("OFF"))
+      pinlow(56)
+    else
+      s := string("ERROR")
+
+' Called when "GET /P57/" request occurs
+' Turn P57 LEDS on/off , send led state back
+pub P57(sptr) : s
+    'sptr = request path , ""GET /P57/ON" or ""GET /P57/OFF"
+    sptr := sptr + 9     ' get on/off string
+    if strcomp(sptr,s := string("ON"))
+      pinhigh(57)
+    elseif strcomp(sptr, s := string("OFF"))
+      pinlow(57)
+    else
+      s := string("ERROR")
+
+
+
+ {{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

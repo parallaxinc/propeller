@@ -1,0 +1,86 @@
+' Title            : Cricket ESP32 AT  , Demo get info
+' Purpose          : Gets Firmware version , determines if BT,BLE,MQTT is supported
+' Date             :
+' Author           : mcalyer
+' Requirements     : esp_drv , esp_at , debug
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      06/16/21  First release
+
+CON
+  _clkfreq      = 200_000_000
+
+
+VAR
+
+
+DAT
+
+
+OBJ
+
+   esp : "esp_drv"
+   at  : "esp_at"
+   tcp : "esp_tcp"
+
+pub demo() | status, r1 , r2 , r3 , r4
+
+    ' Initialize pin usage , rx,tx,en , baud rate 115200
+    status := esp.init(19,18,24,115200)
+    debug(if(status) , "Initilaization failed : " , uhex(status))
+
+    ' FW Version Info
+    status , r1 , r2 , r3 , r4 := at.get_ver_info()
+    debug(if(status) , "Get Version Info Failed : " , uhex(status))
+    debug("AT  version  : " , zstr_(r1))
+    debug("SDK version  : " , zstr_(r2))
+    debug("Compile time : " , zstr_(r3))
+    debug("Bin version  : " , zstr_(r4))
+
+    'BLE Support
+    esp.cmd_str(string("AT+BLEINIT?"))
+    esp.cmd_send()
+    debug("BLE ", zstr_(func_check()))
+
+    'BT Support
+    esp.cmd_str(string("AT+BTINIT?"))
+    esp.cmd_send()
+    debug("BT ", zstr_(func_check()))
+
+    'MQTT Support
+    esp.cmd_str(string("AT+MQTTUSERCFG?"))
+    esp.cmd_send()
+    debug("MQTT ", zstr_(func_check()))
+
+
+pub func_check() : s | x
+    x := esp.error(0,0,esp.get_resp(50))
+    if      x.byte[0] == 0
+            s := string("supported")
+    elseif  x.byte[1] == $09
+            s := string("not supported")
+    else
+            s := string("query error")
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
