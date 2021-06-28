@@ -1,0 +1,345 @@
+'' =================================================================================================
+''
+''   File....... dat_fullduplexserial.spin2
+''   Purpose.... Buffered serial communications using smart pins
+''               -- mostly matches FullDuplexSerial from P1
+''               -- does NOT support half-duplex communications using shared RX/TX pin
+''   Authors.... Riley August
+''               -- modified version of John MacPhalen's Full Duplex Serial to use DAT blocks for shared mem
+''               -- based on work by Chip Gracey
+''               -- see below for terms of use
+''   E-mail..... riley@robots-everywhere.com
+''   Started....
+''   Updated.... 1 SEPT 2020
+''              mcalyer
+''              -- Modified version of Riley August(DAT blocks for shared mem) and John MacPhalen's Full Duplex Serial
+''              -- Based on work by Chip Gracey
+''              -- Removed all but COM interface
+''
+'' =================================================================================================
+
+{{
+
+   Note: Buffer size no longer has to be power-of-2 integer.
+
+   Note: The dec(), bin(), and hex() methods will no longer require the digits parameter as
+         in older versions of FullDuplexSerial. Use fdec(), fbin(), and fhex() for code that
+         requires a specific field width.
+
+
+   The smart pin uarts use a 16-bit value for baud timing which can limit low baud rates for
+   some system frequencies -- beware of these limits when connecting to older devices.
+
+    Baud     20MHz    40MHz    80MHz    100MHz    200MHz    300MHz
+   ------    -----    -----    -----    ------    ------    ------
+      300       No       No       No        No        No        No
+      600      Yes       No       No        No        No        No
+     1200      Yes      Yes       No        No        No        No
+     2400      Yes      Yes      Yes       Yes        No        No
+     4800      Yes      Yes      Yes       Yes       Yes       Yes
+
+}}
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con
+
+  BUF_SIZE = 256
+
+
+obj
+
+
+dat
+
+  cog long 0                                                    ' cog flag/id
+
+  rxp long 0                                                    ' rx smart pin
+  txp long 0                                                    ' tx smart pin
+  rxhub long 0                                                   ' hub address of rxbuf
+  txhub long 0                                                   ' hub address of txbuf
+
+  rxhead long 0                                                  ' rx head index
+  rxtail long 0                                                 ' rx tail index
+  txhead long 0                                                 ' tx head index
+  txtail long 0                                                 ' tx tail index
+
+  txdelay long 0                                                 ' ticks to transmit one byte
+
+  rxbuf byte  0[BUF_SIZE]                                         ' buffers
+  txbuf byte  0[BUF_SIZE]
+
+
+
+
+pub null()
+
+'' This is not a top level object
+
+
+pub start(rxpin, txpin, mode, baud) : result | baudcfg, spmode
+
+'' Start simple serial coms on rxpin and txpin at baud
+'' -- rxpin... receive pin (-1 if not used)
+'' -- txpin... transmit pin (-1 if not used)
+'' -- mode.... %0xx1 = invert rx
+''             %0x1x = invert tx
+''             %01xx = open-drain/open-source tx
+
+
+  stop()
+
+  if (rxpin == txpin)                                           ' pin must be unique
+    return false
+
+  longmove(@rxp, @rxpin, 2)                                     ' save pins
+  rxhub := @rxbuf                                               ' point to buffers
+  txhub := @txbuf
+
+  txdelay := clkfreq / baud * 11                                ' tix to transmit one byte
+
+  baudcfg := muldiv64(clkfreq, $1_0000, baud) & $FFFFFC00       ' set bit timing
+  baudcfg |= (8-1)                                              ' set bits (8)
+
+  if (rxp >= 0)                                                 ' configure rx pin if used
+    spmode := P_ASYNC_RX
+    if (mode.[0])
+      spmode |= P_INVERT_IN
+    pinstart(rxp, spmode, baudcfg, 0)
+
+  if (txp >= 0)                                                 ' configure tx pin if used
+    spmode := P_ASYNC_TX | P_OE
+    case mode.[2..1]
+      %01 : spmode |= P_INVERT_OUTPUT
+      %10 : spmode |= P_HIGH_FLOAT                              ' requires external pull-up
+      %11 : spmode |= P_INVERT_OUTPUT | P_LOW_FLOAT             ' requires external pull-down
+    pinstart(txp, spmode, baudcfg, 0)
+
+  cog := coginit(COGEXEC_NEW, @uart_mgr, @rxp) + 1               ' start uart manager cog
+
+  return cog
+
+
+pub stop()
+
+'' Stop serial driver
+'' -- frees a cog if driver was running
+
+  if (cog)                                                      ' cog active?
+    cogstop(cog-1)                                              '  yes, shut it down
+    cog := 0                                                    '  and mark stopped
+
+  longfill(@rxp,  -1, 2)                                        ' reset object globals
+  longfill(@rxhub, 0, 7)
+
+
+pub rx() : b
+
+'' Pulls byte from receive buffer if available
+'' -- will wait if buffer is empty
+
+  repeat while (rxtail == rxhead)                               ' hold while buffer empty
+
+  b := rxbuf[rxtail]                                            ' get a byte
+  if (++rxtail == BUF_SIZE)                                     ' update tail pointer
+    rxtail := 0
+
+
+pub rxcheck() : b
+
+'' Pulls byte from receive buffer if available
+'' -- returns -1 if buffer is empty
+
+  if (rxtail <> rxhead)                                         ' something in buffer?
+    b := rxbuf[rxtail]                                          ' get it
+    if (++rxtail == BUF_SIZE)                                   ' update tail pointer
+      rxtail := 0
+  else
+    b := -1                                                     ' mark no byte available
+
+
+pub rxtime(ms) : b | mstix, t
+
+'' Wait ms milliseconds for a byte to be received
+'' -- returns -1 if no byte received, $00..$FF if byte
+
+  mstix := clkfreq / 1000
+
+  t := getct()
+  repeat until ((b := rxcheck()) >= 0) || (((getct()-t) / mstix) >= ms)
+
+
+pub rxtix(tix) : b | t
+
+'' Waits tix clock ticks for a byte to be received
+'' -- returns -1 if no byte received
+
+  t := getct()
+  repeat until ((b := rxcheck()) >= 0) || ((getct()-t) >= tix)
+
+
+pub available() : count
+
+'' Returns # of bytes waiting in rx buffer
+
+  if (rxtail <> rxhead)                                         ' if byte(s) available
+    count := rxhead - rxtail                                    ' get count
+    if (count < 0)
+      count += BUF_SIZE                                         ' fix for wrap around
+
+
+pub rxflush()
+
+'' Flush receive buffer
+
+  repeat while (rxcheck() >= 0)
+
+
+pub tx(b) | n
+
+'' Move byte into transmit buffer if room is available
+'' -- will wait if buffer is full
+
+  repeat
+    n := txhead - txtail                                        ' bytes in buffer
+    if (n < 0)                                                  ' fix for index wrap-around
+      n += BUF_SIZE
+    if (n < BUF_SIZE-1)
+      quit
+
+  txbuf[txhead] := b                                            ' move to buffer
+  if (++txhead == BUF_SIZE)                                     ' update head pointer
+    txhead := 0
+
+
+pub txn(b, n)
+
+'' Emit byte n times
+
+  repeat n
+    tx(b)
+
+
+pub str(p_str)
+
+'' Emit z-string at p_str
+  repeat (strsize(p_str))
+    tx(byte[p_str++])
+
+
+pub txflush()
+
+'' Wait for transmit buffer to empty
+'' -- will delay one byte period after buffer is empty
+
+  repeat until (txtail == txhead)                               ' let buffer empty
+  waitct(getct() + txdelay)                                     ' delay for last byte
+
+
+
+
+dat { smart pin uart/buffer manager }
+
+                org
+
+uart_mgr        setq      #4-1                                  ' get 4 parameters from hub
+                rdlong    rxd, ptra
+
+uart_main       testb     rxd, #31                      wc      ' rx in use?
+
+
+
+    if_nc       call      #rx_serial
+
+                testb     txd, #31                      wc      ' tx in use?
+    if_nc       call      #tx_serial
+
+
+
+                jmp       #uart_main
+
+
+rx_serial       testp     rxd                           wc      ' anything waiting?
+    if_nc       ret
+
+
+
+                rdpin     t3, rxd                               ' read new byte
+                shr       t3, #24                               ' align lsb
+                mov       t1, p_rxbuf                           ' t1 := @rxbuf
+                rdlong    t2, ptra[4]                           ' t2 := rxhead
+                add       t1, t2
+                wrbyte    t3, t1                                ' rxbuf[rxhead] := t3
+                incmod    t2, #(BUF_SIZE-1)                     ' update head index
+
+
+
+    _ret_       wrlong    t2, ptra[4]                           ' write head index back to hub
+
+
+tx_serial       rdpin     t1, txd                       wc      ' check busy flag
+    if_c        ret                                             '  abort if busy
+
+                rdlong    t1, ptra[6]                           ' t1 = txhead
+                rdlong    t2, ptra[7]                           ' t2 = txtail
+                cmp       t1, t2                        wz      ' byte(s) to tx?
+    if_e        ret
+
+                mov       t1, p_txbuf                           ' start of tx buffer
+                add       t1, t2                                ' add tail index
+                rdbyte    t3, t1                                ' t3 := txbuf[txtail]
+                wypin     t3, txd                               ' load into sp uart
+                incmod    t2, #(BUF_SIZE-1)                     ' update tail index
+    _ret_       wrlong    t2, ptra[7]                           ' write tail index back to hub
+
+
+' --------------------------------------------------------------------------------------------------
+
+rxd             res       1                                     ' receive pin
+txd             res       1                                     ' transmit pin
+p_rxbuf         res       1                                     ' pointer to rxbuf
+p_txbuf         res       1                                     ' pointer to txbuf
+
+indi            res       1
+
+t1              res       1                                     ' work vars
+t2              res       1
+t3              res       1
+
+                fit       472
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

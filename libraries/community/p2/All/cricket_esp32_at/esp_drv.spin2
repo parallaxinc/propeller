@@ -1,0 +1,493 @@
+' Title            : Cricket ESP32 AT
+' Purpose          : P2 ESP32 AT interface , provides command/response interface
+' Date             :
+' Author           : mcalyer  , mike.calyer@yahoo.com
+' Acknowledgements : Chip Gracey     - fullduplexserial
+'                    John MacPhalen  - jm_fullduplexserial
+'                    Riley August    - ESP32,dat_fullduplexserial
+' Requirements     : com_dat_fullduplexserial/dat_fullduplexserial
+' References       : 1. https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
+'                  : 2. https://docs.espressif.com/_/downloads/esp-at/en/release-v2.1.0.0_esp32/pdf/
+'                  : 3. https://download.mikroe.com/documents/add-on-boards/click/wifi-ble/wifi-ble-click-schematic-v102.pdf
+'                  : 4. https://www.parallax.com/product/p2-to-mikrobus-click-adapter/
+'                  : 5. https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32_datasheet_en.pdf
+' Hardware         : 1. wifi/ble click Parallax
+'                  : 2. P2 to MikroBUS Click Adapter , Parallax
+' ESP32 FW         : Works with :  (use get_info.spin2 to find version)
+'                    1. AT version:2.1.0.0(883f7f2 - Jul 24 2020 11:50:07)
+'                       SDK version:v4.0.1-193-ge7ac221
+'                       compile time(0ad6331):Jul 28 2020 02:47:21
+'                       Bin version:2.1.0(WROOM-32)
+'                       Supports AT,WIFI,TCP/UDP,BLE,HTTP Client,MQTT
+'                    2. AT version:1.1.3.0(5a40576 - Nov 28 2018 12:50:55)
+'                       SDK version:v3.0.7
+'                       compile time:Dec 21 2018 09:04:56
+'                       Bin version:1.1.3(WROOM-32)
+'                       Supports AT,WIFI,TCP/UDP,BLE
+' Need to know !   : 1. Any string pointers returned by interface only valid until next command
+'                       method called. Use it or save the entire string '
+
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      06/24/21  First release
+
+
+
+CON
+
+  'Command Buffer
+  CMD_BUF_SIZE    = 256
+
+  'Response/Message Buffer
+  RESP_BUF_SIZE   = 1024
+  RESP_STR_NUM    = 64
+  NO_MORE_DATA_TIMEOUT = 10
+
+  'Response Types
+  RESP_OK              = 0
+  RESP_ERROR           = 1
+  RESP_OVER            = 2
+  RESP_SEND_FAIL       = 3
+  RESP_TIMEOUT         = 4
+  RESP_NOT_FOUND       = 5
+  RESP_SEND_OK         = 6
+  RESP_FOUND_MESSAGE   = 7
+  RESP_SIZE_MATCH      = 8
+
+  'Response options flags
+  INDEX_ZSTR         = $01
+  FIND_MESS          = $10
+  FIND_RESP          = $20
+  FIND_SIZE          = $40
+
+   'Error
+  zmod  =  0   'this obj'
+  f01   =  1   'cmd_str(string("ATE0"))
+  f02   =  2   'esp_uart(baud)
+  f03   =  3   'p2_esp_uart(baud_rate)
+
+VAR
+
+
+DAT
+  'UART/ESP32
+  txpin         byte 0
+  rxpin         byte 0
+  penable       byte 0
+
+  'Command
+  cmdbuf        byte 0[CMD_BUF_SIZE]
+  cmdptr        long 0
+  resptime      long 0
+  hs            long 0
+
+  'Response
+  rxbuf         byte 0[RESP_BUF_SIZE]
+  strptrs       long 0[RESP_STR_NUM]
+  strsizes      long 0[RESP_STR_NUM]
+  strcount      long 0
+  rxbytes       long 0
+  rxptr         long 0
+  ok_str        byte "OK", 0
+  error_str     byte "ERROR",0
+  send_ok_str   byte "SEND OK",0
+  send_fail_str byte "SEND FAIL",0
+
+  'Error
+  last_error    long  0
+
+
+OBJ
+  com  : "com_dat_fullduplexserial"
+
+pub null()
+
+
+'*************** Interface and ESP32 Module Initialization ***************
+' ptx = UART TX pin
+' rtx = UART RX pin
+' pen = module enable pin  , note - pulled up on module
+' Default esp32 baud rate = 115200
+
+pub init(prx,ptx,pen,baud_rate) : status
+    txpin   := ptx
+    rxpin   := prx
+    penable := pen                        ' ESP32 enable pin
+
+    str_buf_reset()                       ' reset string buf , see strings
+
+    esp_disable()                         ' disable ESP32 module
+    p2_uart(115200)                       ' initialize P2 uart   , baud_rate = 115200
+    waitms(10)
+    esp_enable()                          ' enable ESP32 module
+
+    waitms(8000)                          ' wait for end of esp boot messages and logon
+
+    cmd_str(string("ATE0"))               ' Turn echo off , echo on not supported !
+    cmd_send()
+    if status := error(zmod,f01,get_resp(50))
+      return
+
+    cmd_str(string("AT+SYSLOG=1"))         ' Enable ESP32 error code reporting
+    cmd_send()                             ' This can fail , no enable/disable in some FW
+    waitms(50)
+
+    if status := p2_esp_uart(baud_rate)    ' set P2 , ESP32 baud rate
+      return
+
+    waitms(100)
+'********************* Enable/Disable/Reset ************************
+
+pub esp_disable()
+    pinlow(penable)
+
+pub esp_enable()
+    pinfloat(penable)
+
+pub esp_reset(nmsec)
+    pinlow(penable)
+    waitms(nmsec)
+    pinfloat(penable)
+
+'*************************  UARTS ***********************************
+
+pub p2_uart(baud)
+    com.start(rxpin, txpin, %0000, baud)
+
+pub esp_uart(baud): r
+    cmd_str(string("AT+UART_CUR="))
+    send := @cmd_chars_add
+    send(convert_dec_value_to_str(baud),44,8,44,1,44,0,44,0)
+    cmd_send()
+    return error(zmod,f02,get_resp(50))
+
+pub p2_esp_uart(baud_rate): status
+    if status := esp_uart(baud_rate)
+      return
+    waitms(100)
+    p2_uart(baud_rate)
+    cmd_str(string("AT"))                ' test coms
+    cmd_send()
+    return error(zmod,f03,get_resp(50))
+
+'************************ Error *****************************
+' error code.byte[3] = object
+' error code.byte[2] = function
+' error code.byte[1] = esp32 error code    , see ESP-AT User Guide AT+SYSLOG
+' error code.byte[0] = esp drv error code  , see CON
+
+pub error(mod,fc,err) : error_code | s
+    error_code :=  err
+    case err
+      RESP_OK     :
+      RESP_ERROR  :   ' get esp32 error code if any
+                      s := find_string_in_rxbuf(string("ERR CODE:"))
+                      if s
+                        s += 13
+                        byte[s][2] := 0
+                        s := convert_str_to_hex_value(s)
+                      error_code.byte[3] := mod
+                      error_code.byte[2] := fc
+                      error_code.byte[1] := s
+      RESP_OVER..RESP_NOT_FOUND : error_code.byte[3] := mod
+                                  error_code.byte[2] := fc
+      RESP_SEND_OK..RESP_SIZE_MATCH : error_code :=  0
+    last_error := error_code
+
+pub get_last_error() : r
+    return last_error
+
+'***************** AT Command Interface ***********************
+' builds/manages command buf , command buf contains command,params
+' sends to esp32 in one blast
+' you can see whats being sent out by enabling debug line in cmd_send_ex()
+
+pub cmd_str(s): r
+    cmd_reset()
+    cmd_str_add(s)
+    return get_resp_header_size(s)
+
+pub cmd_str_add(s) | sz
+    if 0 == s
+      return
+    sz := strsize(s)
+    bytemove(@cmdbuf + cmdptr,s,sz)
+    cmdptr += sz
+
+pub cmd_chars_add(d)
+    if d == -1
+      return
+    if d > $FF
+      cmd_str_add(d)
+      return
+    if d >= 0 && d <= 9
+      d := d + $30
+    cmdbuf[cmdptr] := d
+    cmdptr += 1
+
+pub cmd_send()
+    com.rxflush()
+    flush_rxbuf(0)
+    str_buf_reset()
+    cmd_send_ex()
+
+pub cmd_send_ex()
+    cmdbuf[cmdptr++] := 13
+    cmdbuf[cmdptr++] := 10
+    cmdbuf[cmdptr]   := 0
+    'debug("CMD : " , zstr_(@cmdbuf))
+    com.str(@cmdbuf)
+
+pub cmd_reset()
+    bytefill(@cmdbuf,0,cmdptr)
+    cmdptr := 0
+
+'***************** AT Response Interface **************
+' Gets esp32 response which is a number of crlf strings
+' Converts crlf strs to zstrs , counts strs, makes table of str ptrs
+' Data can be extracted from strs based on command (see references)'
+' Example esp32 command "AT+GMR"  , returns  5 crlf strings  (if no error)
+' "AT version" , "SDK Version" , "compile time" , "bin version " , "OK"
+' get_str_indexed(0) , gets ptr to  "AT version" string
+
+pub get_rxbuf(nmsec,flags): status | endptr, inbyte,nobytes,t0
+  endptr := nobytes := 0
+  t0 :=  getms()
+  repeat
+       if getms() - t0 > nmsec
+         status  := RESP_TIMEOUT
+         return
+       if com.available()
+         quit
+  repeat
+     if getms() - t0 > nmsec
+       status  := RESP_TIMEOUT
+       quit
+     if nobytes > NO_MORE_DATA_TIMEOUT
+       quit
+     inbyte := com.rxtime(1)
+     if(inbyte > -1)
+       nobytes := 0
+       rxbuf[endptr] := inbyte
+       if ++endptr >= RESP_BUF_SIZE
+         status := RESP_OVER
+         quit
+     else
+       nobytes++
+  resptime := getms() - t0
+  rxbytes  := endptr
+  if flags & INDEX_ZSTR
+    index_strs(endptr)
+
+pub get_resp(timeout): status
+    if status := get_rxbuf(timeout,INDEX_ZSTR)
+      return
+    if find_string_in_rxbuf(@ok_str)
+      status := RESP_OK
+    elseif find_string_in_rxbuf(@error_str)
+      status := RESP_ERROR
+    elseif find_string_in_rxbuf(@send_fail_str)
+      status := RESP_SEND_FAIL
+    else
+      status := RESP_NOT_FOUND
+    return
+
+pub get_resp_find_str(message,timeout): status,sptr
+    if status := get_rxbuf(timeout,INDEX_ZSTR)
+      return
+    return status, find_string_in_rxbuf(message)
+
+pub get_rxbuf_ptr() : r
+    return @rxbuf
+
+pub get_rxbytes() : b
+    return rxbytes
+
+pub get_response_time() : t
+    return resptime
+
+pub flush_rxbuf(n)
+    if 0 == n
+      longfill(@rxbuf,0, RESP_BUF_SIZE/4)
+    if -1 == n
+      bytefill(@rxbuf,0,rxbytes)
+
+pub get_resp_header_size(s) : hz | sz
+    sz := strsize(s)
+    hz := sz - 1
+    if "?" == byte[s][sz-1] || "=" == byte[s][sz-1]
+      hz := hz - 1
+
+'************************ COM *********************************
+
+pub com_available(): nbytes
+    return com.available()
+
+pub com_rx_flush()
+    com.rxflush()
+
+pub com_send_byte(b)
+    com.tx(b)
+
+pub com_send_str(s)
+    com.str(s)
+
+pub com_send_data(buf,buf_sz) | i
+    repeat i from 0 to buf_sz - 1
+      com.tx(byte[buf][i])
+
+'*********************** Strings ******************************
+
+CON
+  STR_BUF_SIZE = 128
+
+DAT
+  str_buf         byte 0[STR_BUF_SIZE]     ' used for convert to string methods
+  str_buf_ptr     long 0
+
+' convert rxbuf crlf strs to zstrs , ignore null strs , count strs,
+' make table of str ptrs , str sizes
+pub index_strs(sz) | i , j , k , char
+    longfill(@strptrs,0, (2 * RESP_STR_NUM) + 1)
+    k := char := 0
+    repeat i from 0 to sz - 1
+      if rxbuf[i] > $1F && rxbuf[i] < $7F
+         if 0 == char
+           j := i
+         char := 1
+         next
+      if $0A == rxbuf[i] && char
+         rxbuf[i]     := 0
+         rxbuf[i - 1] := 0
+         strptrs[k]  := @rxbuf + j
+         strsizes[k] := i - j - 1
+         if k + 1 == RESP_STR_NUM
+           quit
+         k++
+         char := 0
+    strcount := k
+
+pub get_str_index_count() : n
+    return strcount
+
+pub get_str_indexed(n) : ptr
+    return strptrs[n]
+
+pub get_str_indexed_ex(n) : ptr , s
+    return strptrs[n] , strsizes[n]
+
+pub find_string_in_rxbuf(mptr) : result
+    return find_string(mptr,@rxbuf,rxbytes)
+
+pub find_string(mptr,b,bs): result | i , j , s  , sz
+    sz := strsize(mptr)
+    if sz > bs
+      return
+    s := 0
+    i := j := 0
+    repeat
+       if byte[mptr][i] == byte[b][j + i]
+          s++
+          i++
+          if s == sz
+            return b + j
+       else
+          j := j + 1 + i
+          s := i := 0
+          if j >= bs
+            return
+
+pub get_str_from_list_ex(offset,str_index,item_index): iptr | p , sz
+    p , sz := get_str_indexed_ex(str_index)
+    p  := p + offset
+    sz := sz - offset
+    return get_str_from_list(p,sz,item_index)
+
+pub get_str_from_list(str,sz,index) : p | i , j , k
+    J := k := 0
+    repeat i from 0 to sz
+      if 0 == byte[str][i]
+        quit
+      if "," == byte[str][i]
+        byte[str][i] := 0
+    repeat i from 0 to sz
+      if byte[str][i] == 0
+        if k == index
+          return str + j
+        k++
+        j := i + 1
+    return
+
+pub get_str_split_colon(str) : ptr | i , s
+    return get_str_split(str,":")
+
+pub get_str_split(str,char) : ptr | i , s
+    s := strsize(str) - 1
+    repeat i from 0 to s
+      if 0 == byte[str][i]
+        return
+      if char == byte[str][i]
+        return str + i + 1
+
+pub str_buf_reset()
+    str_buf_ptr := @str_buf + STR_BUF_SIZE - 1
+
+' convert value to string methods only for use by this interface
+pub convert_dec_value_to_str(v) : p | s
+    s := 0
+    if v < 0
+      s := 1
+      v := abs(v)
+    byte[str_buf_ptr] := 0
+    str_buf_ptr--
+    repeat
+      byte[str_buf_ptr--] := v +// 10 + $30
+      v +/= 10
+      if v == 0
+        if s
+          byte[str_buf_ptr--] := "-"
+        return str_buf_ptr + 1
+
+'range 0 - 4294967296
+pub convert_str_to_dec_value(s) : d | i  , sz  , x
+    sz := strsize(s)
+    x := 1
+    repeat i from 1 to sz
+      d := d + (byte[s][sz - i] - $30) * x
+      x := x * 10
+
+'range 0 - 100000000
+pub convert_str_to_hex_value(s) : h | i, sz, x, y
+    sz := strsize(s)
+    x := 1
+    repeat i from 1 to sz
+      y := byte[s][sz - i] - $30
+      y := y > 9  ?  (y - 7) & $DF : y
+      h := h + (y * x)
+      x := x * 16
+
+
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

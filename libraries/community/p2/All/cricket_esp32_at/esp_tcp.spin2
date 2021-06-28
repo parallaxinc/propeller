@@ -1,0 +1,200 @@
+' Title        : Cricket ESP32 AT TCP/IP Object
+' Purpose      : TCP/UDP
+' Date         : 04/16/2021
+' Author       : mcalyer
+' Requirements : esp_drv
+' References       : 1. https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
+'                  : 2. https://docs.espressif.com/_/downloads/esp-at/en/release-v2.1.0.0_esp32/pdf/
+' Terms of Use : See end
+' Verison  Date      Change log
+' 1.0      06/24/21  First release
+
+
+
+CON
+  'Connect options
+  SINGLE_CONNECT   = 0
+  MULTIPLE_CONNECT = 1
+
+  'Error Codes
+  mod   = $03   'obj
+  f01   = 1     'set_mode(mode)
+  f02   = 2     'close_client(link_id)
+  f03   = 3     'server_max_conn(num)
+  f04   = 4     'create_server(port,type,ca_enable)
+  f05   = 5     'delete_server(close_connections)
+  f06   = 6     'set_server_timeout(sec)
+  f07   = 7     'send_data_cmd(link_id,length)
+  f08   = 8     'send_data_block(link_id,buf,size)
+  f09   = 9     'send_data_blocks(link_id,buf,size,start_block,end_block)
+  f10   = 10
+  f11   = 11    'get_connect_status()
+  f12   = 12
+  f13   = 13
+
+VAR
+
+DAT
+  mux_connect_mode long 0
+
+OBJ
+  esp  : "esp_drv"
+
+
+pub null()
+
+'*************************** Mode ***************************
+
+pub set_mux_connect_mode(mode) : status
+    mux_connect_mode := -1
+    esp.cmd_str(string("AT+CIPMUX="))
+    esp.cmd_chars_add(mode)
+    esp.cmd_send()
+    if status := esp.error(mod,f01,esp.get_resp(50))
+      return
+    mux_connect_mode := mode
+
+'************************** Status **************************
+
+' connect to AP and got IP connect = true , else false
+pub get_connect_status() : status , connect
+    esp.cmd_str(string("AT+CIPSTATUS"))
+    esp.cmd_send()
+    if status := esp.error(mod,f11,esp.get_resp(50))
+      return
+    connect := esp.get_str_split_colon(esp.get_str_indexed(0))
+    connect := ("2" == byte[connect]) ? true : false
+
+'*************************** Server **************************
+
+pub close_client(link_id) : status
+    esp.cmd_str(string("AT+CIPCLOSE="))
+    if MULTIPLE_CONNECT == mux_connect_mode
+      esp.cmd_chars_add(link_id)
+    esp.cmd_send()
+    return esp.error(mod,f02,esp.get_resp(50))
+
+pub server_max_connect(num): status
+    esp.cmd_str(string("AT+CIPSERVERMAXCONN="))
+    esp.cmd_chars_add(num)
+    esp.cmd_send()
+    return esp.error(mod,f03,esp.get_resp(50))
+
+pub create_server(port,type,ca_enable): status
+    esp.cmd_str(string("AT+CIPSERVER="))
+    send := @esp.cmd_chars_add
+    send(1,44,esp.convert_dec_value_to_str(port),44,34,type,34)
+    if ca_enable > -1
+       send(44,ca_enable)
+    esp.cmd_send()
+    return esp.error(mod,f04,esp.get_resp(50))
+
+pub delete_server(close_connections): status
+    esp.cmd_str(string("AT+CIPSERVER="))
+    send := @esp.cmd_chars_add
+    send(0,44,close_connections)
+    esp.cmd_send()
+    return esp.error(mod,f05,esp.get_resp(50))
+
+pub set_server_timeout(sec) : status
+    esp.cmd_str(string("AT+CIPSTO="))
+    esp.cmd_str_add(esp.convert_dec_value_to_str(sec))
+    esp.cmd_send()
+    return esp.error(mod,f06,esp.get_resp(50))
+
+'********************** Send ******************************
+
+pub send_data_cmd(link_id,length) : status
+    esp.cmd_str(string("AT+CIPSEND="))
+    length := esp.convert_dec_value_to_str(length)
+    send := @esp.cmd_chars_add
+    if MULTIPLE_CONNECT == mux_connect_mode
+      send(link_id,44,length)
+    else
+      send(length)
+    esp.cmd_send_ex()
+    status := esp.error(mod,f07,esp.get_resp(200))
+
+pub send_data_block(link_id,buf,size): status
+    if status := send_data_cmd(link_id,size)
+      return
+    esp.flush_rxbuf(-1)
+    esp.com_send_data(buf,size)
+    return  esp.error(mod,f08,esp.get_resp(200))
+
+pub send_data_blocks(link_id,buf,size,start_block,end_block) : status | i
+    if status := send_data_cmd(link_id,size)
+      return
+    esp.flush_rxbuf(-1)
+    repeat i from start_block to end_block step 2
+       esp.com_send_data(long[buf][i],long[buf][i+1])
+    return  esp.error(mod,f09,esp.get_resp(200))
+
+' ESP32 maximum block size is 2048 bytes
+' Reduces blocks larger than 2048 bytes into smaller blocks , gathers small blocks
+' Sends block(s) to ESP32
+pub send_data_ex(link_id,buf,blocks): status | i,j,z,sz,d,zd
+     i := j := sz := 0
+     repeat
+       z := long[buf][i+1]
+       sz += z
+       if sz >= 2048
+         sz := sz - z
+         d := (2048 - sz)
+         long[buf][i+1] := d
+         if status := send_data_blocks(link_id,buf,2048,j,i)
+           return
+         zd := z - d
+         long[buf][i]   += d
+         long[buf][i+1] := zd
+         if 0 ==  zd
+           sz := 0
+           j := i + 2
+         elseif  zd < 2048
+           sz := zd
+           j  := i
+         else
+           sz := 0
+           next
+       i += 2
+     while i < 2 * blocks
+     if sz
+       status := send_data_blocks(link_id,buf,sz,j,i-2)
+
+pub ping(url_ip_str) : status , time | hs
+    hs := esp.cmd_str(string("AT+ping="))
+    send := @esp.cmd_chars_add
+    send(34,url_ip_str,34)
+    esp.cmd_send()
+    if status := esp.error(mod,f11,esp.get_resp(1000))
+      return
+    time := esp.get_str_indexed(0) + hs
+
+
+
+
+
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

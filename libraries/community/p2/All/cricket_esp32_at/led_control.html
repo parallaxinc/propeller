@@ -1,0 +1,56 @@
+<!doctype html>
+<head>  
+  <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">    
+  <meta name="viewport" content="width=device-width, initial-scale=1"> 
+</head>
+<body>   
+    <h1>P2 LED Control Demo</h1> 
+    <pre></pre> 
+    <input type="button" id="P56"  value="P56" style= "color:white;background-color:black" onclick="Ctrl(id)";>
+    <input type="button" id="P57"  value="P57" style= "color:white;background-color:black" onclick="Ctrl(id)";>	
+	<script type="text/javascript">	
+	var btn_id = 0;
+	var led = {};
+    led["black"] = "OFF";    
+    led["red"]   = "ON"; 	
+	led["OFF"]   = "black";  
+    led["ON"]    = "red";	
+	
+	function setButtonColor(led_state) {
+	    if (led_state in led) {
+	       var property = document.getElementById(btn_id);	
+		   property.style.backgroundColor = led[led_state];
+		}
+		btn_id = 0;
+	}
+    function send_request(type) {
+	  var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {	    
+        if (this.readyState == 4 && this.status == 200) {		  
+          setButtonColor(this.responseText);         	  
+        }
+      };
+	  xhttp.ontimeout = function() {
+	    btn_id = 0;
+	  };
+	  xhttp.open("GET", type, true);
+	  xhttp.timeout = 2000;
+      xhttp.send();	
+	}	
+	function Ctrl(btn) {  	
+	    var property     = document.getElementById(btn);
+		var color        = property.style.backgroundColor;
+	    var state        = led[color];
+        var next_state   = "";		
+		var request_type = "/";	
+		if (0 != btn_id) {
+		  return;
+		}
+        btn_id = btn;  		
+		next_state = ("ON" == state) ? "OFF" : "ON";		
+		request_type = request_type.concat(btn,"/",next_state);	
+        send_request(request_type);		
+    }              
+</script>
+</body>
+</html>
