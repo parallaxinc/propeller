@@ -10,3 +10,6 @@ _site/
 
 #---macOS---
 .DS_Store
+
+# local file mods
+libraries/community/p2/All/jm_ez_max7219/jm_max7219_ez-fixed.spin2

@@ -2,6 +2,10 @@
 
 [DS1302 Full](../All/DS1302_full)
 
+[ISP BH1750 Ambient Light Sensor](../All/isp_bh1750)
+
+[ISP Click MPU 9DOF](../All/isp_click_mpu_9dof)
+
 [JM Click 4-20mA_R/_T](../All/jm_click_4-20ma)
 
 [JM Click RTC](../All/jm_click_rtc)
