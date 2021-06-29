@@ -1,0 +1,253 @@
+'' =================================================================================================
+''
+''   File....... isp_bh1750.spin2
+''   Purpose.... Object providing access to BH1750 via i2c
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2021 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Mar 2021
+''   Updated.... 19 Mar 2021
+''
+'' =================================================================================================
+CON { constants for BH1750 }
+
+    'PIN_BH1750_SCL  = 16    ' blue
+    'PIN_BH1750_SDA  = 17    ' yellow
+    'PIN_BH1750_ADDR = 18    ' dk grn
+
+    'BH1750_SPEED_khz = 80  ' 80 kHz
+    'BH1750_SPEED_khz = 100  ' 100 kHz (meas: @99.2kHz)
+    'BH1750_SPEED_khz = 200  ' 200 kHz (meas: @197kHz)
+    'BH1750_SPEED_khz = 300  ' 300 kHz (meas: @291kHz)
+    BH1750_SPEED_khz = 309  ' 300 kHz (meas: @301kHz)
+    BH1750_PULL_UP = i2c_bus.PU_3K3
+
+    DVC_SLAVE_UNKNOWN = 0
+    DVC_SLAVE1_ADDR = %101_1100  ' 0x5c
+    DVC_SLAVE0_ADDR = %010_0011  ' 0x23
+
+    #0, DVC_NOT_FOUND, DVC_SLAVE0, DVC_SLAVE1
+
+CON { BH1750 commands }
+
+    CMD_PWR_DOWN                = %0000_0000
+    CMD_PWR_ON                  = %0000_0001
+    CMD_RESET                   = %0000_0111
+    CMD_MEAS_CONT_HRES_MODE1    = %0001_0000
+    CMD_MEAS_CONT_HRES_MODE2    = %0001_0001
+    CMD_MEAS_CONT_LRES_MODE     = %0001_0011
+    CMD_MEAS_ONCE_HRES_MODE1    = %0010_0000
+    CMD_MEAS_ONCE_HRES_MODE2    = %0010_0001
+    CMD_MEAS_ONCE_LRES_MODE     = %0010_0011
+    CMD_CHG_MEAS_TIME_HBIT      = %0100_0000
+    CMD_CHG_MEAS_TIME_LBIT      = %0110_0000
+
+    DLY_HRES_MODE1_IN_MS        = 180   ' typ 120 ms (180 ms max)
+    DLY_HRES_MODE2_IN_MS        = 180   ' typ 120 ms (180 ms max)
+    DLY_LRES_MODE_IN_MS         = 24    ' typ 16 ms (24 ms max)
+
+    MODE_READ  = %0000_0001
+    MODE_WRITE = %0000_0000
+
+
+OBJ { objects used }
+
+    i2c_bus : "jm_i2c"
+
+VAR { device state information }
+
+    long  pinSCL
+    long  pinSDA
+    long  pinADDR
+    long  slaveAddress
+
+PUB null()
+
+'' This is not a top-level object
+
+PUB init(sda, scl, cs) | pullup
+    '' Init the output pins (quiet the device)
+    pinSDA := sda
+    pinSCL := scl
+    pinADDR := cs
+{
+    pullup := BH1750_PULL_UP
+
+    org
+        wrpin     pullup, cs                           ' configure high drive
+    end
+}
+    'pinhigh(PIN_BH1750_ADDR)   ' slave1
+    'wrpin(pinADDR, P_HIGH_1MA)
+
+    deselect()   ' deassert
+
+    ' have the driver force its own pins quiet
+    i2c_bus.quiesce(pinSCL, pinSDA, BH1750_PULL_UP)
+
+pub getClockFreq() : freqValue, freqValue2
+    '' Return clock frequency and and tic's for 1/4 period
+    freqValue, freqValue2 := i2c_bus.getClockFreq()
+
+PUB setup()
+    '' Configure driver specifics for BH1750
+    select()   ' awaken our device
+
+    i2c_bus.setup(pinSCL, pinSDA, BH1750_SPEED_khz, BH1750_PULL_UP)
+
+    deselect()   ' no longer need our device
+
+PUB idDevice() : deviceFound | have0, have1
+    '' Scan I2C bus seeing if we have a responding device
+    select()   ' awaken our device
+
+    have0 := have1 := false
+    'if(i2c_bus.present((DVC_SLAVE1_ADDR << 1) | MODE_WRITE))
+    '    have1 := true
+    if(i2c_bus.present((DVC_SLAVE0_ADDR << 1) | MODE_WRITE))
+        have0 := true
+
+    i2c_bus.stop()
+
+    deselect()   ' no longer need our device
+
+    deviceFound := DVC_NOT_FOUND
+    slaveAddress := DVC_SLAVE_UNKNOWN
+    if(!have0 and have1)
+        deviceFound := DVC_SLAVE1
+        slaveAddress := DVC_SLAVE1_ADDR
+    elseif(have0 and !have1)
+        deviceFound := DVC_SLAVE0
+        slaveAddress := DVC_SLAVE0_ADDR
+
+PRI select()
+    ' select our device so we can talk to it
+    pinlow(pinADDR)   ' enable our device
+    waitms(1)           ' provide a settling time
+
+PRI deselect()
+    ' deselect our device, we no longer need it
+    waitms(1)           ' short-delay to de-asser
+    pinhigh(pinADDR)   ' disable our device
+
+PUB powerOn() : ok | ackBit
+    '' Command the device to go to power-on state
+    ok := doCommand(CMD_PWR_ON)
+
+PUB resetDvc() : ok | ackBit
+    '' Reset the device measurement register
+    ok := doCommand(CMD_RESET)
+
+PRI doCommand(cmdByte): ok | ackbit
+    ' write command to device - checking response
+    select()   ' awaken our device
+    ok := false
+    i2c_bus.start()
+    ackBit := i2c_bus.write((slaveAddress << 1) | MODE_WRITE)
+    'if(ackbit)
+    ackBit := i2c_bus.write(cmdByte)
+    if(ackbit == i2c_bus.ACK)
+        ok := true
+    i2c_bus.stop()
+    deselect()   ' no longer need our device
+
+
+PUB readOnceHiRes() : ok, rawValue, lumen | ackBit
+    '' Read measurement result - HiRes Mode1
+    ok, rawValue, lumen := readMeasurementResult(CMD_MEAS_ONCE_HRES_MODE1)
+
+
+PUB readOnceHiRes2() : ok, rawValue, lumen | ackBit
+    '' Read measurement result - HiRes Mode2
+    ok, rawValue, lumen := readMeasurementResult(CMD_MEAS_ONCE_HRES_MODE2)
+
+
+PUB readOnceLoRes() : ok, rawValue, lumen | ackBit
+    '' Read measurement result - LoRes
+    ok, rawValue, lumen := readMeasurementResult(CMD_MEAS_ONCE_LRES_MODE)
+
+PRI doSubCommand(cmdByte): ok | ackbit
+    ' write command to device - checking response
+    ok := false
+    i2c_bus.start()
+    ackBit := i2c_bus.write((slaveAddress << 1) | MODE_WRITE)
+    'if(ackbit)
+    ackBit := i2c_bus.write(cmdByte)
+    if(ackbit == i2c_bus.ACK)
+        ok := true
+    i2c_bus.stop()
+
+
+PRI readMeasurementResult(command)  : ok, rawValue, lumen | ackBit, delayToRead
+    lumen := rawValue := 0
+    select()   ' awaken our device
+
+    delayToRead := delayFromCommand(command)
+    ok := doSubCommand(command)
+    waitms(delayToRead)         ' wait for meas complete
+
+    i2c_bus.start()
+    ackBit := i2c_bus.write((slaveAddress << 1) | MODE_READ)
+    'if(ackbit)
+    rawValue.byte[1] := i2c_bus.read(i2c_bus.ACK)
+    rawValue.byte[0] := i2c_bus.read(i2c_bus.NAK)
+    i2c_bus.stop()
+    deselect()   ' no longer need our device
+
+    lumen := (rawValue * 10) / 12
+
+
+pri delayFromCommand(command) : delay_ms
+    ' return actual value needed for selector given
+    ' (select pin config constant based on pullup choice)
+  case command
+    CMD_MEAS_CONT_HRES_MODE1 : delay_ms := DLY_HRES_MODE1_IN_MS
+    CMD_MEAS_ONCE_HRES_MODE1 : delay_ms := DLY_HRES_MODE1_IN_MS
+    CMD_MEAS_CONT_HRES_MODE2 : delay_ms := DLY_HRES_MODE2_IN_MS
+    CMD_MEAS_ONCE_HRES_MODE2 : delay_ms := DLY_HRES_MODE2_IN_MS
+    CMD_MEAS_CONT_LRES_MODE : delay_ms := DLY_LRES_MODE_IN_MS
+    CMD_MEAS_ONCE_LRES_MODE : delay_ms := DLY_LRES_MODE_IN_MS
+    other   : delay_ms := DLY_HRES_MODE1_IN_MS
+
+
+PUB readContinuous() : ok | ackBit
+    '' UNTESTED...
+    select()   ' awaken our device
+    ok := false
+    i2c_bus.start()
+    ackBit := i2c_bus.write(slaveAddress)
+    'if(ackbit)
+    ackBit := i2c_bus.write(CMD_PWR_ON)
+    if(ackbit)
+        ok := true
+    i2c_bus.stop()
+    deselect()   ' no longer need our device
+
+CON { license }
+
+{{
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+}}
