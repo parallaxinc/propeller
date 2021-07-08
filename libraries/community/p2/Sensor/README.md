@@ -1,5 +1,7 @@
 [ADS1118](..All/ads1118)
 
+[Cricket BME280](../All/cricket_bme280)
+
 [DS1302 Full](../All/DS1302_full)
 
 [ISP BH1750 Ambient Light Sensor](../All/isp_bh1750)

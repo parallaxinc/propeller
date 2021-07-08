@@ -1,0 +1,607 @@
+' Title            : Cricket BME280
+' Purpose          : P2 BME280 , temperature , pressure , humidity sensor driver
+' Date             : 12_20_20
+' Author           : mcalyer  , mike.calyer@yahoo.com
+' Acknowledgements : John MacPhalen - jm_i2c
+' Requirements     : jm_i2c
+' References       : Bosch data sheet  https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
+'                  : Bosch API https://github.com/BoschSensortec/BME280_driver
+'                  : Bosch excel spreadsheet t,h,p calculation https://community.bosch-sensortec.com/t5/MEMS-sensors-forum/BME280-Temperature-Compensation-Issue/td-p/7742
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      07/02/21  First release
+
+CON
+
+   '* Enable/disable measurement , temp is always enabled
+    P_MEAS_EN = $01
+    H_MEAS_EN = $02
+
+   '** Sensor Configuration #0 , forced mode
+   config_00         = 0
+   ctrl_meas_0       = (T_BME280_OVERSAMPLING_4X << 5) | (P_BME280_OVERSAMPLING_4X << 2)
+   ctrl_hum_0        =  H_BME280_OVERSAMPLING_4X
+   ctrl_thp_0        =  P_MEAS_EN | H_MEAS_EN
+   CONFIG_0          = (ctrl_thp_0 << 24) | (ctrl_hum_0 << 16) | (ctrl_meas_0 << 8) | config_00
+
+  '** Sensor Configuration #1 continuous t,h,p, updates every 1 second
+   config_01       =  (BME280_STANDBY_TIME_1000_MS << 5)
+   ctrl_meas_1     =  (T_BME280_OVERSAMPLING_4X << 5) | (P_BME280_OVERSAMPLING_4X << 2) | BME280_NORMAL_MODE
+   ctrl_hum_1      =  H_BME280_OVERSAMPLING_4X
+   ctrl_thp_1      =  P_MEAS_EN | H_MEAS_EN
+   CONFIG_1        =  (ctrl_thp_1 << 24) | (ctrl_hum_1 << 16) | (ctrl_meas_1 << 8) | config_01
+
+   '** Bosch weather monitoring config , forced mode
+   config_w            = (BME280_FILTER_COEFF_OFF << 2)
+   ctrl_meas_w         = (T_BME280_OVERSAMPLING_1X << 5) | (P_BME280_OVERSAMPLING_1X << 2)
+   ctrl_hum_w          =  H_BME280_OVERSAMPLING_1X
+   ctrl_thp_w          =  P_MEAS_EN | H_MEAS_EN
+   CONFIG_WEATHER_MODE =  (ctrl_thp_w << 24) | (ctrl_hum_w << 16) | (ctrl_meas_w << 8) | config_w
+
+   '** Bosch indoor navigation config , normal mode , cycle time .5ms
+   config_nav       = (BME280_STANDBY_TIME_0_5_MS << 5) | (BME280_FILTER_COEFF_16 << 2)
+   ctrl_meas_nav    = (T_BME280_OVERSAMPLING_2X << 5) | (P_BME280_OVERSAMPLING_16X << 2) | BME280_NORMAL_MODE
+   ctrl_hum_nav     =  H_BME280_OVERSAMPLING_1X
+   ctrl_thp_nav     =  P_MEAS_EN | H_MEAS_EN
+   CONFIG_NAV_MODE  = (ctrl_thp_nav << 24) | (ctrl_hum_nav << 16) | (ctrl_meas_nav << 8) | config_nav
+
+   '** Bosch gaming config , normal mode , NO Humidity , cycle time .5ms
+   config_g         = (BME280_STANDBY_TIME_0_5_MS << 5) | (BME280_FILTER_COEFF_16 << 2)
+   ctrl_meas_g      = (T_BME280_OVERSAMPLING_1X << 5) | (P_BME280_OVERSAMPLING_4X << 2) | BME280_NORMAL_MODE
+   ctrl_hum_g       =  H_BME280_NO_OVERSAMPLING
+   ctrl_tp_g        = P_MEAS_EN
+   CONFIG_GAME_MODE = (ctrl_tp_g << 24) | (ctrl_hum_g << 16) | (ctrl_meas_g << 8) | config_g
+
+
+   '** Error codes for setup and measurent methods
+    ERROR_NONE             = 0
+    ERROR_CHIP_ID          = 1
+    ERROR_CALIB_NVM        = 2
+    ERROR_CALIB_TP         = 3
+    ERROR_CALIB_HUM        = 4
+    ERROR_THP              = 5
+    ERROR_MEAS_TIMEOUT     = 6
+    ERROR_NOT_NORMAL_MODE  = 7
+
+    ' Sensor register
+    HTP_BASE_REG    = $F7        ' $F7 - $FE
+    HTP_SIZE        = 8
+    TP_COMP_REG     = $88        ' $88 - $9F
+    TP_COMP_SIZE    = 24
+    DIG_H1_REG      = $A1
+    HUM_COMP_REG    = $E1        ' $E1 - $E7
+    HUM_COMP_SIZE   = 7
+
+    '* raw sensor data offsets
+    #0,P_MSB,P_LSB,P_XLSB,T_MSB,T_LSB,T_XLSB,H_MSB,H_LSB
+
+    '* compensation data offsets
+    '* 0 - 12
+    #0,T1_LSB,T1_MSB,T2_LSB,T2_MSB,T3_LSB,T3_MSB,P1_LSB,P1_MSB,P2_LSB,P2_MSB,P3_LSB,P3_MSB,P4_LSB
+
+    '* 13 - 23
+    #13,P4_MSB,P5_LSB,P5_MSB,P6_LSB,P6_MSB,P7_LSB,P7_MSB,P8_LSB,P8_MSB,P9_LSB,P9_MSB
+
+
+    '* sensor limits
+    temp_min       = -4000                   ' -40 C
+    temp_max       = 8500                    ' +85 C
+    hum_max        = 102400
+    pressure_min   = 30000                   ' 300  hPa
+    pressure_max   = 110000                  ' 1100 hPa
+
+
+VAR
+  BYTE CMD_WR
+  BYTE CMD_RD
+  BYTE res1
+  BYTE res2
+  LONG sensor_configuration
+  LONG temp_adjust
+  LONG calc_measurement_time
+  BYTE htp_data[8]
+  BYTE buff[24]
+
+  LONG T1,T2,T3,P1,P2,P3,P4,P5,P6,P7,P8,P9
+  LONG H1,H2,H3,H4,H5,H6
+  LONG meas_t
+  LONG adct
+  LONG adcp
+  LONG adch
+  LONG temp_unscaled
+  LONG pres_unscaled
+  LONG humi_unscaled
+  LONG measurement_time
+
+
+OBJ
+ i2c : "jm_i2c"
+
+
+pub null()
+
+
+'*******************************   Sensor Setup ******************************
+{{
+      Sets up I2C pins, speed, pullup requirements
+      Speed  : 100 , 400  , ... 1000 khz
+      PULLUP : #0, PU_NONE, PU_1K5, PU_3K3, PU_15K
+
+      Sets sensor configuration :  forced mode (one time measurement), wait for result,
+                                   4x over sample
+      Returns : 0 = no fail , otherwise error code , see above
+
+}}
+
+pub setup(scl,sda,speed,pullup,addr) : r | t
+
+    i2c_setup(scl,sda,speed,pullup)                 ' Initialize I2C bus
+    waitms(10)
+
+    CMD_WR :=  addr << 1                            ' Intialize I2C R/W commands
+    CMD_RD :=  addr << 1 | %01
+
+    if r := check_id()                              ' Check for device id
+       return
+
+    reset()                                         ' Reset device  , do soft reset , wait
+
+
+    if r := read_calib_data()                       ' Get sensor calibration data
+       return
+
+    if r := read_htp()                              ' Get t,h,p just a check here , not used
+       return
+
+    sensor_config(BME280_SLEEP_MODE)                ' Set sleep mode
+
+
+    return ERROR_NONE
+
+'***************************** Sensor Configuration *********************************
+{{
+    Sets overall operation of sensor : mode  , oversampling , IIR filter , cycle time
+    Three modes : Sleep , Forced (one time meaurement) , Normal (periodic measurements)
+    Returns measurement delay (ms)
+}}
+
+pub sensor_config(sc) : d | ts,ps,hs
+
+    sensor_configuration := sc       ' save mode
+
+    set_config(BME280_SLEEP_MODE)    ' Put sensor in sleep mode before setting configuration
+
+    set_ctrl_hum(sc.byte[2])         ' sensor config
+    set_config(sc.byte[0])
+    set_ctrl_meas(sc.byte[1])
+
+    return calc_measurement_time := get_measurement_time()
+
+
+'******************************* Measure Time ****************************************
+{{ Calculates and returns time (ms) required by sensor to get t , h , p data , bosch equation.
+   Measurement time dependent on sensor settings for oversampling.
+   This does not include IIR filter response time.
+}}
+
+pub get_measurement_time() : t | sc,ts,ps,hs
+
+    sc := sensor_configuration
+
+    ts := sc.byte[1].[7..5]            ' get t,h,p over sampling values
+    ps := sc.byte[1].[4..2]
+    hs := sc.byte[2]
+
+    ts := (ts == 0) ? 0 : 1 << (ts - 1)  ' map sampling values to factors
+    ps := (ps == 0) ? 0 : 1 << (ps - 1)
+    hs := (hs == 0) ? 0 : 1 << (hs - 1)
+
+    t := t + BME280_MEAS_OFFSET + (BME280_MEAS_DUR * ts)
+    if ps
+        t := t + (BME280_MEAS_DUR * ps) + BME280_PRES_HUM_MEAS_OFFSET
+    if hs
+        t := t + (BME280_MEAS_DUR * hs) + BME280_PRES_HUM_MEAS_OFFSET
+
+    t := t/BME280_MEAS_SCALING_FACTOR
+
+    ' NORMAL Mode measurement time = measurement time + standby time
+    if BME280_NORMAL_MODE == get_mode()
+      ts := sensor_configuration.byte[0].[7..5]
+      ts := lookupz(ts: 5,625,1250,2500,5000,10000,100,200)  ' msec values * 10
+      t  := ((10 * t) + ts)/10
+
+'********************* Sensor T,H,P Coefficients ****************************************
+{{ Reads sensor calibration registers and formats data , resulting in T1 - T3 , P1 - P9
+   H1 - H6 calibration coefficients. Used to calculate t,h,p
+   Returns Status : no fail = 0 , fail = error code
+}}
+
+pri read_calib_data() : r  | r5 , x , y
+
+   x := 50                                                    ' Wait until sensor reads internal NVM calibration data
+   repeat until (!isreadingcalibration())
+      waitms(1)
+      if 0 == x--
+        return ERROR_CALIB_NVM
+
+   if read_regs(TP_COMP_REG,@buff,TP_COMP_SIZE)              ' get T1 - T9
+     return ERROR_CALIB_TP
+   x,y := 0,0                                                ' initialize T1 - P9
+   repeat 12
+     wordmove(@T1 + y , @buff + x , 1)
+     y := y + 4
+     x := x + 2
+
+   read_reg(BME280_DIG_H1_REG,@H1)                         ' get and initialze H1 - H6
+   if read_regs(HUM_COMP_REG,@buff,HUM_COMP_SIZE)
+     return  ERROR_CALIB_HUM
+   wordmove(@H2,@buff,1)
+   H3 := buff[2]
+   r5 := buff[4]
+   H4 := buff[3] << 4 | (r5 & $0F)
+   H5 := buff[5] << 4 | ((r5 & $F0) >> 4)
+   H6 := buff[6]
+
+   return
+
+'************************** Mesurements  *********************************
+
+{{
+    Type of measurement is determined by sensor configuration
+    1. forced_measurement()       :
+       wakes from sleep , peforms one time measurement , user waits measurement delay for results
+       back to sleep
+    2. start_forced_measurement() :
+       wakes from sleep , request one time measurement , user calls get_thp() later (at least measurement time) for results
+       back to sleep
+    3. periodic_measurement()     : Get current t,h,p , sensor periodically updating
+    Returns status , tc , tf , p , h
+    Status : 0 = no fail , otherwise error code
+}}
+
+pub forced_measurement() : r,tc,tf,p,h | d
+    start_forced_measurement()
+    d := 1
+    repeat until (is_busy())
+    repeat until (!is_busy())                ' wait until ready
+      waitms(1)
+      if calc_measurement_time == d++
+        r := ERROR_MEAS_TIMEOUT
+        return
+    measurement_time := d
+    return get_thp()                         ' get thp raw data and process
+
+pub start_forced_measurement()| m
+    m := get_ctrl_meas() | BME280_FORCED_MODE_2
+    set_ctrl_meas(m)
+
+pub periodic_measurement() :  r,tc,tf,p,h
+    r := ERROR_NOT_NORMAL_MODE
+    if BME280_NORMAL_MODE == get_mode()
+      return get_thp()                        ' get thp raw data and process
+
+pub get_mode() : r
+    return sensor_configuration.byte[1].[1..0]
+
+
+'*************************** Get T , H , P ******************************
+{{
+    1. Reads raw t,h,p data , checks for failure
+    2. Calculates t , h, p based on bosch equations , using raw data and sensor calibration coefficients
+    3. Returns status , temp celsius , temp fahrenheit , pressure mpa , humidity %
+    4. Status no fail = 0 , otherwise error code
+}}
+
+pub get_thp() : r,tc,tf,p,h
+
+    if r := read_htp()                   ' get thp raw data
+      return
+    tc,tf := get_temp()                  'process thp raw data if enabled , temp always enabled
+    if sensor_configuration.[24]
+      p := get_pres()
+    if sensor_configuration.[25]
+      h := get_hum()
+
+    return
+
+'*************************** Sensor Raw T,H,P Data ***********************
+{{ Reads raw t , h, p data , checks for failure }}
+
+pub read_htp() : r
+    if read_regs(HTP_BASE_REG,@htp_data,HTP_SIZE)
+      return ERROR_THP
+    return
+
+'************************** Sensor Temperature  **************************
+{{ Calculates temp_adjust , temp celsius , temp fahrenheit. 32 bit integer
+   temp_adjust is needed for pressure and humidity calculations
+}}
+
+pub get_temp() : tc,tf | adc_T,v1,v2
+    adc_T :=  htp_data[T_MSB] << 12 | htp_data[T_LSB] << 4 | htp_data[T_XLSB] >> 4
+    adct  :=  adc_T
+    v1 :=  (adc_T >> 3) - (T1 << 1)
+    v1 :=  (v1 * T2) >> 11
+    v2 :=  (adc_T >> 4) - T1
+    v2 :=  ((v2 >> 11) * T3 ) >> 14
+    temp_adjust := v1 + v2
+    tc := ((temp_adjust * 5) + 128) >> 8
+    tc := tc < temp_min ? temp_min : tc
+    tc := tc > temp_max ? temp_max : tc
+    tf := ((tc * 9)/500) + 32
+    temp_unscaled := tc
+    tc := tc/100
+
+'************************** Sensor Humidity ******************************
+{{ Calculates humidity , 32 bit interger}}
+
+pub get_hum(): h | adc_H,v1,v2,v3,v4,v5
+    adc_H :=  htp_data[H_MSB] << 8 | htp_data[H_LSB]
+    adch  :=  adc_H
+    v1 := temp_adjust - 76800
+    v2 := adc_H << 14
+    v3 := H4 << 20
+    v4 := H5 * v1
+    v5 := (((v2 - v3) - v4) + 16384) >> 15
+    v2 := (v1 * H6) >> 10
+    v3 := (v1 * H3) >> 11
+    v4 := ((v2 * (v3 + 32768)) >> 10) + 2097152
+    v2 := ((v4 * H2) + 8192) >> 14
+    v3 := v5 * v2
+    v4 := ((v3 >> 15) * (v3 >> 15)) >> 7
+    v5 := v3 - ((v4 * H1) >> 4)
+    v5 := v5 < 0 ? 0 : v5
+    v5 := v5 > 419430400 ? 419430400 : v5
+    h  := v5 >> 12
+    h  := h > hum_max ? hum_max : h
+    humi_unscaled := h
+    h  := h/1024
+
+'************************** Sensor Pressure *******************************
+
+{{ Calculates pressure . Required 64/32 bit integer. Modified bosch equation }}
+
+pub get_pres(): p | adc_P,v1,v2,v3,v4,v5,vx
+
+    adc_P :=  htp_data[P_MSB] << 12 | (htp_data[P_LSB] << 4) | (( htp_data[P_XLSB] >> 4) & $0F)
+    adcp  :=  adc_P
+
+    v1 := (temp_adjust/2) - 64000
+    vx := v1 * v1
+    v2 := muldiv64(vx,P5,32768)
+    v2 := v2/2 + v1 * P5
+    v2 := (v2/2) + (P4 * 65536)
+    v1 := (P3 * v1 * v1 / 524288 + (p2 * v1)) / 524288
+    v1 := P1 + (P1 * v1)/ 32768
+    p  := 1048576 - adc_P
+    vx := p - (v2 / 4096)
+    p  := muldiv64(vx,6250,v1)
+    vx := p/8 * p/8
+    v1 := muldiv64(P9/8,vx,268435456)
+    v2 := muldiv64(p,P8,32768)
+    p  := p + (v1 + v2 + P7) / 16
+    pres_unscaled := p
+    p  := p/100
+
+'**************************  Sensor Key Data Dump ***********************
+pub sensor_info() | c,m,h
+
+   debug("BME280 : " , udec(T1,T2,T3))
+   debug("BME280 : " , udec(P1,P2,P3,P4,P5,P6,P7,P8,P9))
+   debug("BME280 : " , udec(h1,h2,h3,h4,h5,h6))
+   debug("BME280 : Calc Measurement time : " , udec_(calc_measurement_time) ," ms")
+   debug("BME280 : Measurement time      : " , udec_(measurement_time) ," ms")
+   debug("BME280 : raw temp  : " , udec_(adct))
+   debug("BME280 : temp adj  : " , udec_(temp_adjust))
+   debug("BME280 : raw press : " , udec_(adcp))
+   debug("BME280 : raw hum   : " , udec_(adch))
+
+   c := get_config()
+   m := get_ctrl_meas()
+   h := get_ctrl_hum()
+
+   debug("BME280 : standby time        : " , ubin_(c.[7..5]))
+   debug("BME280 : IIR filter          : " , ubin_(c.[4..2]))
+   debug("BME280 : temp over sampling  : " , ubin_(m.[7..5]))
+   debug("BME280 : press over sampling : " , ubin_(m.[4..2]))
+   debug("BME280 : mode                : " , ubin_(m.[1..0]))
+   debug("BME280 : hum over sampling   : " , ubin_(h.[2..0]))
+
+'*************************** Reset ****************************
+pub reset()
+    write_reg(BME280_RESET,BME280_SOFT_RESET_COMMAND)
+    waitms(5)
+
+'************************* Check ID ***************************
+pub check_id() : r | id
+    read_reg(BME280_CHIP_ID_REG,@id)
+    if BME280_CHIP_ID == id
+      return
+    return ERROR_CHIP_ID
+
+'************************* Status  ****************************
+pub isreadingcalibration() : r
+    r := get_status()
+    return -r.[0]
+
+pub is_busy() : r
+    r := get_status()
+    return -r.[3]
+
+pub get_status() : r
+    read_reg(BME280_STATUS,@r)
+
+
+'************************* Config  *****************************
+
+pub set_ctrl_hum(data) : r
+    '$F2.[2..0] = hum osrs
+    return write_reg(BME280_CTRL_HUM,data)
+
+pub set_ctrl_meas(data) : r
+    '$F4.[7..5] = temp osrs
+    '$F4.[4..2] = pres osrs
+    '$F4.[1..0] = mode
+    return write_reg(BME280_CTRL_MEAS,data)
+
+pub set_config(data) : r
+    '$F5.[7..5] = standby duration
+    '$F5.[4..2] = IIR filter
+    '$F5.[1..0] = spi enable
+    return write_reg(BME280_CONFIG,data)
+
+pub get_ctrl_hum() : d
+    read_reg(BME280_CTRL_HUM,@d)
+
+pub get_ctrl_meas() : d
+    read_reg(BME280_CTRL_MEAS,@d)
+
+pub get_config() : d
+    read_reg(BME280_CONFIG,@d)
+
+
+'*************************** I2C Register R/W *********************************
+
+pri write_reg(addr,data) : r
+    return i2c_write_bytes(addr,@data,1)
+
+pri read_reg(addr,dptr) : r
+    return i2c_read_bytes(addr,dptr,1)
+
+pri read_regs(addr,buff_ptr,count) : r
+    return i2c_read_bytes(addr,buff_ptr,count)
+
+'*************************** I2C Interface ****************************
+
+pri i2c_setup(scl, sda, khz, pullup)
+    i2c.setup(scl,sda,khz,pullup)
+
+pri i2c_write_bytes(addr,buffer_ptr,num_bytes) : ack
+    i2c.start()
+    if ack := i2c.write(CMD_WR)
+      i2c.stop()
+      return
+    if ack := i2c.write(addr)
+      i2c.stop()
+      return
+    i2c.wr_block(buffer_ptr,num_bytes)   ' Write data
+    i2c.stop()
+
+pri i2c_read_bytes(addr,buffer_ptr,num_bytes) : ack
+    i2c.start()
+    if ack := i2c.write(CMD_WR)
+      i2c.stop()
+      return
+    if ack := i2c.write(addr)
+      i2c.stop()
+      return
+    i2c.start()
+    if ack := i2c.write(CMD_RD)                      ' Write read command
+      i2c.stop()
+      return
+    i2c.rd_block(buffer_ptr,num_bytes,1)             ' Read data
+    i2c.stop()
+
+
+'************************************* Bosch 280 *********************************
+CON
+'** I2C addresses
+    BME280_I2C_ADDR  = $77        'Alternate $76
+
+   '** BME280 chip identifier
+   BME280_CHIP_ID    = $60
+
+   '** Register Address
+    BME280_CHIP_ID_REG           = $D0
+    BME280_RESET                 = $E0
+    BME280_TEMP_PRESS_CALIB_DATA = $88
+    BME280_HUMIDITY_CALIB_DATA   = $E1
+    BME280_PWR_CTRL              = $F4
+    BME280_CTRL_HUM              = $F2
+    BME280_CTRL_MEAS             = $F4
+    BME280_CONFIG                = $F5
+    BME280_STATUS                = $F3
+    BME280_HUM_LSB               = $FE
+    BME280_HUM_MSB               = $FD
+    BME280_TEMP_XLSB             = $FC
+    BME280_TEMP_LSB              = $FB
+    BME280_TEMP_MSB              = $FA
+    BME280_PRESS_XLSB            = $F9
+    BME280_PRESS_LSB             = $F8
+    BME280_PRESS_MSB             = $F7
+    BME280_SOFT_RESET_COMMAND    = $B6
+    BME280_DIG_H1_REG            = $A1
+    BME280_DIG_H3_REG            = $E3
+    BME280_DIG_H6_REG            = $E7
+
+    T_BME280_NO_OVERSAMPLING  = $00
+    T_BME280_OVERSAMPLING_1X  = $01
+    T_BME280_OVERSAMPLING_2X  = $02
+    T_BME280_OVERSAMPLING_4X  = $03
+    T_BME280_OVERSAMPLING_8X  = $04
+    T_BME280_OVERSAMPLING_16X = $05
+
+    P_BME280_NO_OVERSAMPLING  = $00
+    P_BME280_OVERSAMPLING_1X  = $01
+    P_BME280_OVERSAMPLING_2X  = $02
+    P_BME280_OVERSAMPLING_4X  = $03
+    P_BME280_OVERSAMPLING_8X  = $04
+    P_BME280_OVERSAMPLING_16X = $05
+
+    H_BME280_NO_OVERSAMPLING  = $00
+    H_BME280_OVERSAMPLING_1X  = $01
+    H_BME280_OVERSAMPLING_2X  = $02
+    H_BME280_OVERSAMPLING_4X  = $03
+    H_BME280_OVERSAMPLING_8X  = $04
+    H_BME280_OVERSAMPLING_16X = $05
+
+    BME280_SLEEP_MODE        =  $00
+    BME280_FORCED_MODE_1     =  $01
+    BME280_FORCED_MODE_2     =  $02
+    BME280_NORMAL_MODE       =  $03
+
+    BME280_STANDBY_TIME_0_5_MS   = $00
+    BME280_STANDBY_TIME_62_5_MS  = $01
+    BME280_STANDBY_TIME_125_MS   = $02
+    BME280_STANDBY_TIME_250_MS   = $03
+    BME280_STANDBY_TIME_500_MS   = $04
+    BME280_STANDBY_TIME_1000_MS  = $05
+    BME280_STANDBY_TIME_10_MS    = $06
+    BME280_STANDBY_TIME_20_MS    = $07
+
+    BME280_FILTER_COEFF_OFF =  $00
+    BME280_FILTER_COEFF_2   =  $01
+    BME280_FILTER_COEFF_4   =  $02
+    BME280_FILTER_COEFF_8   =  $03
+    BME280_FILTER_COEFF_16  =  $04
+
+    BME280_MEAS_OFFSET           = 1250
+    BME280_MEAS_DUR              = 2300
+    BME280_PRES_HUM_MEAS_OFFSET  = 575
+    BME280_MEAS_SCALING_FACTOR   = 1000
+
+'***************************** License ****************************************
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
