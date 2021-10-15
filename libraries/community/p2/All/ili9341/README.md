@@ -18,7 +18,8 @@ Learn more about the Propeller 2 at [www.parallax.com](http://www.parallax.com).
 
 ## License
 
-Copyright © 2021 Greg LaPolla ILI9341_XPT2046 Spin 2 Object is licensed under the MIT License.
+Copyright (c) 2021 "Cluso99" (Ray Rodrick), "mwroberts" (Mike Roberts), Greg LaPolla, "ManAtWork" (Nicolas Benezan)
+ILI9341_XPT2046 Spin 2 Object is licensed under the MIT License.
 
 ## Credits
 

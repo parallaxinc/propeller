@@ -1,61 +1,103 @@
-{{
-  
-  ILI9341_XPT2046 Demo 
-
-320x240 LCD driver for ILI9341 controller and XPT2046 touch screen.  This version is SPI based.
-  
-Author: Greg LaPolla                                                                                             
-Updated: 2021-02-15                                                                                              
-Designed For: P2X8C4M64P                                                                                         
-Version: 1.0                                                                                             
-
-'' Based on  Cluso's Demo ST7796 4.0in SPI 480x320 w Touch LCD Driver
-
-}}
+'' +--------------------------------------------------------------------------+
+'' | Cluso's Color LCD Demo with optional Touch Support                V3.01  |
+'' +--------------------------------------------------------------------------+
+'' |  Authors:       (c)2015-2021  "Cluso99" (Ray Rodrick)                    |
+'' |                    Original code for 1.44in 128x128 ILI9163 color LCD    |
+'' |                    Add code for 4.0in 480x320 ST7796S color LCD          |
+'' |                 (c)2021       "mwroberts" (Mike Roberts)                 |
+'' |                    Add code for XPT2046 Touch Panel support              |
+'' |                 (c)2021       @"Greg LaPolla" (Greg LaPolla)             |
+'' |                    Modify for 2.4in & 3.2in 320x240 ILI9341 Touch LCD    |
+'' |                 (c)2021       "Cluso99" (Ray Rodrick)                    |
+'' |                    Combine to support all above in original program      |
+'' |  Modifications:                                                          |
+'' |  License:       MIT License - See end of file for terms of use           |
+'' +--------------------------------------------------------------------------+
+'' RR20201105  100  copied from LCD_ILI9163_SPI_v200.spin2 by Cluso99
+'' RR20201101  2.01  RetroBlade2 test on P0-7
+'' RR20201106  202   window parameters 8b -> 16b for cs, rs, ce, re
+''                   pixel count 16b > 32b
+'' RR20201107  203  wkg
+'' RR20201107 V2.0  release
+'' RR20201107  204  use drvh/l rather than dira/outa to drive io pins
+''             205  tweek lines/boxes demo
+''                  bug: circle problem when x or y >~170 (eg larger/position of circles) maths???
+''             206  RetroBlade2 P42-47
+'' RR20201108  207  fix circle bug
+'' RR20201110  208  add 80*40 and 60*40 text demos
+'' +--------------------------------------------------------------------------+
+'' RR          210-230+ are forked versions for text only teminals
+'' +--------------------------------------------------------------------------+
+'' RR20210305  290  prep for v3.0 release
+'' MR20210130         added touchscreen for XPT2046 (Mike Roberts)
+'' RR20210305         added support for for 320x240 LCD (Greg LaPolla)
+''                    allow (parameterised) multiple LCD resolution/sizes, optional Touch
+'' RR20210307  292  tweek code to make universal graphics, text & touch
+'' RR20210308  293  pass parameters in start:  PUB Start(pixels_x, pixels_y, rotate, font_x, font_y, touch_on)
+''             294  check with 1.44in 128x128 ILI9163 LCD
+'' RR20210309  295  fix clock 10/11/12 display, and update date/time
+'' +--------------------------------------------------------------------------+
+'' RR20210309 v3.00 release
+'' RR20210310  301  add drawSomeRectangles, tweek
+'' NB20210903  313  high level functions, color + rotation constants moved to driver
 
 CON
-  _clkfreq = 200_000_000            ' clock frequency
+  _xtlfreq = 25_000_000
+  _clkfreq = 200_000_000                    ' clock frequency
 
-  width         = 320               ' screen width  (cols)
-  height        = 240               ' screen height (rows)
-  textwidth     = width / 6         ' 80 chars per line 80*6=480
+'' +--------------------------------------------------------------------------+
+'' |  Select for your screen resolution & touch screen options...             |
+'' |    Don't forget to set the I/O pins in the LCD Driver.                   |
+'' +--------------------------------------------------------------------------+
+' lcd.Start(width, height, lcd_rotate,     fontwidth, fontheight, touchscreen)   ' sw/hw initialise LCD (rotate 0/90/180/270 & mirror setting, etc)
+' lcd.Start(480,   320,    LCD_mirror_90,  8,         8,          true       )   ' 4.0in 480x320 ST7796S LCD with XPT2046 Touch Panel & 8x8 font
+' lcd.Start(320,   240,    LCD_mirror_90,  8,         8,          true       )   ' 3.2in 320x240 ILI9341 LCD with XPT2046 Touch Panel & 8x8 font
+' lcd.Start(128,   128,    LCD_rotate_270, 8,         8,          false      )   ' 1.44in 128x128 ILI9163 LCD & 8x8 font
 
-  LCD_rotate_0          = $00       '\   0 degrees
-  LCD_rotate_90         = $A0       '|  90 degrees
-  LCD_rotate_180        = $C0       '| 180 degrees
-  LCD_rotate_270        = $60       '/ 270 degrees
-  LCD_mirror_90         = $20       '   90 degrees H-mirror
-' Set the following to suit...
-  LCD_rotate    = LCD_mirror_90     ' <--- set to suit
+{{
+' LCD: 1.44in 128x128 ILI9163 LCD
+  width         = 128                                   ' lcd screen width  (pixels)    \ 1.44in 128x128 ILI9163 LCD
+  height        = 128                                   '            height (pixels)    |
+  lcd_rotate    = LCD_rotate_270                        ' lcd rotate 270                |
+  touchscreen   = false                                 ' false = touch screen disabled /
+}}
 
-' ILI9341 registers...
-  LCD_NOP               = $00
-  LCD_SW_RESET          = $01
-  LCD_SLEEP_ON          = $10
-  LCD_SLEEP_OFF         = $11
-  LCD_PARTIAL           = $12
-  LCD_NORMAL            = $13
-  LCD_INVERSION_OFF     = $20
-  LCD_INVERSION_ON      = $21
-  LCD_GAMMA_SET         = $26
-  LCD_DISPLAY_OFF       = $28
-  LCD_DISPLAY_ON        = $29
-  LCD_COL_ADR           = $2A
-  LCD_ROW_ADR           = $2B
-  LCD_RAM_WRITE         = $2C
-  LCD_COLOR_SPACE       = $2D   '4K/65K/262K
-' LCD_RAMRD             = $2E
-  LCD_MADCTR            = $36   'Mem Addr Contol (rotate screen)
-  LCD_PIXEL_FORMAT      = $3A
-  LCD_FRAME_CTL1        = $B1
-  LCD_INVERSION_CTL     = $B4
-  LCD_POWER_CTL1        = $C0
-  LCD_POWER_CTL2        = $C1
-  LCD_VCOM_CTL1         = $C5
-  LCD_VCOM_OFFSET       = $C7
-  LCD_POS_GAMMA         = $E0
-  LCD_NEG_GAMMA         = $E1
-  LCD_GAMMA_RS          = $F2
+{{
+' LCD: 4.0in 480x320 ST7796S LCD with XPT2046 Touch Panel
+  width         = 480                                   ' lcd screen width  (pixels)   \ 4.0in 480x320 ST7796S LCD with XPT2046 Touch Panel & 8x8 font
+  height        = 320                                   '            height (pixels)   |
+  lcd_rotate    = LCD_mirror_90                         ' lcd rotate 90 & mirror       /
+  touchscreen   = true                                  ' true  = touch screen enabled
+'  touchscreen   = false                                 ' false = touch screen disabled
+}}
+
+' LCD: 3.2in 320x240 ILI9341 LCD with XPT2046 Touch Panel
+  width         = 320                                   ' lcd screen width  (pixels)   \ 3.2in 320x240 ILI9341 LCD with XPT2046 Touch Panel & 8x8 font
+  height        = 240                                   '            height (pixels)   |
+  lcd_rotate    = lcd.LCD_mirror_90                         ' lcd rotate 90 & mirror       /
+  touchscreen   = true                                  ' true  = touch screen enabled
+'  touchscreen   = false                                 ' false = touch screen disabled
+
+
+  fontwidth     = 8                                     ' font size 6x8 or 8x8 (pixels)
+  fontheight    = 8                                     '
+  textcols      = width  / fontwidth                    ' chars on line
+  textrows      = height / fontheight                   ' lines on screen
+'' +--------------------------------------------------------------------------+
+
+{  constants moved to driver object, use lcd.black, for example
+'' +--------------------------------------------------------------------------+
+' These are the values for the 4.0in 320x480 ST7796S LCD. They may vary with other LCDs.
+' It is probably easiest to select by trial and error.
+  LCD_rotate_0          = $00               '\   0 degrees
+  LCD_rotate_90         = $A0               '|  90 degrees
+  LCD_rotate_180        = $C0               '| 180 degrees
+  LCD_rotate_270        = $60               '/ 270 degrees          (1.44in 128x128 ILI9163 LCD)
+  LCD_mirror_0          = $40               '\   0 degrees mirror
+  LCD_mirror_90         = $20               '|  90 degrees mirror   (4.0in & 3.2in ST7796S & ILI9341 are rotated 90deg and mirrored)
+  LCD_mirror_180        = $80               '| 180 degrees mirror
+  LCD_mirror_270        = $E0               '/ 270 degrees mirror
+'' +--------------------------------------------------------------------------+
 
 ' BGR 5+6+5 16bits/pixel (RGB reversed)
   black = $0000
@@ -65,6 +107,7 @@ CON
   red   = $001F
   yellow= red+green
   purple= red+blue
+}
 
 '                 ' sin(x) * 1024    ' degrees
 Z00     =    0    ' 0.0000 * 1024    '  0
@@ -93,291 +136,175 @@ _CD     = 120                   ' clock  face dia
 _CS     = 45                    ' second hand length
 _CM     = 40                    ' minute hand length
 _CH     = 30                    ' hour   hand length
-fgd     = blue/2 'green         ' foreground dial color (clock dial)
-bgd     = black                 ' background dial color
-fgh     = red                   ' hour hand color
-fgm     = yellow                ' minute hand color
-fgs     = white                 ' second hand color
+bgd     = lcd.black             ' background dial   color
+fgc     = lcd.yellow            ' foreground dial   color (clock dial)
+fgd     = lcd.green             ' foreground digits color (clock dial)
+fgh     = lcd.red               ' hour   hand color
+fgm     = lcd.yellow            ' minute hand color
+fgs     = lcd.white             ' second hand color
+fgt     = lcd.blue              ' date/time color
 
-baud  = 2_000_000
 
 OBJ
-  lcd:  "LCD_ILI9341_XPT2046"
-  'term : "jm_serial"           ' LCD pasm cog driver (supports 6*8 and 8*8 pixel font)
+  lcd:   "LCD_Graphics_Driver"                          ' LCD pasm cog driver (supports 6*8 and 8*8 pixel font)
 
 VAR
-  long cog                                             ' pasm cog+1
-  long tx,ty,tx40,ty40,tx280,ty200,spotx,spoty,int,clock_button
-  long cr
+  long  lcdcog                                          ' lcd pasm cog+1
+
 
 DAT
-  colorlist word white, red+green, blue, green, red, red+blue, blue+green, blue/2
+  colorlist word lcd.white, lcd.yellow, lcd.blue, lcd.green, lcd.red, lcd.purple, lcd.cyan, lcd.blue/2
 
 PUB start() | i
+' sw/hw initialise LCD (rotate 0/90/180/270 & mirror setting, etc)
+  lcdcog := lcd.Start(width, height, lcd_rotate, fontwidth, fontheight, touchscreen)
+  ' also calls Start_TS() if touchscreen==true
 
-  cog := lcd.Start(LCD_rotate)                          ' sw/hw initialise LCD (rotate 0/90/180/270)
-  lcd.start_TS()
-  'term.start(baud)
 ' screen defaults...
-  lcd.setFGcolor(blue)                                  ' set foreground color
-  lcd.setBGcolor(black)                                 ' set background color
+  lcd.setFGcolor(lcd.yellow)                            ' set foreground color
+  lcd.setBGcolor(lcd.black)                             ' set background color
   lcd.clearScreen()                                     ' clear screen (background color)
-' Touchscreen enable interupt
-  lcd.get_ts($90)                                       'turn on ts_int
 
   waitms(50)
+'  waitms(1000)                                          ' wait
 
 ' Select one/some of the following...
-  waitms(1000)                                          ' wait
-  drawSomeChars()
-  waitms(1000)                                          ' wait
+  lcd.drawString(0, 0, string("LCD Graphics & Text Demo v3.11 (Cluso99, Greg LaPolla, mwroberts, ManAtWork)"))
+  waitms(2000)                                          ' wait
+  drawSomeIcons()
+  waitms(2000)
+  drawSomeText()
+  waitms(2000)                                          ' wait
   drawSomeLines()
-  waitms(1000)                                          ' wait
-  drawSomeBoxes()
-  waitms(1000)                                          ' wait
+  waitms(2000)                                          ' wait
   drawSomeCircles()
-  'waitms(1000)                                         ' wait
-  'waitms(5000)                                         ' wait
+  waitms(2000)                                          ' wait
+  drawSomeRectangles()
+  waitms(2000)                                          ' wait
+  drawSomeBoxes()
+  waitms(2000)                                          ' wait
 
-' draw some text and then do clock...
-  lcd.clearScreen()
-  lcd.setFGcolor(green)
-  lcd.setBGcolor(black)
-  lcd.SetColRow(0, height/2)                            ' 2nd half of screen
-  repeat i from $20 to $7F                              ' 6*8 font 96 char set
-    lcd.DrawChar6x8(i)
-  lcd.SetColRow(0, height/2+20)
-      repeat i from $20 to $7F                          ' 8*8 font 96 char set
-        lcd.DrawChar8x8(i)
+' calibrate touch panel
+  if touchscreen
+    lcd.calibrateTouch()                                ' use Get/Put_TS_CalibData() to (re)store in a real application
 
 ' do clock...
-
-      lcd.clearScreen()
-      drawstring(100,160, string("CALIBRATE TOP LEFT"))
-      lcd.SetColRow(40, 40)
-      lcd.DrawChar8x8($78)  'draw top left calibration X
-      cr := 13
-      int := 1
-
-      lcd.Wait_for_touch()      'wait for touch
-
-      tx := lcd.get_ts($91)     '$91 turns off interupt and collects x position
-      tx40 := lcd.get_ts($91)   '$91 keeps off interupt after x data, calibration point tx40
-      ty := lcd.get_ts($D1)     '$D1 keeps off interupt and collects y position
-      ty40 := lcd.get_ts($D0)    'D0 turns interupt back on after calibration point ty40
-
-      'term.fstr4(string("X %d Y %d int %d %s"),tx40,ty40,int,@cr)
-      lcd.clearscreen()
-      drawstring(100,160, string("CALIBRATE BOTTOM RIGHT"))
-      lcd.SetColRow(280,200)
-      lcd.DrawChar8x8($78)  'draw bottom right calibration X
-
-      lcd.wait_for_untouch()           'wait until not touched
-      lcd.wait_for_touch()             'wait until touched
-
-      tx := lcd.get_ts($91)
-      tx280 := lcd.get_ts($91)       'calibration point tx280
-      ty := lcd.get_ts($D1)
-      ty200 := lcd.get_ts($D0)        'calibration point ty200
-
-      'term.fstr4(string("X %d Y %d int %d %s"),tx280,ty200,spotx,@cr)
-
-      lcd.clearscreen()
-      drawstring(100,160, string("TOUCH DISPLAY TO MAKE X"))
-      lcd.SetWindow(240,20,280,60)
-      lcd.FillWindow(white)
-      lcd.setBGcolor(white)
-      lcd.setFGcolor(black)
-      drawstring(245,36, string("CLOCK"))
-      lcd.setBGcolor(black)
-      lcd.setFGcolor(green)
-
-  clock_button := false
-
-  repeat until clock_button
-
-    lcd.wait_for_untouch()           'wait until not touched
-    lcd.wait_for_touch()             'wait until touched
-
-    tx := lcd.get_ts($91)
-    tx := lcd.get_ts($91)
-    ty := lcd.get_ts($D1)
-    ty := lcd.get_ts($D0)
-
-    spotx := 280-(((tx-tx280)*240)/(tx40-tx280)) 'the 240 is pixels in x direction between calibration marks
-    spoty := 200-(((ty-ty200)*160)/(ty40-ty200)) 'the 160 is pixels in y direction between calibration marks
-
-    if((spotx > 240) and (spotx < 300) and (spoty > 20) and (spoty < 60))
-      clock_button := true
-
-    if not clock_button
-      lcd.SetColRow(spotx,spoty)
-      lcd.DrawChar8x8($78)
-
-  'term.fstr4(string("X %d Y %d int %d %s"),spotx,spoty,spotx,@cr)
-
+  lcd.clearScreen()
   main_roundclock()
 
 '---------------------------end main-----------------------------------------------------
 
-PRI drawString(col,row, str) | i
-  lcd.setColRow(col, row)
-  repeat i from 0 to 25                                 ' 6*8 font 96 char set
-    if byte[str][i] == 0
-      quit
-    lcd.DrawChar6x8(byte[str][i])
 
-PRI drawLEDs(ys, v) | x, y, z, i
-
-  repeat i from 0 to 7
-    x := 46 + (i * 6)
-    if i > 3
-      x += 6
-    lcd.setWindow(x+1, ys+1, x+4, ys+6)
-    if (v >> (7-i)) & 1 == 1
-      lcd.fillWindow(red)
-    else
-      lcd.fillWindow(green)
-  lcd.setColRow(114, ys)
-  lcd.setFGcolor(yellow)
-  z := (v >> 4) | $30
-  if z > $39
-    z += 7
-  lcd.drawChar6x8(z)
-  z := (v & $F) | $30
-  if z > $39
-    z += 7
-  lcd.drawChar6x8(z)
-
-PRI drawStateLEDs(ys, v) | x, y, z, i
-
-  repeat i from 0 to 5
-    x := 58 + (i * 6)
-    if i > 3
-      x += 6
-    lcd.setWindow(x+1, ys+1, x+4, ys+6)
-    if (v >> (5-i)) & 1 == 1
-      lcd.fillWindow(red)
-    else
-      lcd.fillWindow(green)
-  lcd.setColRow(120, ys)
-  lcd.setFGcolor(red)
-  case v
-    1 : z := $30
-    2 : z := $31
-    4 : z := $32
-    8 : z := $33
-    16: z := $34
-    32: z := $35
-  lcd.drawChar6x8(z)
-
-PRI drawSomeChars() | i
-' Draw some chars ($20..$7F)
-
+PRI drawSomeText() | i
+' Draw some text with 6x8 and 8x8 fonts ($20..$7F)
   lcd.clearScreen()
-  lcd.setFGcolor(green)
-  lcd.setBGcolor(black)
 
+  lcd.setFGcolor(lcd.green)
+  lcd.setBGcolor(lcd.black)
+  lcd.SetColRow(0, height/3)                            ' 1/3rd of screen
   repeat i from $20 to $7F                              ' 6*8 font 96 char set
     lcd.DrawChar6x8(i)
-
-  lcd.SetColRow(0, height/2)                            ' 2nd half of screen
-
+  lcd.SetColRow(0, height*2/3)                          ' 2/3rd of screen
   repeat i from $20 to $7F                              ' 8*8 font 96 char set
     lcd.DrawChar8x8(i)
 
+PRI drawSomeIcons()
+  lcd.clearScreen()
+  lcd.setFGcolor(lcd.yellow)
+  lcd.setBGcolor(lcd.black)
+  lcd.drawString(0, 32, string("16x16 and 32x32 pixel Icon Test"))
+  lcd.setFGcolor(lcd.red)
+  lcd.SetColRow(0, 64)
+  lcd.DrawIcon(@heart, 16, 16)
+  lcd.setFGcolor(lcd.white)
+  lcd.SetColRow(32, 64)
+  lcd.DrawIcon(@smiley, 32, 32)
+  lcd.setFGcolor(lcd.grey)
+  lcd.SetColRow(80, 64)
+  lcd.DrawIcon(@wrench, 16, 16)
+
 PRI drawSomeLines()
 ' Draw some lines
-
-  lcd.setBGcolor(black)
   lcd.clearScreen()
+  lcd.setBGcolor(lcd.black)
 
-  drawLine(0, 0, width-1, height-1, blue)
-  drawLine(0, height-1, width-1, 0, blue)
-  drawLine(0, height/2-1, width-1, height/2-1, yellow)
-  drawLine(width/2-1, 0, width/2-1, height-1, yellow)
-  drawLine(width/4-1, 0, width-width/4-1, height-1, red)
-  drawLine(width/4-1, height-1, width-width/4-1, 0, red)
+  lcd.drawLine(0, 0, width-1, height-1, lcd.blue)
+  lcd.drawLine(0, height-1, width-1, 0, lcd.blue)
+  lcd.drawLine(0, height/2-1, width-1, height/2-1, lcd.yellow)
+  lcd.drawLine(width/2-1, 0, width/2-1, height-1, lcd.yellow)
+  lcd.drawLine(width/4-1, 0, width-width/4-1, height-1, lcd.red)
+  lcd.drawLine(width/4-1, height-1, width-width/4-1, 0, lcd.red)
 
-PRI drawSomeBoxes() | i, xs, ys, xe, ye, z
+
+PRI drawSomeBoxes() | i, xs, ys, xe, ye, xc, yc, xz, yz
 ' Draw some diagonal boxes
-
   lcd.clearScreen()
 
-  z  := 40
-  xs := 0
-  ys := 0
-  xe := z
-  ye := z
-  repeat i from 0 to 7
-    lcd.SetWindow(xs,ys,xe,ye)
-    lcd.FillWindow(colorlist[i])
-    xs += z
-    ys += z
-    xe += z
-    ye += z
+' simple calcs first
+  xc := width  / 2              ' screen center
+  yc := height / 2
+  xz := width  / 16             ' screen in 16 sections
+  yz := height / 16
 
-  z  := 40
-  xs := 0
-  ys := height-z
-  xe := z
-  ye := height-1
+' note the first 4 boxes will be in the center and over each other but it makes the code simpler
+' center box is double height and double width
   repeat i from 0 to 7
+    ' box next upper left
+    xs := xc - xz - (xz * i)
+    ys := yc - yz - (yz * i)
+    xe := xs + xz
+    ye := ys + yz
     lcd.SetWindow(xs,ys,xe,ye)
     lcd.FillWindow(colorlist[i])
-    xs += z
-    ys -= z
-    xe += z
-    ye -= z
+    ' box lower left
+    ys := yc + (yz * i)
+    ye := ys + yz
+    lcd.SetWindow(xs,ys,xe,ye)
+    lcd.FillWindow(colorlist[i])
+    ' box lower right
+    xs := xc + (xz * i)
+    xe := xs + xz
+    lcd.SetWindow(xs,ys,xe,ye)
+    lcd.FillWindow(colorlist[i])
+    ' box upper right
+    ys := yc - yz - (yz * i)
+    ye := ys + yz
+    lcd.SetWindow(xs,ys,xe,ye)
+    lcd.FillWindow(colorlist[i])
+    waitms(100)                                          ' wait
+
 
 PRI drawSomeCircles() | i, z, dia
 ' Draw some circles
-
   lcd.clearScreen()
 
   z := height/2/8
   repeat i from 0 to 7
     dia := z + (z * i)
-    drawCircle(width/2, height/2, dia, colorlist[i])
+    lcd.drawCircle(width/2, height/2, dia, colorlist[i])
+    waitms(100)                                          ' wait
 
-''+-----------------------------------------------------+
-''| High Level Drivers                                  |
-''+-----------------------------------------------------+
 
-PRI drawLine(xs, ys, xe, ye, rgb) | i, x, y
-' Draw Line - start co-ords, end co-ords, color
-  'plot incrementing x axis
-  repeat i from 0 to xe-xs
-    y := (ye-ys)*i/(xe-xs)
-    drawPixel(xs+i, ys+y, rgb)
-  'plot incrementing y axis
-  repeat i from 0 to ye-ys
-    x := (xe-xs)*i/(ye-ys)
-    drawPixel(xs+x, ys+i, rgb)
+PRI drawSomeRectangles() | i, xs, ys, xe, ye, xc, yc, xz, yz
+' Draw some diagonal boxes
+  lcd.clearScreen()
 
-PRI drawCircle(xc, yc, dia, rgb) | x, y
-' Draw Circle d^2 = x^2 + y^2; y = SQRT(d^2 - x^2) (Pythagoras theorum)
-  repeat x from 0 to dia
-    y := SQRT((dia*dia) - (x*x))
-    'plot 4 quadrants for incrementing x axis
-    drawPixel(xc+x, yc+y, rgb)
-    drawPixel(xc-x, yc+y, rgb)
-    drawPixel(xc+x, yc-y, rgb)
-    drawPixel(xc-x, yc-y, rgb)
-    'plot 4 quadrants for incrementing y axis (fills in more dots on circle)
-    drawPixel(xc+y, yc+x, rgb)
-    drawPixel(xc-y, yc+x, rgb)
-    drawPixel(xc+y, yc-x, rgb)
-    drawPixel(xc-y, yc-x, rgb)
+' simple calcs first
+  xc := width  / 2              ' screen center
+  yc := height / 2
+  xz := width  / 16             ' screen in 16 sections
+  yz := height / 16
 
-PRI drawPixel(x, y, rgb) | i
-' Draw 1 pixel
-  lcd.setWindow(x, y, x, y)                             ' 1 pixel
-  lcd.fillWindow(rgb)
+' center box is double height and double width
+  repeat i from 0 to 7
+    ' box next upper left
+    xs := xc - xz - (xz * i) + 1
+    ys := yc - yz - (yz * i) + 1
+    xe := xc + xz + (xz * i) - 1
+    ye := yc + yz + (yz * i) - 1
+    lcd.drawRectangle(xs,ys,xe,ye,colorlist[i])
+    waitms(100)                                          ' wait
 
-PRI fillRectangle(xs, ys, xe, ye, rgb)
-  lcd.setWindow(xs, ys, xe, ye)
-  lcd.fillWindow(rgb)
 
 ''+-----------------------------------------------------+
 ''| Special Functions...                                |
@@ -386,22 +313,24 @@ PRI fillRectangle(xs, ys, xe, ye, rgb)
 PRI main_roundclock() | h, hprev, m, mprev, s, sprev, tick, hx, hz, x
 ' Round Clock
 
-  lcd.setFGcolor(fgd)
   lcd.setBGcolor(bgd)
-'  lcd.clearScreen()
 
 ' Draw Clock Face
-  drawCircle(_CX, _CY, _CD/2, fgd)
+  lcd.drawCircle(_CX, _CY, _CD/2, fgc)
+  lcd.setFGcolor(fgd)
   lcd.setColRow( 56,   8)
   lcd.DrawChar6x8("1")
+  lcd.setColRow( 62,   8)
   lcd.DrawChar6x8("2")
   lcd.setColRow( 31,  16)
   lcd.DrawChar6x8("1")
+  lcd.setColRow( 37,  16)
   lcd.DrawChar6x8("1")
   lcd.setColRow( 89,  16)
   lcd.DrawChar6x8("1")
   lcd.setColRow( 15,  36)
   lcd.DrawChar6x8("1")
+  lcd.setColRow( 21,  36)
   lcd.DrawChar6x8("0")
   lcd.setColRow(106,  36)
   lcd.DrawChar6x8("2")
@@ -423,18 +352,19 @@ PRI main_roundclock() | h, hprev, m, mprev, s, sprev, tick, hx, hz, x
   tick := GETCT()
 
 ' Draw the date                 ' date incrementing left as an exercise
+  lcd.setFGcolor(fgt)
   lcd.SetWindow(92,0,0,0)                               ' only need to set x,y
   lcd.DrawChar6x8("0")
-  lcd.DrawChar6x8("7")
+  lcd.DrawChar6x8("9")
   lcd.DrawChar6x8(" ")
-  lcd.DrawChar6x8("N")
-  lcd.DrawChar6x8("O")
-  lcd.DrawChar6x8("V")
+  lcd.DrawChar6x8("M")
+  lcd.DrawChar6x8("A")
+  lcd.DrawChar6x8("R")
   lcd.SetWindow(104,9,0,0)                              ' next line +1 pixel
   lcd.DrawChar6x8("2")
   lcd.DrawChar6x8("0")
   lcd.DrawChar6x8("2")
-  lcd.DrawChar6x8("0")
+  lcd.DrawChar6x8("1")
 
 ' Draw Clock Hands
   hprev~
@@ -443,24 +373,24 @@ PRI main_roundclock() | h, hprev, m, mprev, s, sprev, tick, hx, hz, x
   repeat
     repeat h from 0 to 11
       hx := h*5                                                                   ' hx= 0..59 for hour hand angle
-      drawLine(_CX, _CY, byte[@HH00][hprev*2],  byte[@HH00][hprev*2+1],  bgd)     ' remove prev hour hand
-      drawLine(_CX, _CY, byte[@HH00][hx*2],     byte[@HH00][hx*2+1],     bgd)     ' show hour hand
+      lcd.drawLine(_CX, _CY, byte[@HH00][hprev*2],  byte[@HH00][hprev*2+1],  bgd)     ' remove prev hour hand
+      lcd.drawLine(_CX, _CY, byte[@HH00][hx*2],     byte[@HH00][hx*2+1],     bgd)     ' show hour hand
       hprev := hx
       repeat m from 0 to 59
-        drawLine(_CX, _CY, byte[@MH00][mprev*2], byte[@MH00][mprev*2+1], bgd)     ' remove prev minute hand
-        drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)     ' show minute hand
+        lcd.drawLine(_CX, _CY, byte[@MH00][mprev*2], byte[@MH00][mprev*2+1], bgd)     ' remove prev minute hand
+        lcd.drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)     ' show minute hand
         case m
           12,24,36,48:                                                            '\ hx is +0/1/2/3/4 offset...
             hx++                                                                  '| ...for hour hand to...
-            drawLine(_CX, _CY, byte[@HH00][hprev*2], byte[@HH00][hprev*2+1], bgd) '| ...advance every...
-            drawLine(_CX, _CY, byte[@HH00][hx*2], byte[@HH00][hx*2+1], fgh)       '| ...12 minutes...
+            lcd.drawLine(_CX, _CY, byte[@HH00][hprev*2], byte[@HH00][hprev*2+1], bgd) '| ...advance every...
+            lcd.drawLine(_CX, _CY, byte[@HH00][hx*2], byte[@HH00][hx*2+1], fgh)       '| ...12 minutes...
             hprev := hx                                                           '/ ...
         mprev := m
         repeat s from 0 to 59
-          drawLine(_CX, _CY, byte[@SH00][sprev*2], byte[@SH00][sprev*2+1], bgd)   ' remove prev second hand
-          drawLine(_CX, _CY, byte[@SH00][s*2],     byte[@SH00][s*2+1],     fgs)   ' show second hand
-          drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)   ' show minute hand
-          drawLine(_CX, _CY, byte[@HH00][hx*2],    byte[@HH00][hx*2+1],    fgh)   ' show hour hand
+          lcd.drawLine(_CX, _CY, byte[@SH00][sprev*2], byte[@SH00][sprev*2+1], bgd)   ' remove prev second hand
+          lcd.drawLine(_CX, _CY, byte[@SH00][s*2],     byte[@SH00][s*2+1],     fgs)   ' show second hand
+          lcd.drawLine(_CX, _CY, byte[@MH00][m*2],     byte[@MH00][m*2+1],     fgm)   ' show minute hand
+          lcd.drawLine(_CX, _CY, byte[@HH00][hx*2],    byte[@HH00][hx*2+1],    fgh)   ' show hour hand
           sprev := s
           lcd.SetWindow(0,0,0,0)
           if h<10
@@ -614,6 +544,7 @@ MH00    byte  _CX + ((_CM * Z00) >> 10), _CY - ((_CM * Z15) >> 10) '00
         byte  _CX - ((_CM * Z02) >> 10), _CY - ((_CM * Z13) >> 10)
         byte  _CX - ((_CM * Z01) >> 10), _CY - ((_CM * Z14) >> 10)
 
+
 ' Hands (hours) x & y co-ords
 HH00    byte  _CX + ((_CH * Z00) >> 10), _CY - ((_CH * Z15) >> 10) '00
         byte  _CX + ((_CH * Z01) >> 10), _CY - ((_CH * Z14) >> 10) '01
@@ -678,6 +609,77 @@ HH00    byte  _CX + ((_CH * Z00) >> 10), _CY - ((_CH * Z15) >> 10) '00
         byte  _CX - ((_CH * Z03) >> 10), _CY - ((_CH * Z12) >> 10)
         byte  _CX - ((_CH * Z02) >> 10), _CY - ((_CH * Z13) >> 10)
         byte  _CX - ((_CH * Z01) >> 10), _CY - ((_CH * Z14) >> 10)
+
+        alignl
+heart
+        word %0000000000000000
+        word %0000000000000000
+        word %0001110000111000
+        word %0011111111111100
+        word %0111111111111110
+        word %0111111111111110
+        word %0111111111111110
+        word %0011111111111100
+        word %0011111111111100
+        word %0001111111111000
+        word %0001111111111000
+        word %0000111111110000
+        word %0000011111100000
+        word %0000001111000000
+        word %0000000110000000
+        word %0000000000000000
+
+smiley
+        word %0000000000000000,%0000000000000000
+        word %0000000000000000,%0000000000000000
+        word %0000000000001111,%1111110000000000
+        word %0000000000001111,%1111110000000000
+        word %0000111100111100,%0000001100000000
+        word %0000111100111100,%0000001100000000
+        word %0011000011000011,%0000000011000000
+        word %0011000011000011,%0000000011000000
+        word %0011110011110011,%0000000011000000
+        word %0011110011110011,%0000000011000000
+        word %0011000011000011,%0000000000110000
+        word %0011000011000011,%0000000000110000
+        word %0011111111111100,%0000000000110000
+        word %0011111111111100,%0000000000110000
+        word %1100000000000000,%0000000000110000
+        word %1100000000000000,%0000000000110000
+        word %1100000000000000,%0000000000001100
+        word %1100000000000000,%0000000000001100
+        word %0011111111000000,%0000000000001100
+        word %0011111111000000,%0000000000001100
+        word %0000110000000000,%0011000000001100
+        word %0000110000000000,%0011000000001100
+        word %0011000000000011,%1100000000001100
+        word %0011000000000011,%1100000000001100
+        word %1100111111111100,%0000000000001100
+        word %1100111111111100,%0000000000001100
+        word %1100000000000000,%0000000000110000
+        word %1100000000000000,%0000000000110000
+        word %0011111111111111,%1111111111000000
+        word %0011111111111111,%1111111111000000
+        word %0000000000000000,%0000000000000000
+        word %0000000000000000,%0000000000000000
+
+wrench
+        word %0000000000000000
+        word %0000011100000000
+        word %0000111100000000
+        word %0001111000000111
+        word %0001111100001111
+        word %0001111111111111
+        word %0001111111111110
+        word %0000111111111100
+        word %0000111110000000
+        word %0001111100000000
+        word %0001111100000000
+        word %0011111000000000
+        word %0011111000000000
+        word %0111110000000000
+        word %0111110000000000
+        word %0011000000000000
 
 dat
 {{
