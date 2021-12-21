@@ -9,16 +9,26 @@
 ' ON LE25V40
 ' Adesto ST25SF041
 
-' assumption: flash supports sysclk/4 (sysclk < 200MHz for Adesto, unlimited for Winbond)
 ' author: Nicolas Benezan (nicolas@benezan.de, forum: ManAtWork)
 
 ' bene 07-May-2020 Spi_WrLong() fixed (little endian)
 ' bene 09-Jul-2020 Spi_RdByte() fixed, waitx
+' bene 14-Oct-2021 smart pin synchronous serial mode instead of bit banging
+
+' It is assumed that the flash chip supports at least 50MHz SPI clock.
+' However, the actual SPI clock is sysclock/8 max. because the delay of the 
+' smart pin IO flipflops causes trouble at sysclock/6 and higher.
+' That would require special case handling.
+
 
 CON     spi_cs = 61
         spi_ck = 60
         spi_di = 59 ' P2 -> flash
         spi_do = 58 ' flash -> P2
+
+        modeCLK = P_TRANSITION + P_OE + P_INVERT_OUTPUT     ' SPI_CK
+        modeTXD = P_SYNC_TX + P_OE |((spi_ck - spi_di) & %111)<<24 ' + P_SYNC_IO + P_FILT0_AB
+        modeRXD = P_SYNC_RX |((spi_ck - spi_do) & %111)<<24
 
         Write_Enable = $06
         Erase_4k     = $20
@@ -28,6 +38,9 @@ CON     spi_cs = 61
         Read_Status  = $05
 
 PUB start() ' Dummy to avoid compiling as top
+  Spi_Init()
+  Spi_Cmd8 (Write_Enable)
+  pinh (spi_cs)
   repeat
 
 PUB Erase(flashAdr, size) | cmd
@@ -46,7 +59,7 @@ PUB WritePage(hubAdr, flashAdr)
   Spi_Cmd8(Write_Enable)
   Spi_Cmd32(Write_Page, flashAdr)
   repeat 64
-    Spi_WrLong (long[hubAdr])
+    Spi_Wr4Bytes (long[hubAdr])
     hubAdr+= 4
   Spi_Wait()
 
@@ -56,9 +69,7 @@ PUB Read (hubAdr, flashAdr, size)
   Spi_Cmd32 (Read_Data, flashAdr)
   repeat size
     byte[hubAdr++]:= Spi_RdByte ()
-  ORG
-    drvh        #spi_cs
-  END
+  pinh (spi_cs)
   
 PUB Verify(hubAdr, flashAdr, size) : ok
 ' compare HUBRAM to flash contents, true means match
@@ -67,58 +78,36 @@ PUB Verify(hubAdr, flashAdr, size) : ok
   Spi_Cmd32(Read_Data, flashAdr)
   repeat size
     ok&= byte[hubAdr++] == Spi_RdByte()
-
-  ORG
-    drvh        #spi_cs
-  END
-
+  pinh (spi_cs)
   return ok
 
-PRI Spi_Init()
+PRI Spi_Init() | div
+  div:= (clkfreq / 100_000_000) #> 4                   ' adjust smart pin base period to actual frequency
   ORG
-                drvh    #spi_cs                 'spi_cs high
-                fltl    #spi_ck                 'reset smart pin spi_ck
-                wrpin   #%01_00101_0,#spi_ck    'set spi_ck for transition output, starts out low
-                wxpin   #2,#spi_ck              'set timebase to 2 clocks per transition
-                drvl    #spi_ck                 'enable smart pin
-                drvl    #spi_di
+                fltl    #spi_di                        ' reset smart pins
+                fltl    #spi_do
+                wrpin   ##modeClk,#spi_ck              ' smart pin transition mode
+                wrpin   ##modeTXD,#spi_di              ' smart pin synchronous serial transmit
+                wrpin   ##modeRXD,#spi_do              ' smart pin synchronous serial receive
+                wxpin   div,#spi_ck                    ' clock transition base period
+                drvl    #spi_ck                        ' enable smart pin
   END
 
 PRI Spi_Cmd8(cmd)
 ' outputs 8 bits command, MSB first
   ORG
                 drvh    #spi_cs
-                shl     cmd,#24                 'shift command up
+                shl     cmd,#24                        ' shift command up
+                rev     cmd
                 drvl    #spi_cs
+                wxpin   #$27,#spi_di                   ' 8 bits, start/stop mode
+                wypin   cmd,#spi_di
+                drvl    #spi_di                        ' enable TX smart pin
+                wypin   #16,#spi_ck                    ' start CLK sequence (16 transitions = 8 pulses)
+                nop
+.waitRdy        testp   #spi_ck wz                     ' IN=1 if smart pin ready
+        if_nz   jmp     #.waitRdy                      ' wait until last CLK sequence finished
   END
-
-  Spi_WrByte(cmd)
-
-  ORG
-                drvl    #spi_di
-  END
-
-PRI Spi_WrByte(cmd) : result
-  ORG
-                shl     cmd,#1 wc
-                outc    #spi_di
-                wypin   #16,#spi_ck             'start 16 clock transitions
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-                shl     cmd,#1 wc
-                outc    #spi_di
-  END
-  return cmd
 
 PRI Spi_Cmd32(cmd, adr)
 ' outputs 4 bytes: 8 bit command + 24 bits adr
@@ -128,61 +117,51 @@ PRI Spi_Cmd32(cmd, adr)
                 or      cmd,adr                 'or in address
                 drvl    #spi_cs
   END
+  Spi_WrLong(cmd)
 
-  repeat 4
-    cmd:= Spi_WrByte(cmd)
-
+PRI Spi_WrLong(data)
+' outputs 32 bits (MSB first) while spi_cs stays low
   ORG
-                drvl    #spi_di
+                rev     data
+                wxpin   #$3f,#spi_di                   ' 32 bits, start/stop mode
+                wypin   data,#spi_di
+                drvl    #spi_di                        ' enable TX smart pin
+                wypin   #64,#spi_ck                    ' start CLK sequence (64 transitions = 32 pulses)
+                nop
+.waitRdy        testp   #spi_ck wz                     ' IN=1 if smart pin ready
+        if_nz   jmp     #.waitRdy                      ' wait until last CLK sequence finished
   END
 
-PRI Spi_WrLong(l)
-' outputs 32 bits while spi_cs stays low
-  Spi_WrByte(l<<24)
-  Spi_WrByte(l<<16)
-  Spi_WrByte(l<<8)
-  Spi_WrByte(l)
-
-PRI Spi_RdByte (): b
+PRI Spi_Wr4Bytes(data)
+' same as WrLong() but LSB first (little endian)
+  ORG
+                movbyts data,#%00_01_10_11
+  END
+  Spi_WrLong(data)
+  
+PRI Spi_RdByte (): data
 ' read 8 bits
   ORG
-        wypin   #16,#spi_ck             'start 16 clock transitions
-        mov     b,#0
-        waitx   #4                      ' 3..6 works for me
-        'nop                            'read later to compensate input/output delay
-        'nop                            ' 2 or 3 nops works, 1+4 nops don't
-        'nop
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
-        testp   #spi_do wc
-        rcl     b,#1
+                wxpin   #$27,#spi_do                   ' 8 bits, with hold time
+                drvl    #spi_do                        ' enable RX smart pin
+                fltl    #spi_di
+                'waitx   divCLK                        ' setup time before first rising edge
+                wypin   #16,#spi_ck                    ' start 16 clock transitions
+.waitDone       testp   #spi_do   wz                   ' IN=1 if smart pin ready
+        if_nz   jmp     #.waitDone                     ' wait until CLK sequence finished
+                rdpin   data,#spi_do
+                rev     data
+                zerox   data,#7                        ' limit to 8 bits
   END
-  return b 
 
 
 PRI Spi_Wait() | st
-
 ' waits until busy flag == 0, drives spi_cs high when done
   repeat
     Spi_Cmd8(Read_Status)
     st:= Spi_RdByte()
   until st & $01 == 0
-  
-  ORG
-    drvh        #spi_cs
-  END
+  pinh (spi_cs)
 
 {
 +------------------------------------------------------------------------------------------------------------------------------+
