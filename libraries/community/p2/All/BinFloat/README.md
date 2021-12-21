@@ -5,7 +5,8 @@ By: Eric R. Smith
 
 Language: Spin2
 
-Created: 31-MAR-2021
+Created:  31-MAR-2021
+Modified: 19-DEC-2021
 
 Category: math
 
@@ -16,22 +17,22 @@ These are functions for performing floating point math in Spin2. To use, include
 OBJ
   flt : "BinFloat"
 
-' silly example that calculates (x + y) / 2.0
+' silly example that calculates (x +. y) /. 2.0
 PUB calcAverage(x, y) : r
-  r := flt.FDiv( flt.FAdd(x, y) , 2.0 )
+  r := flt.F_Div( flt.F_Add(x, y) , 2.0 )
 ```
 
 The routines available are:
 
 Basic Math:
 
-`FNeg(x)`:    return negative of floating point number `x`
-`FAbs(x)`:    return absolute value of floating point number `x`
-`FAdd(x, y)`: return `x + y` (floating point)
-`FSub(x, y)`: return `x - y`
-`FMul(x, y)`: return `x * y`
-`FDiv(x, y)`: return `x / y`
-`FSqrt(x)`:   return floating point square root of float `x`
+`F_Neg(x)`:    return negative of floating point number `x`  (or use -. operator)
+`F_Abs(x)`:    return absolute value of floating point number `x` 
+`F_Add(x, y)`: return `x + y` (floating point) (or use +. operator)
+`F_Sub(x, y)`: return `x - y`                  (or use -. operator)
+`F_Mul(x, y)`: return `x * y`                  (or use *. operator)
+`F_Div(x, y)`: return `x / y`                  (or use /. operator)
+`F_Sqrt(x)`:   return floating point square root of float `x`
 
 
 Trignometry:
@@ -42,31 +43,31 @@ These functions all can operate in degrees, radians, or with angles specified as
 `SetRadians()`:  specifies that angles are in radians
 `SetFraction()`: specifies that angles are in fractions of a circle
 
-`FSin(angle)`:  returns sine of `angle`
-`FCos(angle)`:  returns cosine of `angle`
-`FTan(angle)`:  returns tangent of `angle`
-`FAsin(x)`:     returns inverse sine (angle such that `FSin(angle)` is `x`)
-`FACos(x)`:     returns inverse cosine
-`FATan(x)`:     returns inverse tangent
-`FATan2(x, y)`: returns angle that the vector `(x,y)` makes with the x axis. *Note*: the order of parameters is different from the similar C function!
+`F_Sin(angle)`:  returns sine of `angle`
+`F_Cos(angle)`:  returns cosine of `angle`
+`F_Tan(angle)`:  returns tangent of `angle`
+`F_Asin(x)`:     returns inverse sine (angle such that `FSin(angle)` is `x`)
+`F_ACos(x)`:     returns inverse cosine
+`F_ATan(x)`:     returns inverse tangent
+`F_ATan2(x, y)`: returns angle that the vector `(x,y)` makes with the x axis. *Note*: the order of parameters is different from the similar C function!
 
 Exponentials and logs:
 
-`FLog2(x)`    : calculates log base 2 of x
-`FLog10(x)`   : calculates log base 10 of x
-`FLog(x)`     : calculates log base e (natural logarithm) of x
-`FExp2(x)`    : calculates 2^x
-`FExp10(x)`   : calculates 10^x
-`FExp(x)`     : calculates e^x
-`FPow(x, y)`  : calculates x^y, where both x and y are floats
-`FPowInt(x, n)`: calculates x^n, where x is a float and n is a signed integer
+`F_Log2(x)`    : calculates log base 2 of x
+`F_Log10(x)`   : calculates log base 10 of x
+`F_Log(x)`     : calculates log base e (natural logarithm) of x
+`F_Exp2(x)`    : calculates 2^x
+`F_Exp10(x)`   : calculates 10^x
+`F_Exp(x)`     : calculates e^x
+`F_Pow(x, y)`  : calculates x^y, where both x and y are floats
+`F_PowInt(x, n)`: calculates x^n, where x is a float and n is a signed integer
 
 Conversions to/from integer:
 
 `FromInt(n)`:   returns floating point number closest to the signed integer `n`
 `FromUInt(n)`:  returns floating point number closest to the unsigned integer `n`
-`FTrunc(x)`:    returns signed integer truncated to float `x`. If `x` is too large/small, returns `$7fff_ffff` or `$8000_0000`
-`FRound(x)`:    returns signed integer closest to float `x`, with rounding. If `x` is too large/small, returns `$7fff_ffff` or `$8000_0000`
+`F_Trunc(x)`:    returns signed integer truncated to float `x`. If `x` is too large/small, returns `$7fff_ffff` or `$8000_0000`
+`F_Round(x)`:    returns signed integer closest to float `x`, with rounding. If `x` is too large/small, returns `$7fff_ffff` or `$8000_0000`
 
 Conversion from string:
 

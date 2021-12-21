@@ -23,13 +23,13 @@ PUB main() | i, x, y, sum
   sum := 0.0  ' initial value
   x := 1.0
   repeat i from 1 to terms
-    y := flt.FDiv(1.0, x)
+    y := flt.F_Div(1.0, x)
     if (i & 1) == 0
-      y := flt.FNeg(y)
-    sum := flt.FAdd(sum, y)
-    x := flt.FAdd(x, 2.0)
+      y := flt.F_Neg(y)
+    sum := flt.F_Add(sum, y)
+    x := flt.F_Add(x, 2.0)
 
   ' final result is 4*sum
-  sum := flt.FMul(4.0, sum)
+  sum := flt.F_Mul(4.0, sum)
   
   send("final result: ", flt.SendFloat(sum), fmt.nl())

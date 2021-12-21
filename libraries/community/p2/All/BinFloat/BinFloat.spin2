@@ -73,7 +73,7 @@
      magnitude of the float being printed
      
    FromString(stringptr) :
-     Reads a float from a string. The string may begin with any
+     Reads a decimal float from a string. The string may begin with any
      number of "-" characters or else a "+" character. It should then
      have digits 0-9, then an optional "." followed by more digits
      0-9, then an optional "E" or "e" followed by an exponent (which
@@ -83,19 +83,19 @@
      signed infinity. If we see a letter "N" we return NaN
      
    Mathematical operations:
-     FNeg(x)    : negates decimal floating point number `x`
-     FAbs(x)    : returns absolute value of floating point value `x`
-     FAdd(x, y) : returns x + y
-     FSub(x, y) : returns x - y
-     FMul(x, y) : returns x * y
-     FDiv(x, y) : returns x / y
+     F_Neg(x)    : negates decimal floating point number `x`
+     F_Abs(x)    : returns absolute value of floating point value `x`
+     F_Add(x, y) : returns x + y
+     F_Sub(x, y) : returns x - y
+     F_Mul(x, y) : returns x * y
+     F_Div(x, y) : returns x / y
 
-     FSqrt(x)   : returns square root of x
+     F_Sqrt(x)   : returns square root of x
 
-     FCmp(x, y) : compare x and y, return -1, 0, +1, or $8000_0000 based on
+     F_Cmp(x, y) : compare x and y, return -1, 0, +1, or $8000_0000 based on
                   x < y, x == y, x > y, or x,y unordered respectively
 
-     Ffrac(x)   : returns fractional part of x
+     F_frac(x)   : returns fractional part of x
      
    Trig functions:
      The angle to use is specified in one of three ways:
@@ -104,30 +104,30 @@
        SetFraction(): specifies that angles are in fractions of a circle
      The default state is to use fractions of a circle
 
-     FSin(angle) : calculate sin(angle)
-     FCos(angle) : calculate cos(angle)
-     FTan(angle) : calculate tan(angle)
-     FASin(x)    : find inverse sin (angle such that FSin(angle) = x)
-     FACos(x)    : find inverse cosine
-     FATan(x)    : find inverse tangent
-     FATan2(x, y): find angle that the vector (x,y) makes with the X axis
+     F_Sin(angle) : calculate sin(angle)
+     F_Cos(angle) : calculate cos(angle)
+     F_Tan(angle) : calculate tan(angle)
+     F_ASin(x)    : find inverse sin (angle such that FSin(angle) = x)
+     F_ACos(x)    : find inverse cosine
+     F_ATan(x)    : find inverse tangent
+     F_ATan2(x, y): find angle that the vector (x,y) makes with the X axis
      
    Conversions to/from integer
      
      FromInt(n)  : converts signed integer to decimal float
      FromUInt(n) : converts unsigned integer to decimal float
-     FTrunc(x)   : converts float to signed integer, with truncation
-     FRound(x)   : converts float to signed integer, with rounding
+     F_Trunc(x)   : converts decimal float to signed integer, with truncation
+     F_Round(x)   : converts decimal float to signed integer, with rounding
 
    Exponentials and logs
 
-     FLog2(x)    : calculates log base 2 of x
-     FLog10(x)   : calculates log base 10 of x
-     FLog(x)     : calculates log base e (natural logarithm) of x
-     FExp2(x)    : calculates 2^x
-     FExp10(x)   : calculates 10^x
-     FExp(x)     : calculates e^x
-     FPow(x, y)  : calculates x^y
+     F_Log2(x)    : calculates log base 2 of x
+     F_Log10(x)   : calculates log base 10 of x
+     F_Log(x)     : calculates log base e (natural logarithm) of x
+     F_Exp2(x)    : calculates 2^x
+     F_Exp10(x)   : calculates 10^x
+     F_Exp(x)     : calculates e^x
+     F_Pow(x, y)  : calculates x^y
 }}
 
 CON
@@ -144,12 +144,12 @@ CON
   
   ' some special values
   NEG_ZERO = $8000_0000
-  INFINITY = MAX_EXP << EXP_SHIFT
-  NEG_INFINITY = NEG_ZERO | INFINITY
+  F_INF = MAX_EXP << EXP_SHIFT
+  F_NEG_INF = NEG_ZERO | F_INF
   ONE = (BASE==10) ? ((EXP_OFFSET << EXP_SHIFT) | MIN_SIG) : (EXP_OFFSET<<EXP_SHIFT)
   
   ' canonical value for Not A Number
-  NAN    = $7fff_ffff
+  F_NAN    = $7fff_ffff
 
   ' result for unordered comparison
   UNORDERED_CMP_RESULT = $8000_0000
@@ -256,7 +256,7 @@ PRI Pack(sign, exp, binval, sticky) : x | digit, exp_fixup, shift_sticky
     
   if exp >= MAX_EXP
     ' overflow, return appropriately signed infinity
-    return (sign<<31) | INFINITY
+    return (sign<<31) | F_INF
   elseif exp <= 0
     ' handle denormalized numbers
     --exp
@@ -319,9 +319,9 @@ PRI mul64(mult1, mult2) : hi, lo
   end
 
 {{
-  FAdd(a, b): calculate a + b
+  F_Add(a, b): calculate a + b
 }}
-PUB FAdd(a, b) : r | asign, aexp, bsign, bexp, sticky, shift
+PUB F_Add(a, b) : r | asign, aexp, bsign, bexp, sticky, shift
   asign, aexp, a := Unpack(a)
   bsign, bexp, b := Unpack(b)
 
@@ -336,10 +336,10 @@ PUB FAdd(a, b) : r | asign, aexp, bsign, bexp, sticky, shift
   if aexp == MAX_EXP
     if a <> 0
       ' a was NAN
-      return NAN
+      return F_NAN
     if bexp == MAX_EXP and asign <> bsign
       ' infinity - infinity
-      return NAN
+      return F_NAN
     ' return correctly signed infinity
     return Pack(asign, MAX_EXP, 0, 0)
   if b == 0
@@ -376,28 +376,28 @@ PUB FAdd(a, b) : r | asign, aexp, bsign, bexp, sticky, shift
 {{
   FSub(a, b): calculate a + b
 }}
-PUB FSub(a, b) : r
-  r := FAdd(a, FNeg(b))
+PUB F_Sub(a, b) : r
+  r := F_Add(a, F_Neg(b))
   
 {{
-  FNeg(x) : Negate x
+  F_Neg(x) : Negate x
 }}
 
-PUB FNeg(x) : r
+PUB F_Neg(x) : r
   r := x ^ $80000000
 
 {{
-  FAbs(x) : Find absolute value of x
+  F_Abs(x) : Find absolute value of x
 }}
 
-PUB FAbs(x) : r
+PUB F_Abs(x) : r
   r := x & $7fff_ffff
 
 
 {{
-  FMul(x, y) : Calculate x*y
+  F_Mul(x, y) : Calculate x*y
 }}
-PUB FMul(a, b) : r | asign, aexp, bsign, bexp, sticky
+PUB F_Mul(a, b) : r | asign, aexp, bsign, bexp, sticky
   asign, aexp, a := Unpack(a)
   bsign, bexp, b := Unpack(b)
 
@@ -407,20 +407,20 @@ PUB FMul(a, b) : r | asign, aexp, bsign, bexp, sticky
   ' check for various special cases
   if aexp == MAX_EXP
     if a <> 0  ' NaN
-      return NAN
+      return F_NAN
     else
       if (bexp == MAX_EXP)
         if b <> 0
-          return NAN   ' infinity * NaN is NaN
+          return F_NAN   ' infinity * NaN is NaN
       elseif b == 0
-          return NAN   ' infinity * 0 is NaN
+          return F_NAN   ' infinity * 0 is NaN
       ' otherwise return infinity
       return Pack(asign, MAX_EXP, 0, 0)
   if bexp == MAX_EXP
     if b <> 0
-      return NAN  ' anything * NaN == NaN
+      return F_NAN  ' anything * NaN == NaN
     if a == 0
-      return NAN   ' 0 * infinity is NaN
+      return F_NAN   ' 0 * infinity is NaN
       
     ' finite * infinity produces (appropriately signed) 0
     return Pack(asign, MAX_EXP, 0, 0)
@@ -439,9 +439,9 @@ PUB FMul(a, b) : r | asign, aexp, bsign, bexp, sticky
   return Pack(asign, aexp, r, sticky)
 
 {{
-  FDiv(a, b): calculate a / b
+  F_Div(a, b): calculate a / b
 }}
-PUB FDiv(a, b) : r | asign, aexp, bsign, bexp, sticky
+PUB F_Div(a, b) : r | asign, aexp, bsign, bexp, sticky
   asign, aexp, a := Unpack(a)
   bsign, bexp, b := Unpack(b)
   
@@ -451,20 +451,20 @@ PUB FDiv(a, b) : r | asign, aexp, bsign, bexp, sticky
   ' check for various special cases
   if aexp == MAX_EXP
     if a <> 0  ' NaN
-      return NAN
+      return F_NAN
     else
       if (bexp == MAX_EXP)
-        return NAN   ' infinity / infinity is NaN
+        return F_NAN   ' infinity / infinity is NaN
       ' otherwise return infinity
       return Pack(asign, MAX_EXP, 0, 0)
   if bexp == MAX_EXP
     if b <> 0
-      return NAN
+      return F_NAN
     ' finite / infinity produces (appropriately signed) 0
     return Pack(asign, 0, 0, 0)
   if a == 0
     if b == 0
-      return NAN ' 0 / 0 is Nan
+      return F_NAN ' 0 / 0 is Nan
     return Pack(asign, 0, 0, 0)  ' otherwise 0 / x is 0
   if b == 0
     return Pack(asign, MAX_EXP, 0, 0) ' x / 0 is infinity if x is finite
@@ -481,18 +481,18 @@ PUB FDiv(a, b) : r | asign, aexp, bsign, bexp, sticky
 {{
   FSqrt(x) : find square root of x
 }}
-PUB FSqrt(a) : r | asign, aexp, scale
+PUB F_Sqrt(a) : r | asign, aexp, scale
   asign, aexp, a := Unpack(a)
   ' check for negative numbers
   if asign
     if aexp == 0 and a == 0
       return NEG_ZERO  ' special case sqrt(-0) = -0
-    ' otherwise sqrt(-x) gives NAN
-    return NAN
+    ' otherwise sqrt(-x) gives NaN
+    return F_NAN
   if aexp == MAX_EXP
     if a <> 0
-      return NAN     ' sqrt(NaN) = NaN
-    return INFINITY  ' sqrt(inf) = inf
+      return F_NAN     ' sqrt(NaN) = NaN
+    return F_INF  ' sqrt(inf) = inf
 
   ' may be a denormalized number
   ' if so, scale it up so we get good
@@ -544,10 +544,10 @@ PUB FromInt(n) : r | sign, exp
   return Pack(sign, exp, n, 0)
 
 {{
-  FRound: Convert float to signed integer (rounded)
+  F_Round: Convert float to signed integer (rounded)
           returns $7fff_ffff or $8000_0000 for any overflow cases
 }}
-PUB FRound(a) : r | aexp, asign, scale, roundup, sticky
+PUB F_Round(a) : r | aexp, asign, scale, roundup, sticky
   asign, aexp, a := Unpack(a)
 
   ' check for 0
@@ -574,10 +574,10 @@ PUB FRound(a) : r | aexp, asign, scale, roundup, sticky
   return a
   
 {{
-  FTrunc: Convert float to signed integer (truncated
+  F_Trunc: Convert float to signed integer (truncated
           returns $7fff_ffff for overflow cases
 }}
-PUB FTrunc(a) : r | aexp, asign, scale
+PUB F_Trunc(a) : r | aexp, asign, scale
   asign, aexp, a := Unpack(a)
 
   ' check for 0
@@ -604,12 +604,12 @@ PUB FTrunc(a) : r | aexp, asign, scale
 {{
   Find fractional part of real number x
 }}
-PUB FFrac(x) : r | a, aexp, asign, scale
+PUB F_Frac(x) : r | a, aexp, asign, scale
   asign, aexp, a := Unpack(x)
 
   ' FFrac( NaN ) -> NaN
   if aexp == MAX_EXP and a <> 0
-    return NAN
+    return F_NAN
     
   aexp -= EXP_OFFSET          ' find "true" exponent
   if aexp < 0                 ' for powers < 0, whole thing is fraction
@@ -633,7 +633,7 @@ PUB FFrac(x) : r | a, aexp, asign, scale
   as a 0.32 bit fixed point number
 }}
 
-PUB FScale(x) : r
+PUB F_Scale(x) : r
   return do_FScale(x, 0)
   
 { internal function, actually does the work }
@@ -644,7 +644,7 @@ PRI do_FScale(x, extrashift) : r | a, aexp, asign, scale, scaleshift
 
   ' FFrac( NaN ) -> NaN
   if aexp == MAX_EXP
-    return NAN
+    return F_NAN
   if a == 0
     return 0
   aexp -= EXP_OFFSET
@@ -670,10 +670,10 @@ PRI do_FScale(x, extrashift) : r | a, aexp, asign, scale, scaleshift
     r := -r
 
 {{
-   FCmp: Comparison function, compares numbers x and y
+   F_Cmp: Comparison function, compares numbers x and y
    returns: -1 if x < y, 0 if x = y, +1 if x > y, and $8000_0000 if x or y is NaN
 }}
-PUB FCmp(a, b) : r
+PUB F_Cmp(a, b) : r
   ' special case: -0 == 0
   ' and everything else should compare to -0 as if it were 0
   if a == $8000_0000
@@ -682,10 +682,10 @@ PUB FCmp(a, b) : r
     b := 0
   ' special case: check for NaN
   ' NaN with a positive sign
-  if a > INFINITY or b > INFINITY
+  if a > F_INF or b > F_INF
     return UNORDERED_CMP_RESULT
   ' NaN with a negative sign
-  if a +> NEG_INFINITY or b +> NEG_INFINITY
+  if a +> F_NEG_INF or b +> F_NEG_INF
     return UNORDERED_CMP_RESULT
   ' OK, do the usual check here
   ' if both are positive, or one is positive and one negative,
@@ -723,21 +723,21 @@ PUB SetFraction()
 ' radians / degrees
 PRI TrigAngle(angle) : r
   if fullCircle
-    angle := FDiv(angle, fullCircle)
-  r := FScale(angle)
+    angle := F_Div(angle, fullCircle)
+  r := F_Scale(angle)
 
-PUB FSin(angle) : result | significand, sign, exp, tmp
-  if angle >= INFINITY
-    return NAN
-  if angle +>= NEG_INFINITY
-    return NAN
+PUB F_Sin(angle) : result | significand, sign, exp, tmp
+  if angle >= F_INF
+    return F_NAN
+  if angle +>= F_NEG_INF
+    return F_NAN
 
   ' special case small angles in the radian case
   ' (for degrees we punt)
   if fullCircle == TWOPI
     sign := angle>>31
     tmp := angle&$7fff_ffff
-    if tmp < $3380_0000  ' 2^-24
+    if tmp < $3c80_0000  ' 0.015625
       return angle
       
   angle := TrigAngle(angle)
@@ -756,11 +756,11 @@ PUB FSin(angle) : result | significand, sign, exp, tmp
     sign := 0
   return Pack(sign, exp, significand, 0)  
 
-PUB FCos(angle) : result | significand, sign, exp
-  if angle >= INFINITY
-    return NAN
-  if angle +>= NEG_INFINITY
-    return NAN
+PUB F_Cos(angle) : result | significand, sign, exp
+  if angle >= F_INF
+    return F_NAN
+  if angle +>= F_NEG_INF
+    return F_NAN
   angle := TrigAngle(angle)
   ' at this point angle is a fraction 0-$FFFF_FFFF of a full circle
   ' now calculate sin(angle) as a number between 0 and MIN_SIG*BASE^6
@@ -782,11 +782,11 @@ PUB FCos(angle) : result | significand, sign, exp
 ' for now simplify by just computing sin(x) / cos(x)
 '
 
-PUB FTan(angle) : r | sinval, cosval, sign, exp, sticky, tmp
-  if angle >= INFINITY
-    return NAN
-  if angle +>= NEG_INFINITY
-    return NAN
+PUB F_Tan(angle) : r | sinval, cosval, sign, exp, sticky, tmp
+  if angle >= F_INF
+    return F_NAN
+  if angle +>= F_NEG_INF
+    return F_NAN
 
   ' special case small angles in the radian case
   ' (for degrees we punt)
@@ -813,7 +813,7 @@ PUB FTan(angle) : r | sinval, cosval, sign, exp, sticky, tmp
   exp := -4 + EXP_OFFSET
   ' need to calculate sinval / cosval
   if cosval == 0
-    return (sign<<31) | INFINITY
+    return (sign<<31) | F_INF
     
   ' make sure sinval / cosval gets calculated to
   ' reasonable precision
@@ -829,10 +829,10 @@ CON
   TRIG_ONE = (1<<TRIG_SCALE)
   
 {{
-  FASin(x): find the angle a for which sin(a) = x
+  F_ASin(x): find the angle a for which sin(a) = x
 }}
 
-PUB FASin(y) : a | x, x2, len, angle, sign
+PUB F_ASin(y) : a | x, x2, len, angle, sign
   ' assuming a unit hypotenuse,
   ' figure out the x that goes with y to make
   ' a right angle triangle
@@ -845,7 +845,7 @@ PUB FASin(y) : a | x, x2, len, angle, sign
   if y < $3380_0000   ' 2^-24
     return y|(sign<<31)
   if y > $3f80_0000   ' must not be > 1.0
-    return NAN
+    return F_NAN
 
   y := do_FScale(y, 32-TRIG_SCALE)  ' produce 2.30 number instead of 0.32
   x2, _ := mymuldiv64(y, y, TRIG_ONE)  ' x2 = y^2
@@ -860,13 +860,13 @@ PUB FASin(y) : a | x, x2, len, angle, sign
     angle := -angle
   a := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
   if fullCircle
-    a := FMul(a, fullCircle)
+    a := F_Mul(a, fullCircle)
     
 {{
   FACos(x): find the angle a for which cos(a) = x
 }}
 
-PUB FACos(x) : a | y, y2, len, angle, sign
+PUB F_ACos(x) : a | y, y2, len, angle, sign
   ' assuming a unit hypotenuse,
   ' figure out the x that goes with y to make
   ' a right angle triangle
@@ -874,7 +874,7 @@ PUB FACos(x) : a | y, y2, len, angle, sign
   sign := 0
   x &= $7fff_ffff     ' cos(-x) = cos(x)
   if x > $3f80_0000   ' must not be > 1.0
-    return NAN
+    return F_NAN
     
   x := do_FScale(x, 32-TRIG_SCALE)  ' produce 2.30 number instead of 0.32
   y2, _ := mymuldiv64(x, x, TRIG_ONE)  ' y2 = x^2
@@ -889,17 +889,17 @@ PUB FACos(x) : a | y, y2, len, angle, sign
     angle := -angle
   a := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
   if fullCircle
-    a := FMul(a, fullCircle)
+    a := F_Mul(a, fullCircle)
     
 {{
-  FATan2(x, y): find the angle a that the point (x, y) makes with the x-axis
+  F_ATan2(x, y): find the angle a that the point (x, y) makes with the x-axis
 }}
 
-PUB FATan2(x, y) : angle | r, sign
+PUB F_ATan2(x, y) : angle | r, sign
   ' normalize x, y to be on the unit circle
-  r := FSqrt( Fadd( FMul(x, x), FMul(y, y) ) )
-  x := FDiv(x, r)
-  y := FDiv(y, r)
+  r := F_Sqrt( F_add( F_Mul(x, x), F_Mul(y, y) ) )
+  x := F_Div(x, r)
+  y := F_Div(y, r)
   
   ' now -1.0 <= x,y <= 1.0
   ' convert to 2.30 fixed point
@@ -915,15 +915,15 @@ PUB FATan2(x, y) : angle | r, sign
     angle := -angle
   angle := Pack(sign, EXP_OFFSET + (MAX_SIG_DIGITS-1) - 30, angle, 1)   ' still a work in progress!
   if fullCircle
-    angle := FMul(angle, fullCircle)
+    angle := F_Mul(angle, fullCircle)
 
-PUB FATan(y) : r
-  if y == INFINITY
-    return FATan2(0.0, 1.0)
-  elseif y == -INFINITY
-    return FATan2(0.0, -1.0)
+PUB F_ATan(y) : r
+  if y == F_INF
+    return F_ATan2(0.0, 1.0)
+  elseif y == -F_INF
+    return F_ATan2(0.0, -1.0)
     
-  return FATan2(1.0, y)
+  return F_ATan2(1.0, y)
   
 { --------------------------------------------------------------
    Conversion to/from decimal
@@ -953,7 +953,7 @@ PUB MkFloat(decval, exp10) : binfloat | digit, sticky, sign, decrem
     return sign<<31
   if exp10 > 38
     ' overflow
-    return (sign<<31)|INFINITY
+    return (sign<<31)|F_INF
   
   ' normalize decval to between DEC_SCALE and 10*DEC_SCALE
   if decval +>= 10*DEC_SCALE
@@ -976,7 +976,7 @@ PUB MkFloat(decval, exp10) : binfloat | digit, sticky, sign, decrem
 
   exp10 += 45 ' table starts at 10^-45
   exp10 := long[@pow_of_ten_table][exp10] ' convert to float power of 10
-  binfloat := FMul(decval, exp10)
+  binfloat := F_Mul(decval, exp10)
 
 
 {{
@@ -989,9 +989,9 @@ PUB Unpack10(x) : sign, exp10, decval | loptr, hiptr, midptr, binval, binexp
   
   if x == 0
     return sign, 0, 0
-  if x >= INFINITY
+  if x >= F_INF
     ' NAN
-    return sign, MAX_DEC_EXP, (x-INFINITY)  ' will return 0 decval for infinity, non-zero for NaN
+    return sign, MAX_DEC_EXP, (x-F_INF)  ' will return 0 decval for infinity, non-zero for NaN
     
   hiptr := @end_pow_ten_table
   loptr := @pow_of_ten_table
@@ -1012,7 +1012,7 @@ PUB Unpack10(x) : sign, exp10, decval | loptr, hiptr, midptr, binval, binexp
   exp10 := (midptr - @pow_of_ten_table) >> 2	' offset from start of table
   exp10 := exp10 - 45                           ' first power of ten in table
    
-  decval := FDiv(x, binval)    ' decval is float between 1 and 10
+  decval := F_Div(x, binval)    ' decval is float between 1 and 10
   _, binexp, decval := Unpack(decval)
   binexp -= EXP_OFFSET
   if binexp < 0
@@ -1158,9 +1158,9 @@ PUB FromString(stringptr) : val | digit, exp, sign, sticky, userexp, userexpsign
   
   ' special case handle NaN and Inf
   if digit == "N" or digit == "n"
-    return NAN
+    return F_NAN
   if digit == "I" or digit == "i"
-    return INFINITY | (sign<<31)
+    return F_INF | (sign<<31)
     
   ' string of digits
   repeat while (digit >= "0") and (digit <= "9")
@@ -1338,7 +1338,7 @@ PRI SmallLog2(a) : r, rexp | b, b2, b3, one_scale, half
   r, _ := mymuldiv64(r, one_scale, $b17217f)  ' ln(2) * one_scale
   rexp := -rexp
   
-PUB FLog2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
+PUB F_Log2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
   asign, aexp, a := Unpack(a)
 
   ' some special cases
@@ -1347,7 +1347,7 @@ PUB FLog2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
   if a == CONST_E
     return LOG2_E
   if aexp == MAX_EXP and a <> 0
-    return NAN
+    return F_NAN
     
   ' log2(0) == -infinity
   ' but note that infinity is also stored with a 0 significand
@@ -1355,12 +1355,12 @@ PUB FLog2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
   if a == 0
     if aexp == MAX_EXP
       ' original number was infinity or -infinity
-      return asign ? NAN : INFINITY
-    return NEG_INFINITY
+      return asign ? F_NAN : F_INF
+    return F_NEG_INF
 
   ' log2(-x) is NaN
   if asign
-    return NAN
+    return F_NAN
     
   aexp -= EXP_OFFSET
 
@@ -1396,13 +1396,13 @@ PUB FLog2(a) : r | aexp, asign, rexp, one_scale, b, rsmexp, rsign
 
   ' now r is a log2 for the significand
   ' need to add in the exponent
-  r := FAdd(r, FromInt(aexp))
+  r := F_Add(r, FromInt(aexp))
 
 {{
-  FPowInt(a, n): calculate a^n, where n is an integer
+  F_PowInt(a, n): calculate a^n, where n is an integer
 }}
 
-PUB FPowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
+PUB F_PowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
   asign, aexp, a := Unpack(a)
   if n < 0
     nsign := 1
@@ -1458,24 +1458,24 @@ PUB FPowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
 
 
 {{
-  FExp2_scale(x, scale) : calculate scale 2^x, where x is an arbitrary float and "scale" is a 4.28 fixed point scale factor
+  F_Exp2_scale(x, scale) : calculate scale * 2^x, where x is an arbitrary float and "scale" is a 4.28 fixed point scale factor
 
   We really want to calculate 2^(x*scale)
   If x is decomposed as (n+y), then this is (n*scale + y*scale)
 }}
 
-PRI FExp2_scale(a, scale) : r | sign, n, y, asign, aexp, rexp, sticky, tmp
+PRI F_Exp2_scale(a, scale) : r | sign, n, y, asign, aexp, rexp, sticky, tmp
   sticky := 0
   ' see if a >= 127.0 or a <= -127.0
   ' this will also remove infinities
-  n := FCmp(a, 126.0)
+  n := F_Cmp(a, 126.0)
   if n == UNORDERED_CMP_RESULT
-    return NAN
+    return F_NAN
   elseif n >= 0
-    return INFINITY
+    return F_INF
   else
-    'n := FCmp(a, -126.0)     ' WARNING: PNut mis-compiles -126
-    n := FCmp(a, $c2fc0000)   ' WARNING: so use hex constant instead
+    'n := F_Cmp(a, -126.0)     ' WARNING: PNut mis-compiles -126
+    n := F_Cmp(a, $c2fc0000)   ' WARNING: so use hex constant instead
     if n < 0
       return 0
  
@@ -1546,17 +1546,17 @@ PRI FExp2_scale(a, scale) : r | sign, n, y, asign, aexp, rexp, sticky, tmp
   r := Pack(0, rexp - 1 + EXP_OFFSET, r, sticky)  ' -1 is to correct for rounding
 
 {{
-  FExp2(x) : calculate 2^x, where x is an arbitrary float
+  F_Exp2(x) : calculate 2^x, where x is an arbitrary float
 }}
 
-PUB FExp2(x) : r
-  return FExp2_scale(x, 1<<28)
+PUB F_Exp2(x) : r
+  return F_Exp2_scale(x, 1<<28)
   
 
 {{
-  FPow(x, y): Calculate x^y
+  F_Pow(x, y): Calculate x^y
 }}
-PUB FPow(x, y) : r | n, tmp, nf, xsign
+PUB F_Pow(x, y) : r | n, tmp, nf, xsign
   ' both kinds of 0 should act the same
   if y == $8000_0000
     y := 0
@@ -1570,95 +1570,95 @@ PUB FPow(x, y) : r | n, tmp, nf, xsign
   if y == 0
     return 1.0
   
-  if FCmp(x, y) == UNORDERED_CMP_RESULT
-    return NAN
+  if F_Cmp(x, y) == UNORDERED_CMP_RESULT
+    return F_NAN
 
-  if y == INFINITY
-    x := FAbs(x)
+  if y == F_INF
+    x := F_Abs(x)
     if x > 1.0        ' regular comparison is OK here
-      return INFINITY
+      return F_INF
     elseif x < 1.0
       return 0
     else
-      return NAN
+      return F_NAN
       
-  if y == NEG_INFINITY
-    x := FAbs(x)
+  if y == F_NEG_INF
+    x := F_Abs(x)
     if x > 1.0      ' regular comparison is OK here
       return 0.0
     elseif x < 1.0
-      return INFINITY
+      return F_INF
     else
-      return NAN
+      return F_NAN
       
-  n := FTrunc(y)
+  n := F_Trunc(y)
   nf := FromInt(n)
   
-  if x == INFINITY or x == NEG_INFINITY
+  if x == F_INF or x == F_NEG_INF
     if y < 0
       return 0
-    return ((n&1) and n < $7fff_ffff) ? x : INFINITY
+    return ((n&1) and n < $7fff_ffff) ? x : F_INF
     
   if x == 0
     if y > 0
       return 0
     if (n & 1) and n < $7fff_ffff
-      return (xsign<<31)|INFINITY
-    return INFINITY
+      return (xsign<<31)|F_INF
+    return F_INF
     
   if abs(n) < $FFFF
-    y := FSub(y, nf)
-    nf := FPowInt(x, n)
+    y := F_Sub(y, nf)
+    nf := F_PowInt(x, n)
     if y == 0
       return nf
   else
     nf := ONE
     
-  if FCmp(x, 0.0) < 0
-    return NAN
+  if F_Cmp(x, 0.0) < 0
+    return F_NAN
 
   if y == 0.5
-    r := FSqrt(x)
+    r := F_Sqrt(x)
   elseif y == -0.5
-    r := FSqrt(x)
-    return FDiv(nf, r)
+    r := F_Sqrt(x)
+    return F_Div(nf, r)
   else
     ' calculate x^y as 2^(y*log2(x))
-    tmp := FLog2(x)
-    tmp := FMul(tmp, y)
-    r := FExp2(tmp)
-  return FMul(nf, r)
+    tmp := F_Log2(x)
+    tmp := F_Mul(tmp, y)
+    r := F_Exp2(tmp)
+  return F_Mul(nf, r)
 
 {{
-  FExp(x): Calculate e^x
+  F_Exp(x): Calculate e^x
   this is 2^x*log2(e)
 }}
-PUB FExp(x) : r
+PUB F_Exp(x) : r
   ' log_e(x) = log_2(x) / log_2(e)
   ' log_2(e) = log(e) / log(2)
-  'return FExp2(FMul(x, LOG2_E))
-  r := FExp2_Scale(x, $17154765)  ' LOG2_E * $1000_0000
+  'return F_Exp2(F_Mul(x, LOG2_E))
+  r := F_Exp2_Scale(x, $17154765)  ' LOG2_E * $1000_0000
 
 {{
-  FExp10(x): Calculate 10^x
+  F_Exp10(x): Calculate 10^x
   this is 2^x*log2(10)
 }}
-PUB FExp10(x) : r
-  r := FExp2_Scale(x, $35269e13)  ' LOG2_10 * $1000_0000
+PUB F_Exp10(x) : r
+  r := F_Exp2_Scale(x, $35269e13)  ' LOG2_10 * $1000_0000
 
 
 {{
-  FLog(x) : calculate log base e of x
+  F_Log(x) : calculate log base e of x
   log_e(x) = log_2(x) / log_2(e)
 }}
-PUB FLog(x) : r | l2
-  l2 := FLog2(x)
-  r := FDiv(l2, LOG2_E)
+PUB F_Log(x) : r | l2
+  l2 := F_Log2(x)
+  r := F_Div(l2, LOG2_E)
   
 {{
-  FLog10(x) : calculate log base e of x
+  F_Log10(x) : calculate log base e of x
   log_10(x) = log_2(x) / log_2(10)
 }}
-PUB FLog10(x) : r | l2
-  l2 := FLog2(x)
-  r := FDiv(FLog2(x), LOG2_10)
+PUB F_Log10(x) : r | l2
+  l2 := F_Log2(x)
+  r := F_Div(F_Log2(x), LOG2_10)
