@@ -1009,7 +1009,7 @@ PUB Unpack10(x) : sign, exp10, decval | loptr, hiptr, midptr, binval, binexp
       loptr := midptr
 
   ' binval is the power of 10
-  exp10 := (midptr - @pow_of_ten_table) >> 2	' offset from start of table
+  exp10 := (midptr - @pow_of_ten_table) >> 2    ' offset from start of table
   exp10 := exp10 - 45                           ' first power of ten in table
    
   decval := F_Div(x, binval)    ' decval is float between 1 and 10
@@ -1028,6 +1028,7 @@ PUB Unpack10(x) : sign, exp10, decval | loptr, hiptr, midptr, binval, binexp
   SendFloatSci: Stream out scientific representation of a binary float x
 }}
 PUB SendFloatSci(x) | s, exp, decval, digit, nopoint
+  nopoint := 1
   s, exp, decval := Unpack10(x)
   if (exp == MAX_DEC_EXP) and (decval <> 0)
     send("NaN")
@@ -1429,7 +1430,7 @@ PUB F_PowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
       if r < 0 ' high bit set?
         sticky |= r&1
         r := (r+1)>>1
-	rexp++
+        rexp++
     n := n>>1
     ' square a
     a, sticky2 := mymuldiv64(a, a, scale_one)
@@ -1452,7 +1453,7 @@ PUB F_PowInt(a, n) : r | asign, aexp, rexp, nsign, scale_one, sticky, sticky2
       r := (r+1)>>1
       sticky |= r&1
       rexp++
-	
+        
   ' re-convert to fixed point
   r := Pack(asign, rexp + EXP_OFFSET - 7, r, sticky)
 
