@@ -110,6 +110,8 @@
 
 [Synth](../All/Synth)
 
+[TeleOp Bot](../All/Tele-op%20Bot)
+
 [Tiny Logo for the S2](../All/Tiny%20Logo%20for%20the%20S2)
 
 [Tiny pop3 client](../All/Tiny%20pop3%20client)
