@@ -2,13 +2,10 @@
 '' A minimalistic VGM dump player.
 
 '' Notes:
-''  - Some VGMs don't loop or have glitches at the loop point. IDK why.
-''  - VGMs exported by TFM/VGM Music maker won't play correctly due to toggling key-on
-''    without any delay inbetween off and on. This is incorrect behaviour on real HW, too.
-''    (If I read NukedOPN's handling of the Key-On register right, that is)
+''  - Some VGMs don't loop or have glitches at the loop point. IDK why. Some don't loop at all. IDK why.
 
 CON
-    _CLKFREQ = 250_000_000
+    _CLKFREQ = 300_000_000 ' 300 MHz is the recommended clock speed for OPN2Cog Ultra (250 MHz for standard ver.)
 
     SPEED_DIV = 1
 
@@ -22,12 +19,12 @@ VAR
   byte buffer[64]
 
 OBJ
-  OPN2 : "OPN2cog"
+  OPN2 : "OPN2cog_ultra"
 
-PUB Main() | continue, i, cmd
+PUB Main() | continue, i, cmd, writedelay
 
 
-  OPN2.start(leftPin, rightPin, 3, true)    ' Start OPN2cog
+  OPN2.start(leftPin, rightPin, 3, false)   ' Start OPN2cog
 
 
   '"Handle" vgm header (ignore it)
@@ -38,9 +35,7 @@ PUB Main() | continue, i, cmd
   loopptr := @thevgm+long[@thevgm+$1C]+$1C
   looplength := long[@thevgm+$20]
   loopleft := looplength
-
-  repeat i from 0 to 5
-    OPN2.setCHPanning(i,1,1)
+  writedelay := clkfreq/50_000
 
   ' Below is a minimalistic implementation of the ".vgm" format
   ' Have a look at the .vgm file format documentation for a better understanding
@@ -68,12 +63,10 @@ PUB Main() | continue, i, cmd
           if cmd == $53
             i+=256
           OPN2.setOPN2Register(i,buffer[1])
-          ' Don't do anything with this yet..
+          waitct(writedelay+getct()) ' Wait for the write to go through (doesn't affect actual timing)
 
 
         $80..$8F:     ' Data bank DAC write + wait
-          'debug("DAC cmd ",uhex_byte(byte[database][dataptr]))
-          'wypin(48 addpins 1,byte[database][dataptr++]<<7)
           OPN2.setOPN2Register($2A,byte[database][dataptr++])
           if cmd <> $80
             waitSamples(cmd & 15)
@@ -111,18 +104,13 @@ PUB Main() | continue, i, cmd
 
         $66: return
 
-
-    OPN2.flipRegisters()                  ' Update the sound registers
-    waitct(waitFor)                  ' Wait until the right time to
+    if waitFor-getct() >= 100
+      waitct(waitFor)                ' Wait until the right time to
 
 PRI waitSamples(n) | ct
   if readptr >= loopptr
     loopleft -= n
   waitFor += ((_CLKFREQ/44100*SPEED_DIV) * (n) ) #> 50
-  ct:= getct()
-  if waitFor-ct < 100
-    waitfor := getct() + 100
-  'waitFor := getct() + waitFor
 
 
 PRI getn(buf,n)
