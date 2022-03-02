@@ -17,7 +17,7 @@
 #define READBUFFER_SIZE (64*1024)
 
 enum {
-    _clkfreq = 250'000'000,
+    _clkfreq = 300'000'000,
 
     SPEED_DIV = 1,
 
@@ -29,7 +29,7 @@ enum {
 typedef unsigned int uint;
 typedef uint8_t byte;
 
-struct __using("OPN2cog.spin2") OPN2;
+struct __using("OPN2cog_ultra.spin2") OPN2;
 
 uint32_t filler_stack[256];
 
@@ -134,22 +134,7 @@ void vgm_play() {
             byte cmd = vgm_get8();
             //printf("Got command %02X\n",cmd);
             switch (cmd) {
-            case 0x80:
-            case 0x81:
-            case 0x82:
-            case 0x83:
-            case 0x84:
-            case 0x85:
-            case 0x86:
-            case 0x87:
-            case 0x88:
-            case 0x89:
-            case 0x8A:
-            case 0x8B:
-            case 0x8C:
-            case 0x8D:
-            case 0x8E:
-            case 0x8F: {
+            case 0x80 ... 0x8F: {
                 OPN2.setOPN2Register(0x2A,*databank_ptr++);
                 waitTime = cmd&15;
             } break;
@@ -165,22 +150,7 @@ void vgm_play() {
             case 0x50: {
                 OPN2.writePSGport(vgm_get8());
             } break;  
-            case 0x70:
-            case 0x71:
-            case 0x72:
-            case 0x73:
-            case 0x74:
-            case 0x75:
-            case 0x76:
-            case 0x77:
-            case 0x78:
-            case 0x79:
-            case 0x7A:
-            case 0x7B:
-            case 0x7C:
-            case 0x7D:
-            case 0x7E:
-            case 0x7F: {
+            case 0x70 ... 0x7F: {
                 waitTime = (cmd&15)+1;
             } break;  
             case 0x61: {
@@ -216,7 +186,6 @@ void vgm_play() {
             }
             prevcmd = cmd;
         }
-        OPN2.flipRegisters();
         {
             //printf("Waiting for %d\n",waitTime);
             if (!waitcount) waitFor = _cnt() + 10'000'000;
@@ -273,7 +242,7 @@ int main() {
 
     _drvl(56);
 
-    OPN2.start(leftPin, rightPin, 3, true);
+    OPN2.start(leftPin, rightPin, 3, false);
 
     uint trackn = 0;
 

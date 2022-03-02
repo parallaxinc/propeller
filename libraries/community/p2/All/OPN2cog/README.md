@@ -31,9 +31,10 @@ This is an emulation of the Yamaha "OPN2" YM2612 FM synth chip that runs in one 
 ## Misfeatures:
 - Envelope generators are updated at 1/12 the real rate (~1.5kHz instead of ~18 kHz)
     This causes slight clicking on certain envelope rates and other artifacts.
+    The Ultra version runs at 1/2 real EG rate and doesn't exhibit this issue.
 - Timers and CSM mode are not implemented.
-- PSG sound is somewhat aliased due to relatively low update rate (~53 kHz)
-- Requires at least 250 MHz P2 clock to run properly.
+- PSG sound is somewhat aliased due to relatively low update rate (~53 kHz) (~159 kHz in Ultra version)
+- Requires at least 250 MHz P2 clock to run properly (300 MHz for Ultra version).
     (Too low clock speed -> low and/or inconsistent pitch)
 - Some instruments sound a little off, but maybe I'm just going insane.
     Still orders of magnitude better than those silly AtGames units, haha
@@ -50,6 +51,7 @@ Spin API example: https://youtu.be/JRQW2tkkO0E
 |File name|Purpose|
 |-|-|
 |`OPN2cog.spin2`|OPN2 emulation core|
+|`OPN2cog_ultra.spin2`|OPN2 emulation core (higher quality version)|
 |`OPN2_ROM.DAT`|OPN2 logsin/exponent ROM|
 |`megajuke.c`|MEGA JUKE program.|
 |`MEGAJUKE.DAT`|MEGA JUKE data file.|
