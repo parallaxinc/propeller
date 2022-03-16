@@ -9,7 +9,10 @@
 ''               -- see below for terms of use
 ''   E-mail..... jon.mcphalen@gmail.com
 ''   Started....
-''   Updated.... 19 AUG 2020
+''   Updated.... 04 JAN 2022
+''               -- f___() changed to fx__() to fix conflict with Propeller Tool 2.6.x
+''
+''   {$P2}
 ''
 '' =================================================================================================
 
@@ -38,8 +41,8 @@
 
 con { fixed io pins }
 
-  RX1      = 63  { I }                                          ' programming / debug
-  TX1      = 62  { O }
+  PGM_RX   = 63  { I }                                          ' programming / debug
+  PGM_TX   = 62  { O }
 
   SF_CS    = 61  { O }                                          ' serial flash
   SF_SCK   = 60  { O }
@@ -47,7 +50,7 @@ con { fixed io pins }
   SF_SDI   = 58  { I }
 
 
-con { pst formatting }
+con { pst / formatting }
 
   HOME     =  1
   CRSR_XY  =  2
@@ -60,16 +63,20 @@ con { pst formatting }
   TAB      =  9
   LF       = 10
   CLR_EOL  = 11
+  VTAB     = 11
   CLR_DN   = 12
+  FF       = 12
   CR       = 13
   CRSR_X   = 14
   CRSR_Y   = 15
   CLS      = 16
 
+  EOF      = -1
+
 
 con
 
-  BUF_SIZE = 64
+  BUF_SIZE = 256
 
 
 obj
@@ -101,7 +108,14 @@ var
 
 pub null()
 
-'' This is not a top level object
+'' This is not a top-level object
+
+
+pub tstart(baud) : result
+
+'' Start FDS with default pins/mode for terminal (e.g., PST)
+
+  return start(PGM_RX, PGM_TX, %0000, baud)
 
 
 pub start(rxpin, txpin, mode, baud) : result | baudcfg, spmode
@@ -111,7 +125,7 @@ pub start(rxpin, txpin, mode, baud) : result | baudcfg, spmode
 '' -- txpin... transmit pin (-1 if not used)
 '' -- mode.... %0xx1 = invert rx
 ''             %0x1x = invert tx
-''             %01xx = open-drain/open-source tx   
+''             %01xx = open-drain/open-source tx
 
   stop()
 
@@ -134,12 +148,12 @@ pub start(rxpin, txpin, mode, baud) : result | baudcfg, spmode
     pinstart(rxp, spmode, baudcfg, 0)
 
   if (txp >= 0)                                                 ' configure tx pin if used
-    spmode := P_ASYNC_TX | P_OE      
+    spmode := P_ASYNC_TX | P_OE
     case mode.[2..1]
       %01 : spmode |= P_INVERT_OUTPUT
       %10 : spmode |= P_HIGH_FLOAT                              ' requires external pull-up
       %11 : spmode |= P_INVERT_OUTPUT | P_LOW_FLOAT             ' requires external pull-down
-    pinstart(txp, spmode, baudcfg, 0) 
+    pinstart(txp, spmode, baudcfg, 0)
 
   cog := coginit(COGEXEC_NEW, @uart_mgr, @rxp) + 1              ' start uart manager cog
 
@@ -181,7 +195,7 @@ pub rxcheck() : b
     if (++rxtail == BUF_SIZE)                                   ' update tail pointer
       rxtail := 0
   else
-    b := -1                                                     ' mark no byte available
+    b := EOF                                                    ' mark no byte available
 
 
 pub rxtime(ms) : b | mstix, t
@@ -219,7 +233,7 @@ pub rxflush()
 '' Flush receive buffer
 
   repeat while (rxcheck() >= 0)
-  
+
 
 pub tx(b) | n
 
@@ -267,14 +281,25 @@ pub substr(p_str, len) | b
       quit
 
 
-pub padstr(p_str, width, pad)
+pub padstr(p_str, width, padchar) | len, afw
 
 '' Emit p_str as padded field of width characters
 '' -- pad is character to use to fill out field
 '' -- positive width causes right alignment
 '' -- negative width causes left alignment
 
-  str(nstr.padstr(p_str, width, pad))
+  len := strsize(p_str)
+  afw := abs(width)
+
+  if (len >= afw)                                               ' string wider than field?
+    substr(p_str, afw)                                          '  yes, truncate
+  else
+    if (width > 0)                                              ' right alignment?
+      txn(padchar, width-len)
+      str(p_str)
+    else                                                        ' left alignment
+      str(p_str)
+      txn(padchar, afw-len)
 
 
 pub txflush()
@@ -298,7 +323,9 @@ con { formatted strings commands }
       \t          tab (horizontal)
       \n          new line (vertical tab)
       \r          carriage return
-      \nnn        arbitrary ASCII value (nnn is decimal)
+      \xnn        arbitrary ASCII character (nn is hexadecimal) ' added 17 AUG 21
+      \nnn        arbitrary ASCII character (nnn is decimal)
+
 
     Formatted arguments
 
@@ -388,7 +415,7 @@ pub format(p_str, p_args) | idx, c, asc, field, digits
       return
 
     elseif (c == "\")
-      c := lcase(byte[p_str++])
+      c := lower(byte[p_str++])
       if (c == "\")
         tx("\")
       elseif (c == "%")
@@ -403,44 +430,51 @@ pub format(p_str, p_args) | idx, c, asc, field, digits
         tx(LF)
       elseif (c == "r")
         tx(CR)
-      elseif ((c >= "0") and (c <= "9"))
+      elseif (c == "x")
+        p_str, asc := get_hex(p_str)
+        if ((asc >= 0) && (asc <= 255))
+          tx(asc)
+      elseif ((c >= "0") && (c <= "9"))
         --p_str
         p_str, asc, _ := get_nargs(p_str)
-        if ((asc >= 0) and (asc <= 255))
+        if ((asc >= 0) && (asc <= 255))
           tx(asc)
 
     elseif (c == "%")
       p_str, field, digits := get_nargs(p_str)
-      c := lcase(byte[p_str++])
-      if (c == "f")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "d")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "u")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "x")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "o")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "q")
-        str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
-      elseif (c == "b")
+      c := lower(byte[p_str++])
+      if (lookdown(c : "dufbqox"))
         str(nstr.fmt_number(long[p_args][idx++], c, digits, field, " "))
       elseif (c == "s")
         str(nstr.padstr(long[p_args][idx++], field, " "))
       elseif (c == "c")
-        txn(long[p_args][idx++], (abs field) #> 1)
+        txn(long[p_args][idx++], (abs(field)) #> 1)
 
     else
       tx(c)
 
 
-pri lcase(c) : result
+pub lower(c) : result
 
   if ((c >= "A") && (c <= "Z"))
     c += 32
 
   return c
+
+
+pri get_hex(p_str) : p_str1, value | c                          ' added 17 AUG 2021 for \xNN
+
+'' Extract 1- or 2-digit hex value from p_str
+
+  repeat 2
+    c := lower(byte[p_str++])
+    c := lookdown(c : "0".."9", "a".."f")
+    if (c > 0)
+      value := (value << 4) | (c-1)
+    else
+      quit
+
+  p_str1 := p_str
 
 
 pri get_nargs(p_str) : p_str1, val1, val2 | c, sign
@@ -474,7 +508,7 @@ pri get_nargs(p_str) : p_str1, val1, val2 | c, sign
       else
         quit
 
-  p_str1 := p_str - 1                                           ' back up to non-digit
+  p_str1 := p_str-1                                             ' back up to non-digit
 
 
 pub fmt_number(value, base, digits, width, pad)
@@ -496,7 +530,7 @@ pub dec(value)
   str(nstr.itoa(value, 10, 0))
 
 
-pub fdec(value, digits)
+pub fxdec(value, digits)
 
 '' Emit value as decimal using fixed # of digits
 '' -- may add leading zeros
@@ -512,7 +546,7 @@ pub jdec(value, digits, width, pad)
 '' -- width is width of final field (max)
 '' -- pad is character that fills out field
 
-  str(nstr.fmt_number(value, 10, digits, width, pad))
+  str(nstr.fmt_number(value, "d", digits, width, pad))
 
 
 pub dpdec(value, dp)
@@ -531,7 +565,7 @@ pub jdpdec(value, dp, width, pad)
 '' -- width is width of final field (max)
 '' -- pad is character that fills out field
 
-  str(nstr.fmt_number(value, 99, dp, width, pad))
+  str(nstr.fmt_number(value, "f", dp, width, pad))
 
 
 pub hex(value)
@@ -541,7 +575,7 @@ pub hex(value)
   str(nstr.itoa(value, 16, 0))
 
 
-pub fhex(value, digits)
+pub fxhex(value, digits)
 
 '' Emit value as hexadecimal using fixed # of digits
 
@@ -554,7 +588,7 @@ pub jhex(value, digits, width, pad)
 '' -- aligned inside field
 '' -- pad fills out field
 
-  str(nstr.fmt_number(value, 16, digits, width, pad))
+  str(nstr.fmt_number(value, "x", digits, width, pad))
 
 
 pub oct(value)
@@ -564,7 +598,7 @@ pub oct(value)
   str(nstr.itoa(value, 8, 0))
 
 
-pub foct(value, digits)
+pub fxoct(value, digits)
 
 '' Emit value as octal using fixed # of digits
 
@@ -577,7 +611,7 @@ pub joct(value, digits, width, pad)
 '' -- aligned inside field
 '' -- pad fills out field
 
-  str(nstr.fmt_number(value, 8, digits, width, pad))
+  str(nstr.fmt_number(value, "o", digits, width, pad))
 
 
 pub qrt(value)
@@ -587,7 +621,7 @@ pub qrt(value)
   str(nstr.itoa(value, 4, 0))
 
 
-pub fqrt(value, digits)
+pub fxqrt(value, digits)
 
 '' Emit value as quarternary using fixed # of digits
 
@@ -600,7 +634,7 @@ pub jqrt(value, digits, width, pad)
 '' -- aligned inside field
 '' -- pad fills out field
 
-  str(nstr.fmt_number(value, 4, digits, width, pad))
+  str(nstr.fmt_number(value, "q", digits, width, pad))
 
 
 pub bin(value)
@@ -610,7 +644,7 @@ pub bin(value)
   str(nstr.itoa(value, 2, 0))
 
 
-pub fbin(value, digits)
+pub fxbin(value, digits)
 
 '' Emit value as binary using fixed # of digits
 
@@ -623,7 +657,7 @@ pub jbin(value, digits, width, pad)
 '' -- aligned inside field
 '' -- pad fills out field
 
-  str(nstr.fmt_number(value, 2, digits, width, pad))
+  str(nstr.fmt_number(value, "b", digits, width, pad))
 
 
 dat { smart pin uart/buffer manager }
@@ -683,7 +717,7 @@ t1              res       1                                     ' work vars
 t2              res       1
 t3              res       1
 
-                fit       472
+                fit       496
 
 
 con { license }
