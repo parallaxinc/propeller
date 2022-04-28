@@ -33,6 +33,7 @@ CON { reinterpret the users selections for driver internal use }
     CHIP_MBI5124_8S = user.CHIP_MBI5124_8S
     CHIP_UNK_LAT_END_ENCL = user.CHIP_UNK_LAT_END_ENCL
     CHIP_UNK_LAT_END_ENCL_SLO_CLK = user.CHIP_UNK_LAT_END_ENCL_SLO_CLK
+    CHIP_GS6238S = user.CHIP_GS6238S
 
     LAT_STYLE_OFFSET = user.LAT_STYLE_OFFSET
     LAT_POSN_OVERLAP = user.LAT_POSN_OVERLAP
@@ -50,6 +51,17 @@ CON { reinterpret the users selections for driver internal use }
     ADDR_ABC = user.ADDR_ABC
     ADDR_ABCD = user.ADDR_ABCD
     ADDR_ABCDE = user.ADDR_ABCDE
+
+    ' possible color depths
+    DEPTH_3BIT = user.DEPTH_3BIT
+    DEPTH_4BIT = user.DEPTH_4BIT
+    DEPTH_5BIT = user.DEPTH_5BIT
+    DEPTH_6BIT = user.DEPTH_6BIT
+    DEPTH_7BIT = user.DEPTH_7BIT
+    DEPTH_8BIT = user.DEPTH_8BIT
+
+    ' users' choice for color depth
+    COLOR_DEPTH = user.COLOR_DEPTH
 
     ' how many address lines are being used
     PANEL_ADDR_LINES = user.PANEL_ADDR_LINES
@@ -93,7 +105,7 @@ CON { reinterpret the users selections for driver internal use }
     '  a sequential list of 1kB subpages
     ' --------------------------------------------------------------------------
     '
-    MAX_PWM_FRAMES = 16     ' compiled color depth
+    MAX_PWM_BUFFERS = COLOR_DEPTH     ' compiled color depth: nbr bits is nbr of PWM frames we need
 
     MAX_PWM_ROWS_IN_COG_BUFFER = MAX_COG_BUFFER_SIZE_IN_LONGS / MAX_PWM_ROW_SIZE_IN_LONGS
     MAX_SUBPAGE_SIZE_IN_LONGS = MAX_PWM_ROWS_IN_COG_BUFFER * MAX_PWM_ROW_SIZE_IN_LONGS
@@ -162,8 +174,26 @@ PUB screenAddress() : pScreen
     '' Return the address of the external screen buffer
     pScreen := pExtScreen
 
+PUB pwmFrameCount() : nbrPwmFrames
+    '' Return the number of pwm frames to display for selected bit depth
+    case COLOR_DEPTH
+        DEPTH_3BIT:
+            nbrPwmFrames := 7
+        DEPTH_4BIT:
+            nbrPwmFrames := 15
+        DEPTH_5BIT:
+            nbrPwmFrames := 31
+        DEPTH_6BIT:
+            nbrPwmFrames := 63
+        DEPTH_7BIT:
+            nbrPwmFrames := 127
+        DEPTH_8BIT:
+            nbrPwmFrames := 255
+        other:
+            nbrPwmFrames := 15  ' default to DEPTH_4BIT if set badly
+
 PUB offsetToPanel(panelIndex) : offsetPixelRows, offsetPixelColumns | gridRow, gridColumn
-    '' return x,y offset to specified panel from top-left corner of display
+    '' Return x,y offset to specified panel from top-left corner of display
     offsetPixelRows := offsetPixelColumns := 0
     if MAX_PANELS > 0
         panelIndex :=  0 #> panelIndex <# MAX_PANELS - 1
@@ -183,17 +213,21 @@ PUB offsetToPanel(panelIndex) : offsetPixelRows, offsetPixelColumns | gridRow, g
     return offsetPixelRows, offsetPixelColumns
 
 PUB getDriverFlags() : desiredFlags, origFlags
-    desiredFlags := origFlags := PANEL_DRIVER_CHIP
-    if desiredFlags == CHIP_FM6126A
+    '' Return flags describing the compiled driver configuration
+    desiredFlags := origFlags := PANEL_DRIVER_CHIP  ' value configured by user
+    if origFlags == CHIP_FM6126A
         desiredFlags := CHIP_MANUAL_SPEC | LAT_POSN_OVERLAP | LAT_STYLE_OFFSET | INIT_PANEL_REQUIRED
-    elseif desiredFlags == CHIP_MBI5124_8S
+    elseif origFlags == CHIP_GS6238S
+        desiredFlags := CHIP_MANUAL_SPEC | LAT_POSN_OVERLAP | LAT_STYLE_OFFSET '| INIT_PANEL_REQUIRED | RB_SWAP
+    elseif origFlags == CHIP_MBI5124_8S
         desiredFlags := CHIP_MANUAL_SPEC | CHIP_UNK_LAT_END_ENCL | SCAN_4 | INIT_PANEL_REQUIRED
-    elseif desiredFlags == CHIP_FM6124 or desiredFlags == CHIP_UNK_LAT_END_ENCL
-        if desiredFlags == CHIP_FM6124
-    elseif desiredFlags == CHIP_ICN2037 or desiredFlags == CHIP_UNK_LAT_END_ENCL_SLO_CLK
-        if desiredFlags == CHIP_ICN2037
+    elseif origFlags == CHIP_FM6124 or origFlags == CHIP_UNK_LAT_END_ENCL
+        if origFlags == CHIP_FM6124
+            desiredFlags := CHIP_MANUAL_SPEC
+    elseif origFlags == CHIP_ICN2037 or origFlags == CHIP_UNK_LAT_END_ENCL_SLO_CLK
+        if origFlags == CHIP_ICN2037
             desiredFlags := CHIP_MANUAL_SPEC | CLK_WIDE_PULSE | RB_SWAP
-    elseif desiredFlags & $ff <> CHIP_MANUAL_SPEC
+    elseif origFlags & $ff <> CHIP_MANUAL_SPEC
         ' report ERROR and exit
         debug("- have unknown CHIP ", ubin_word(desiredFlags))
         abort

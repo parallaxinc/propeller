@@ -251,11 +251,11 @@ PUB setTextFont(newFont) | scrollerIndex, hUnusedPix, vUnusedPix
         scroller[scrollerIndex].setFontInfo(maxTextColumns, charWidthInPix, charHeightInPix, leftOffsetInPix, horizontalGapInPix, hBitmapOffsetInPix, selectedTextFont)
 
 PUB numberTextLines() : nbrTextLines
-    '' return the number of text-rows for the currently selected font
+    '' Return the number of text-rows for the currently selected font
     nbrTextLines := maxTextLines
 
 PUB numberTextColumns() : nbrTextColumns
-    '' return the number of text-columns for the currently selected font
+    '' Return the number of text-columns for the currently selected font
     nbrTextColumns := maxTextColumns
 
 PUB setTextColor(rgbColor)
@@ -318,14 +318,14 @@ PUB setColoredCharAtLnCol(line, column, cChar, rgbColor) | pCharBitMap, tlScreen
 '    configureScrollLoopCount(scrollerID, display.SCROLL_N_TIMES, 2)
 
 PUB configureScrollLoopMode(indexAllocated, loopMode)
-    'debug("dsp:configureScrollLoopMode() ", udec(indexAllocated))
     '' Specify scrolling text duration (forever, once, twice)
+    'debug("dsp:configureScrollLoopMode() ", udec(indexAllocated))
     if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
         scroller[indexAllocated].configureScrollLoopMode(loopMode)
 
 PUB configureScrollLoopCount(indexAllocated, loopMode, loopCount)
-    'debug("dsp:configureScrollLoopCount() ", udec(indexAllocated))
     '' Specify scrolling text duration (forever, once, twice)
+    'debug("dsp:configureScrollLoopCount() ", udec(indexAllocated))
     if indexAllocated >= 0 && indexAllocated < MAX_SCROLLING_REGIONS
         scroller[indexAllocated].configureScrollLoopCount(loopMode, loopCount)
 

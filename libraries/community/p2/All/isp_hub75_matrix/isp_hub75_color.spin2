@@ -66,6 +66,12 @@ PUB null()
 
     '' This is not a top level object
 
+PUB init()
+    '' Configure color object based on compiled color-depth
+    ' this allows our color conversion routines to be faster as there is less runtime code
+    shiftLtValue := 8 - screen.COLOR_DEPTH
+    nbrPwmFrames := screen.pwmFrameCount()
+    debug("- color CFG: ", udec_long(shiftLtValue), udec_long(nbrPwmFrames))
 
 PUB setBrightness(newBrightness)
     '' Set the global brightness value
@@ -79,9 +85,9 @@ PUB correctedColor(color) : adjustedColor
     '' Correct a color using generic gamma
     adjustedColor := color
     'return
-    adjustedColor := byte[@gamma][adjustedColor]
-    adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
-    adjustedColor := dutyCycleForIntensity(adjustedColor)
+    'adjustedColor := byte[@gamma][adjustedColor]
+    'adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
+    adjustedColor := colorAtDesiredBitWidth(adjustedColor)
 
 PUB gammaPeek(color) : adjustedColor | gammmaIndex, lowColor, highColor
     '' Return index of nearest matching value in gamma table
@@ -119,10 +125,10 @@ PUB correctedSingleColor(led, colorValue) : adjustedColor | pGammaTable
         other:
             abort
 
+    adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
     if bGammaEnable
         adjustedColor := byte[pGammaTable][adjustedColor]
-    adjustedColor := ((adjustedColor * defaultBrightness) >> 8) & $ff
-    adjustedColor := dutyCycleForIntensity(adjustedColor)
+    adjustedColor := colorAtDesiredBitWidth(adjustedColor)
 
 PUB rgbColorFromDegrees(degrees) : rcbColor | offset60, fract60, red, green, blue
     '' CONVERT: 0-355 degrees to color
@@ -163,13 +169,31 @@ PUB cValueForRGB(red, green, blue) : combinedValue
     '' CONVERT: r,g,b to combined value
     combinedValue := ((red & $ff) << 16) | ((green & $ff) << 8) | (blue & $ff)
 
-PUB dutyCycleForIntensity(hex8bit) : pwmBits
+PUB colorAtDesiredBitWidth(hex8bit) : pwmBits
     '' CALCULATE: proper duty cycle for intensity of 0-255
-    '         --- VERSION 1 - Bits spread throughout ---
-    if hex8bit == 255
-        pwmBits := screen.MAX_PWM_FRAMES
-    else
-        pwmBits := hex8bit / screen.MAX_PWM_FRAMES
+    '
+    '  (map 8-bit color depth to {compiled}-bit color depth)
+    '  map 0-255 to compiled color depth 0-7,15,31,63,127,255
+    '
+    '  REF: https://www.arduino.cc/reference/en/language/functions/math/map
+    '
+    '  Re-maps a number from one range to another. That is, a value of fromLow would get mapped to toLow,
+    '   a value of fromHigh to toHigh, values in-between to values in-between, etc.
+    '
+    '    y = map(x, 1, 50, 50, 1);
+    '
+    '  PRI map(inValue,  inMin,  inMax,  outMin,  outMax) : outValue
+    '  outValue := (inValue - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
+    '  outValue := (inValue - 0) * (outMax - 0) / (inMax - 0) + 0
+    '  outValue := inValue * outMax / inMax
+    '
+    '               shiftLtValue           5,         4,         3,        2,         1,         0
+    '  map(hex8bit, 0, 255, 0, 7)    7=3-bit,  15=4-bit,  31=5-bit, 63=6-bit, 127=7-bit, 255=8-bit
+    '  outValue := (hex8bit - 0) * (7 - 0) / (255 - 0) + 0
+    '  outValue := hex8bit * 7 / 255
+
+    pwmBits := (hex8bit * nbrPwmFrames) / 255   ' map our value
+    pwmBits <<= shiftLtValue                    ' shift value into our upper COLOR_DEPTH bits
 {
     if not didShow[hex8bit]
         debug("clr:dcyc ", uhex_byte(hex8bit), uhex_byte(pwmBits))
@@ -177,6 +201,9 @@ PUB dutyCycleForIntensity(hex8bit) : pwmBits
 '}
 
 DAT { tables, default values }
+
+shiftLtValue        long    0       ' set by init()
+nbrPwmFrames        long    0       ' set by init()
 
 didShow             byte    FALSE[256]
 

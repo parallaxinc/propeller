@@ -19,7 +19,7 @@ CON { I/O PINs }
 
 CON { calculated sizes }
 
-PWM_FRAMESET_SIZE_IN_LONGS = screen.MAX_PWM_FRAMES * screen.MAX_PWM_FRAME_SIZE_IN_LONGS
+PWM_FRAMESET_SIZE_IN_LONGS = screen.MAX_PWM_BUFFERS * screen.MAX_PWM_FRAME_SIZE_IN_LONGS
 
 OBJ
 
@@ -37,6 +37,8 @@ VAR { driver instance variables }
     long    nDumpPassNbr
     long    frameSetLenInLongs
     byte    usePwmFrameset1
+    byte    bDumpOnce
+    byte    nPassCt
 
 ' ----------------------------------------------------------
 
@@ -49,9 +51,13 @@ PUB start() : ok
         debug("- PNL: underlying drivers failed!")
         abort
 
+    color.init()    ' let our color conversion routines configure themselves
+    bDumpOnce := FALSE
+    nPassCt := 0
+
     frameSetLenInLongs := PWM_FRAMESET_SIZE_IN_LONGS
     debug("- PNL: PHYScols=", udec_long_(screen.MAX_PHYSICAL_COLUMNS), " PHYSrows=", udec_long_(screen.MAX_PHYSICAL_ROWS))
-    debug("- PNL: maxPwmFrames=", udec_long_(screen.MAX_PWM_FRAMES), " PwmFrameSizeInLongs=", udec_long_(screen.MAX_PWM_FRAME_SIZE_IN_LONGS))
+    debug("- PNL: maxPwmBuffers=", udec_long_(screen.MAX_PWM_BUFFERS), " PwmBufferSizeInLongs=", udec_long_(screen.MAX_PWM_FRAME_SIZE_IN_LONGS))
     debug("- PNL: BFFR pwm[1][", udec_long_(frameSetLenInLongs), "] 0x", uhex_long_(@pwmFrames1))
     debug("- PNL: BFFR pwm[2][", udec_long_(PWM_FRAMESET_SIZE_IN_LONGS), "] 0x", uhex_long_(@pwmFrames2))
 
@@ -82,7 +88,7 @@ VAR { spin timing support }
 
 PUB convertScreen2PWM_14(p24bitScreen, bSwapRB) | pPwmFrameSet, nFrameOffset, nFrameIdx, nFrameCtr, pPwmFrame
     '' Load a 24-bit-color image into PWM frame buffers at 8s (4 scan-lines at a time) [PASM]
-    ' scan memory, write PWM bytes twice, sigh
+    ' scan memory, write PWM bytes twice, sigh...
     'debug("- PNL:cs2pwm(): scn ", uhex_long(p24bitScreen), uhex_long(bSwapRB))
 
     ' -------------------------------------------------------------------------
@@ -137,7 +143,49 @@ PUB convertScreen2PWM_14(p24bitScreen, bSwapRB) | pPwmFrameSet, nFrameOffset, nF
     markStart()
     ' init ptrs
     pPwmFrameSet := getActivePwmBuffer()
-    org
+
+                    org
+                    jmp     #startS8
+
+
+' the following initialized values are simply copied into PASM area before routine is run
+nPhysLineIdx        long    0
+nPhysLineCtr        long    0
+nColumnCtr          long    0
+nTargLineIdx        long    0
+nPwmRGB12ByteIdx    long    0
+bIsBottomHalf       long    0
+nRGBColorOfst       long    0
+maskQtrRowsModulus  long    0
+pRGBPixAddr         long    0
+redBitRGB1Value     long    $01
+greenBitRGB1Value   long    $02
+blueBitRGB1Value    long    $04
+redBitRGB2Value     long    $08
+greenBitRGB2Value   long    $10
+blueBitRGB2Value    long    $20
+maskOnlyRGB1bits    long    $07
+maskOnlyRGB2bits    long    $38
+maskRGB1nRGB2bits   long    $3F
+redPwmBits          long    0
+greenPwmBits        long    0
+bluePwmBits         long    0
+colorValue24bit     long    0
+pwmBitCtr           long    0
+currPwmBffrIdx      long    0
+currMaskBitIdx      long    0
+bitsBGR             long    0
+pPwmFrameByte       long    0
+currPwmBits         long    0
+testBGR             long    0
+allOnes             long    $ffffffff
+one4thLineCt        long    (screen.MAX_PHYSICAL_ROWS / 4)
+oneHalfLineCt       long    (screen.MAX_PHYSICAL_ROWS / 2)
+three4thsLineCt     long    (screen.MAX_PHYSICAL_ROWS / 4) * 3
+maskModHalfScreen   long    ((screen.MAX_PHYSICAL_ROWS * screen.MAX_PHYSICAL_COLUMNS) / 2) - 1
+
+
+startS8
             ' init variables
                     ' setup for red/blue flip if needed
                     or      bSwapRB, bSwapRB   wz   ' T/F where: T=nz, F=z
@@ -206,31 +254,27 @@ next8SColumn
                 ' locate and load color for scanline
                     rdlong  colorValue24bit, pRGBPixAddr
                     ' red := byte[pRGBPixAddr][0]
-                    getbyte currPwmBits, colorValue24bit,#0
-                    call    #cvt8SCurr2pwm
-                    mov     redPwmBits, currPwmBits
+                    getbyte redPwmBits, colorValue24bit,#0
                     ' green := byte[pRGBPixAddr][1]
-                    getbyte currPwmBits, colorValue24bit,#1
-                    call    #cvt8SCurr2pwm
-                    mov     greenPwmBits, currPwmBits
+                    getbyte greenPwmBits, colorValue24bit,#1
                     ' blue := byte[pRGBPixAddr][2]
-                    getbyte currPwmBits, colorValue24bit,#2
-                    call    #cvt8SCurr2pwm
-                    mov     bluePwmBits, currPwmBits
+                    getbyte bluePwmBits, colorValue24bit,#2
 
                     ' write color information to our PWM buffers
                     ' expand PWM-Bit-width bits into N pwm frames of 3-bit pixels two pixels/byte
 
                     ' for ea. bit do...
-                    ' repeat currPwmBitIdx from 0 to screen.MAX_PWM_FRAMES - 1
-                    xor     currPwmBitIdx, currPwmBitIdx          ' start with bit0 of [0-MAX_PWM_FRAMES - 1]
-                    mov     pwmBitCtr, #screen.MAX_PWM_FRAMES           ' MAX PWM FRAME bits to scan in LONG
+                    ' repeat currPwmBffrIdx from 0 to screen.MAX_PWM_BUFFERS - 1 (there's PWM_BUFFER for ea. bit in color depth)
+                    xor     currPwmBffrIdx, currPwmBffrIdx          ' start with buffer[0] of [0-MAX_PWM_BUFFERS - 1]
+                    ' NOTE: PWM def'n bits are org'd at MSBit and are COLOR_DEPTH in width (3-8 bits depth)
+                    mov     currMaskBitIdx, #7                      ' start bitmask is always msBit of byte
+                    mov     pwmBitCtr, #screen.MAX_PWM_BUFFERS      ' MAX PWM FRAME bits to scan in LONG
 
 next8SPwmFrame
                     ' calculate pointer to frame for this bit #
                     '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
                     '   pPwmFrame := @long[getActivePwmBuffer()][nFrameOffset]
-                    mov     pPwmFrame, currPwmBitIdx
+                    mov     pPwmFrame, currPwmBffrIdx
                     mul     pPwmFrame, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES
                     add     pPwmFrame, pPwmFrameSet
                     ' calc address of byte in pwm frame for this nPwmRGB12ByteIdx
@@ -249,11 +293,11 @@ top8SHalf
                     '     bitsBGR |= (rPwm & currBitMask) > 0 ? 1 : 0
                     '     bitsBGR |= (gPwm & currBitMask) > 0 ? 2 : 0
                     '     bitsBGR |= (bPwm & currBitMask) > 0 ? 4 : 0
-                    testb   redPwmBits, currPwmBitIdx     wc
+                    testb   redPwmBits, currMaskBitIdx     wc
     if_c            or      bitsBGR, redBitRGB1Value
-                    testb   greenPwmBits, currPwmBitIdx   wc
+                    testb   greenPwmBits, currMaskBitIdx   wc
     if_c            or      bitsBGR, greenBitRGB1Value
-                    testb   bluePwmBits, currPwmBitIdx    wc
+                    testb   bluePwmBits, currMaskBitIdx    wc
     if_c            or      bitsBGR, blueBitRGB1Value
                     jmp     #write8SPwmByte
 bottom8SHalf
@@ -266,11 +310,11 @@ bottom8SHalf
                     '    bitsBGR |= (rPwm & currBitMask) > 0 ? 8 : 0
                     '    bitsBGR |= (gPwm & currBitMask) > 0 ? $10 : 0
                     '    bitsBGR |= (bPwm & currBitMask) > 0 ? $20 : 0
-                    testb   redPwmBits, currPwmBitIdx     wc
+                    testb   redPwmBits, currMaskBitIdx     wc
     if_c            or      bitsBGR, redBitRGB2Value
-                    testb   greenPwmBits, currPwmBitIdx   wc
+                    testb   greenPwmBits, currMaskBitIdx   wc
     if_c            or      bitsBGR, greenBitRGB2Value
-                    testb   bluePwmBits, currPwmBitIdx    wc
+                    testb   bluePwmBits, currMaskBitIdx    wc
     if_c            or      bitsBGR, blueBitRGB2Value
 write8SPwmByte
                 ' write RGB1, RGB2 value to byte
@@ -278,7 +322,8 @@ write8SPwmByte
                     'or      bitsBGR, #$3F
                     wrbyte  bitsBGR, pPwmFrameByte       ' load current value
                     ' this one done, if not all 8 bits done, go do next
-                    add     currPwmBitIdx, #1
+                    add     currPwmBffrIdx, #1
+                    sub     currMaskBitIdx, #1
                     djnz    pwmBitCtr, #next8SPwmFrame
 
                     ' count this column, go do next column if not yet done
@@ -288,53 +333,8 @@ write8SPwmByte
                     ' count this row, go do next row if not yet done
                     add     nPhysLineIdx, #1
                     djnz    nPhysLineCtr, #next8SLine
-                    jmp     #doneS8
-
-' currPwmBits := cvtCurr2pwm(currPwmBits)   ' NOTE wipes tempByte
-cvt8SCurr2pwm
-                    or      currPwmBits, currPwmBits    wz  ' special case: if zero return all 0 bits
-    if_z            ret
-                    sub     currPwmBits, #1                 ' subtract 1 from our count
-                    bmask   currPwmBits, currPwmBits        ' convert bit count into string of bits
-                    ret
 doneS8
-
-' the following initialized values are simply copied into PASM area before routine is run
-nPhysLineIdx        long    0
-nPhysLineCtr        long    0
-nColumnCtr          long    0
-nTargLineIdx        long    0
-nPwmRGB12ByteIdx    long    0
-bIsBottomHalf       long    0
-nRGBColorOfst       long    0
-maskQtrRowsModulus  long    0
-pRGBPixAddr         long    0
-redBitRGB1Value     long    $01
-greenBitRGB1Value   long    $02
-blueBitRGB1Value    long    $04
-redBitRGB2Value     long    $08
-greenBitRGB2Value   long    $10
-blueBitRGB2Value    long    $20
-maskOnlyRGB1bits    long    $07
-maskOnlyRGB2bits    long    $38
-maskRGB1nRGB2bits   long    $3F
-redPwmBits          long    0
-greenPwmBits        long    0
-bluePwmBits         long    0
-colorValue24bit     long    0
-pwmBitCtr           long    0
-currPwmBitIdx       long    0
-bitsBGR             long    0
-pPwmFrameByte       long    0
-currPwmBits         long    0
-testBGR             long    0
-allOnes             long    $ffffffff
-one4thLineCt        long    (screen.MAX_PHYSICAL_ROWS / 4)
-oneHalfLineCt       long    (screen.MAX_PHYSICAL_ROWS / 2)
-three4thsLineCt     long    (screen.MAX_PHYSICAL_ROWS / 4) * 3
-maskModHalfScreen   long    ((screen.MAX_PHYSICAL_ROWS * screen.MAX_PHYSICAL_COLUMNS) / 2) - 1
-
-    end
+                    end
 
     markEnd(string("pasm 8S"))
     matrix.writePwmBuffer(pPwmFrameSet)
@@ -352,109 +352,9 @@ PUB convertScreen2PWM(p24bitScreen, bSwapRB) | pPwmFrameSet
   ' clear 8x 3-bit frames
     pPwmFrameSet := getActivePwmBuffer()  ' clear PWM frames  and get pointer to buffer
 
-   ' fill 8x 3-bit frames from 24-bit-screen
-    org
-                    ' for each pixels in half screen...
-                    add     p24bitColorTop, p24bitScreen                        ' convert to address of last pixel in top half
-                    add     p24bitColorBot, p24bitColorTop                      ' convert to address of last pixel in bottom half
-                    ' setup for red/blue flip if needed
-                    or      bSwapRB, bSwapRB   wz
-    if_nz           mov     redBitTopValue, #$04
-    if_nz           mov     blueBitTopValue, #$01
-    if_z            mov     redBitTopValue, #$01
-    if_z            mov     blueBitTopValue, #$04
-    if_nz           mov     redBitBotValue, #$20
-    if_nz           mov     blueBitBotValue, #$08
-    if_z            mov     redBitBotValue, #$08
-    if_z            mov     blueBitBotValue, #$20
-nextPixel
-                    ' load our 2 pixels color/pwm data (top and bottom half of panel)
-                    rdlong  colorValue24bit, p24bitColorTop
-                    ' red := byte[p24bitScreen][p24bitColor][0]
-                    getbyte currPwmBits, colorValue24bit,#0
-                    call    #cvtCurr2pwm
-                    mov     redPwmBitsTop, currPwmBits
-                    ' green := byte[p24bitScreen][p24bitColor][1]
-                    getbyte currPwmBits, colorValue24bit,#1
-                    call    #cvtCurr2pwm
-                    mov     greenPwmBitsTop, currPwmBits
-                    ' blue := byte[p24bitScreen][p24bitColor][2]
-                    getbyte currPwmBits, colorValue24bit,#2
-                    call    #cvtCurr2pwm
-                    mov     bluePwmBitsTop, currPwmBits
-
-                    rdlong  colorValue24bit, p24bitColorBot
-                    ' red := byte[p24bitScreen][p24bitColor][0]
-                    getbyte currPwmBits, colorValue24bit,#0
-                    call    #cvtCurr2pwm
-                    mov     redPwmBitsBot, currPwmBits
-                    ' green := byte[p24bitScreen][p24bitColor][1]
-                    getbyte currPwmBits, colorValue24bit,#1
-                    call    #cvtCurr2pwm
-                    mov     greenPwmBitsBot, currPwmBits
-                    ' blue := byte[p24bitScreen][p24bitColor][2]
-                    getbyte currPwmBits, colorValue24bit,#2
-                    call    #cvtCurr2pwm
-                    mov     bluePwmBitsBot, currPwmBits
-
-                    ' FYI GAMMA correction, brightness are adjusted as the byte is placed into our source screen buffer!!
-
-                    ' write color information to our PWM buffers
-                    ' expand 24-bit pixel into N pwm frames of 3-bit pixel
-                    ' for ea. bit do...
-                    mov     bitCount, #screen.MAX_PWM_FRAMES        ' MAX PWM FRAME bits to scan in LONG
-                    xor     currBitNumber, currBitNumber            ' start with bit0 of [0-MAX_PWM_FRAMES - 1]
-nextBit
-                    ' calculate offset to frame for this bit #
-                    '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' MAX N pwm frames so limit our index
-                    '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
-                    '   pPwmFrameByt := @long[getActivePwmBuffer()][nFrameOffset]
-                    mov     pPwmFrameByt, currBitNumber
-                    mul     pPwmFrameByt, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES
-                    ' calculate pointer to frame for this bit #
-                    add     pPwmFrameByt, pPwmFrameSet     ' add base of frame buffer
-                    add     pPwmFrameByt, nPixelCtr        ' add-in offset to current byte
-                    sub     pPwmFrameByt, #1               ' make relative to 0
-                    ' build RGB1 and RGB2 bits to be stored in PWM panel byte
-                    '   rBit := red & (1 << currBitNumber) > 0 ? 1 : 0
-                    '   gBit := green & (1 << currBitNumber) > 0 ? 1 : 0
-                    '   bBit := blue & (1 << currBitNumber) > 0 ? 1 : 0
-                    xor     panelBGR, panelBGR                      ' clear color value
-                    testb   redPwmBitsTop, currBitNumber     wc
-        if_c        or      panelBGR, redBitTopValue
-                    testb   greenPwmBitsTop, currBitNumber   wc
-        if_c        or      panelBGR, greenBitTopValue
-                    testb   bluePwmBitsTop, currBitNumber    wc
-        if_c        or      panelBGR, blueBitTopValue
-                    testb   redPwmBitsBot, currBitNumber     wc
-        if_c        or      panelBGR, redBitBotValue
-                    testb   greenPwmBitsBot, currBitNumber   wc
-        if_c        or      panelBGR, greenBitBotValue
-                    testb   bluePwmBitsBot, currBitNumber    wc
-        if_c        or      panelBGR, blueBitBotValue
-
-                    ' write our new byte value
-                    '    byte[pPwmFrameByt][pwmByteIndex] := panelBGR
-                    wrbyte  panelBGR, pPwmFrameByt
-                    ' this one done, if not all 8 bits done, go do next
-                    add     currBitNumber, #1
-                    djnz    bitCount, #nextBit
-
-                    ' point to prior pixel RGB spec in top and bottom halves
-                    sub    p24bitColorTop, #screen.DISPLAY_BYTES_PER_COLOR
-                    sub    p24bitColorBot, #screen.DISPLAY_BYTES_PER_COLOR
-                    ' count this pixel done, go do next pixel if not yet done
-                    djnz    nPixelCtr, #nextPixel
-                    jmp     #done
-
-' currPwmBits := cvtCurr2pwm(currPwmBits)   ' NOTE wipes tempByte
-cvtCurr2pwm
-                    or      currPwmBits, currPwmBits    wz  ' special case: if zero return all 0 bits
-        if_z        ret
-                    sub     currPwmBits, #1                 ' subtract 1 from our count
-                    bmask   currPwmBits, currPwmBits        ' convert bit count into string of bits
-                    ret
-done
+   ' fill PWM_FRAMES from 24-bit-screen
+                    org
+                    jmp     #start16s
 
 ' the following initialized values are simply copied into PASM area before routine is run
 nPixelCtr           long    (screen.MAX_PHYSICAL_ROWS * screen.MAX_PHYSICAL_COLUMNS) / 2
@@ -479,7 +379,8 @@ colorValueTop       long    0
 colorValueBot       long    0
 colorMask           long    0
 bitCount            long    0
-currBitNumber       long    0
+currMaskBitIdx      long    0
+currPwmBffrIdx      long    0
 panelBGR            long    0
 rowIndexHalfPanel   long    0
 pwmByteIndex        long    0
@@ -488,9 +389,100 @@ currPwmBits         long    0
 tempByte            long    0
 allOnes             long    $ffffffff
 
-    end
+start16s
+                    ' for each pixels in half screen...
+                    add     p24bitColorTop, p24bitScreen                        ' convert to address of last pixel in top half
+                    add     p24bitColorBot, p24bitColorTop                      ' convert to address of last pixel in bottom half
+                    ' setup for red/blue flip if needed
+                    or      bSwapRB, bSwapRB   wz
+    if_nz           mov     redBitTopValue, #$04
+    if_nz           mov     blueBitTopValue, #$01
+    if_z            mov     redBitTopValue, #$01
+    if_z            mov     blueBitTopValue, #$04
+    if_nz           mov     redBitBotValue, #$20
+    if_nz           mov     blueBitBotValue, #$08
+    if_z            mov     redBitBotValue, #$08
+    if_z            mov     blueBitBotValue, #$20
+nextPixel
+                    ' load our 2 pixels color/pwm data (top and bottom half of panel)
+                    rdlong  colorValue24bit, p24bitColorTop
+                    ' red := byte[p24bitScreen][p24bitColor][0]
+                    getbyte redPwmBitsTop, colorValue24bit,#0
+                    ' green := byte[p24bitScreen][p24bitColor][1]
+                    getbyte greenPwmBitsTop, colorValue24bit,#1
+                    ' blue := byte[p24bitScreen][p24bitColor][2]
+                    getbyte bluePwmBitsTop, colorValue24bit,#2
+
+                    rdlong  colorValue24bit, p24bitColorBot
+                    ' red := byte[p24bitScreen][p24bitColor][0]
+                    getbyte redPwmBitsBot, colorValue24bit,#0
+                    ' green := byte[p24bitScreen][p24bitColor][1]
+                    getbyte greenPwmBitsBot, colorValue24bit,#1
+                    ' blue := byte[p24bitScreen][p24bitColor][2]
+                    getbyte bluePwmBitsBot, colorValue24bit,#2
+
+                    ' FYI GAMMA correction, brightness are adjusted as the byte is placed into our source screen buffer!!
+
+                    ' write color information to our PWM buffers
+                    ' expand 24-bit pixel into N pwm frames of 3-bit pixel
+                    ' for ea. bit do...
+                    xor     currPwmBffrIdx, currPwmBffrIdx          ' start with buffer[0] of [0-MAX_PWM_BUFFERS - 1]
+                    mov     bitCount, #screen.MAX_PWM_BUFFERS       ' MAX PWM FRAME bits to scan in LONG
+                    ' NOTE: PWM def'n bits are org'd at MSBit and are COLOR_DEPTH in width (3-8 bits depth)
+                    '  3=$E0, 4=$F0, 5=$F8, 6=$FC, 7=$FE, 8=$FF
+                    mov     currMaskBitIdx, #7                      ' start bitmask is always msBit of byte
+nextBit
+                    ' calculate offset to frame for this bit #
+                    '   frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_BUFFERS - 1    ' MAX N pwm frames so limit our index
+                    '   nFrameOffset := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' 256 longs in each frame
+                    '   pPwmFrameByt := @long[getActivePwmBuffer()][nFrameOffset]
+                    mov     pPwmFrameByt, currPwmBffrIdx
+                    mul     pPwmFrameByt, ##screen.MAX_PWM_FRAME_SIZE_IN_BYTES
+                    ' calculate pointer to frame for this bit #
+                    add     pPwmFrameByt, pPwmFrameSet     ' add base of frame buffer
+                    add     pPwmFrameByt, nPixelCtr        ' add-in offset to current byte
+                    sub     pPwmFrameByt, #1               ' make relative to 0
+                    ' build RGB1 and RGB2 bits to be stored in PWM panel byte
+                    '   rBit := red & (1 << currMaskBitIdx) > 0 ? 1 : 0
+                    '   gBit := green & (1 << currMaskBitIdx) > 0 ? 1 : 0
+                    '   bBit := blue & (1 << currMaskBitIdx) > 0 ? 1 : 0
+                    xor     panelBGR, panelBGR                      ' clear color value
+                    testb   redPwmBitsTop, currMaskBitIdx     wc
+        if_c        or      panelBGR, redBitTopValue
+                    testb   greenPwmBitsTop, currMaskBitIdx   wc
+        if_c        or      panelBGR, greenBitTopValue
+                    testb   bluePwmBitsTop, currMaskBitIdx    wc
+        if_c        or      panelBGR, blueBitTopValue
+                    testb   redPwmBitsBot, currMaskBitIdx     wc
+        if_c        or      panelBGR, redBitBotValue
+                    testb   greenPwmBitsBot, currMaskBitIdx   wc
+        if_c        or      panelBGR, greenBitBotValue
+                    testb   bluePwmBitsBot, currMaskBitIdx    wc
+        if_c        or      panelBGR, blueBitBotValue
+
+                    ' write our new byte value
+                    '    byte[pPwmFrameByt][pwmByteIndex] := panelBGR
+                    wrbyte  panelBGR, pPwmFrameByt
+                    ' this one done, if not all 8 bits done, go do next
+                    add     currPwmBffrIdx, #1
+                    sub     currMaskBitIdx, #1
+                    djnz    bitCount, #nextBit
+
+                    ' point to prior pixel RGB spec in top and bottom halves
+                    sub    p24bitColorTop, #screen.DISPLAY_BYTES_PER_COLOR
+                    sub    p24bitColorBot, #screen.DISPLAY_BYTES_PER_COLOR
+                    ' count this pixel done, go do next pixel if not yet done
+                    djnz    nPixelCtr, #nextPixel
+done16s
+                    end
 
     markEnd(string("pasm 16S"))
+    {
+    nPassCt++
+    if not bDumpOnce && nPassCt == 5
+        bDumpOnce := TRUE
+        dumpBufferHeads(pScreenInMemory, pPwmFrameSet)
+    '}
     matrix.writePwmBuffer(pPwmFrameSet)
 
 ' -----------------------------------------------------------------------------
@@ -500,12 +492,12 @@ PRI dumpBufferHeads(pSCreenBuffer,pPwmBuffer)
     screen.dbgMemDump(@frameMsg, pPwmBuffer, 48)
 
 PRI dumpFrameAddrs(pPwmFrameSet) | pFrameBuffer, frameIndex
-        repeat frameIndex from 0 to screen.MAX_PWM_FRAMES - 1
+        repeat frameIndex from 0 to screen.MAX_PWM_BUFFERS - 1
             pFrameBuffer := @long[pPwmFrameSet][frameIndex * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
             debug("PNL: PWM", udec_(frameIndex), ": ", uhex_long_(pFrameBuffer))
 
 PRI dumpFrameSet(pPwmFrameSet) | pFrameBuffer, frameIndex
-        repeat frameIndex from 0 to screen.MAX_PWM_FRAMES - 1
+        repeat frameIndex from 0 to screen.MAX_PWM_BUFFERS - 1
             pFrameBuffer := @long[pPwmFrameSet][frameIndex * screen.MAX_PWM_FRAME_SIZE_IN_LONGS]
             dumpFrame(frameIndex, pFrameBuffer)
 
@@ -535,14 +527,14 @@ PRI clearPwmFrameBuffer() : pPwmFrameSet
     usePwmFrameset1 := !usePwmFrameset1
     pPwmFrameSet := getActivePwmBuffer()
     'debug("- active buffer=", uhex_long_(pPwmFrameSet))
-    longfill(pPwmFrameSet, 0, screen.MAX_PWM_FRAME_SIZE_IN_LONGS * screen.MAX_PWM_FRAMES)
+    longfill(pPwmFrameSet, 0, screen.MAX_PWM_FRAME_SIZE_IN_LONGS * screen.MAX_PWM_BUFFERS)
 
 PRI getActivePwmBuffer() : pPwmFrameSet
     pPwmFrameSet := (usePwmFrameset1) ? @pwmFrames1 : @pwmFrames2
 
 PRI getPwmFrameAddressForBit(nBitNumber) : pFrameBuffer | nFrameOfst, frameIdx
     ' return indexed PWM Frame address
-    frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_FRAMES - 1    ' limit our index to MAX_PWM_FRAMES
+    frameIdx := 0 #> nBitNumber <# screen.MAX_PWM_BUFFERS - 1    ' limit our index to MAX_PWM_BUFFERS
     nFrameOfst := frameIdx * screen.MAX_PWM_FRAME_SIZE_IN_LONGS ' N longs in each PWM frame
     pFrameBuffer := @long[getActivePwmBuffer()][nFrameOfst]
     'debug("- PWM frame(", udec_(frameIdx), "), ", uhex_long(pFrameBuffer))
@@ -590,7 +582,7 @@ PRI markEnd(message) | elapsed
     'elapsed := elapsed +/ (clkfreq/1000) ' convert to milliseconds
     elapsed := elapsed +/ (clkfreq/1000000) ' convert to useconds
     'elapsed := elapsed +/ (clkfreq/1000) ' convert to useconds
-    'debug("- runtime ", zstr_(message), ": ", udec_long(elapsed), " uS")
+    debug("- runtime ", zstr_(message), ": ", udec_long(elapsed), " uS")
 
 PRI isDebugLocn(nRow, nCol) : status
     status := FALSE
@@ -608,7 +600,7 @@ DAT { .bmp fiile work area }
     testValue       long    $87654321
     testValueMsg    byte    "Test value",0
 
-    msgScrnHd       byte "Screen",0
+    msgScrnHd       byte    "Screen",0
     msgPwm          byte    "Pwm0 ", 0
 
     bufferMsg       byte    "SCREEN",0
