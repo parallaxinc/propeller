@@ -13,7 +13,7 @@
 ''
 ''  NOTE: ADJUST THIS FILE TO DESCRIBE YOUR TYPE OF PANEL and if you have connected mmore than one.
 ''
-''  (This FILE only containing hardware constants, NO CODE, is used by the HUB75 driver software)
+''  (This FILE containing only hardware constants, NO CODE, is used by the HUB75 driver software)
 ''
 '' -------------------------------------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ CON { Hardware Description }
 #$100, LAT_STYLE_OFFSET, #$200, LAT_POSN_OVERLAP, #$400, INIT_PANEL_REQUIRED, #$800, CLK_WIDE_PULSE, #$1000, RB_SWAP, #$2000, SCAN_4
 
 ' Driver Pre-defined flag combinations (use these unless your hardware is not in this list)
-#0, CHIP_UNKNOWN, CHIP_MANUAL_SPEC, CHIP_FM6126A, CHIP_FM6124, CHIP_UNK_LAT_END_ENCL, CHIP_ICN2037, CHIP_UNK_LAT_END_ENCL_SLO_CLK, CHIP_MBI5124_8S
+#0, CHIP_UNKNOWN, CHIP_MANUAL_SPEC, CHIP_FM6126A, CHIP_FM6124, CHIP_UNK_LAT_END_ENCL, CHIP_ICN2037, CHIP_UNK_LAT_END_ENCL_SLO_CLK, CHIP_MBI5124_8S, CHIP_GS6238S
 
 ' Normal use:
 '   PANEL_DRIVER_CHIP = CHIP_FM6126A
@@ -43,7 +43,7 @@ CON { Hardware Description }
 '   PANEL_DRIVER_CHIP = CHIP_FM6126A    ' which is: CHIP_MANUAL_SPEC | LAT_STYLE_OFFSET | LAT_POSN_OVERLAP | INIT_PANEL_REQUIRED
 '   PANEL_DRIVER_CHIP = CHIP_FM6124     ' which is: CHIP_MANUAL_SPEC
 '   PANEL_DRIVER_CHIP = CHIP_ICN2037    ' which is: CHIP_MANUAL_SPEC | CLK_WIDE_PULSE | RB_SWAP
-
+'   PANEL_DRIVER_CHIP = CHIP_GS6238S    ' which is: CHIP_MANUAL_SPEC | LAT_STYLE_OFFSET | LAT_POSN_OVERLAP | RB_SWAP | INIT_PANEL_REQUIRED
 ' =================================================================================================
 '  (3) Describe the overall layout of your hardware panel(s):
 ' =================================================================================================
@@ -53,6 +53,15 @@ CON { Hardware Description }
 
 ' Normal use:
 '   PANEL_ADDR_LINES = {addrLinesNeeded}
+
+' =================================================================================================
+'  (4) Describe the color depth you'd like to display:
+' =================================================================================================
+
+' SUPPORTED depths:  3-8 bits
+#3, DEPTH_3BIT, DEPTH_4BIT, DEPTH_5BIT, DEPTH_6BIT, DEPTH_7BIT, DEPTH_8BIT
+
+
 
 ' -------------------------------------------------------------------------------------------------
 ' AUTHORs  1st configuration
@@ -66,7 +75,7 @@ CON { Hardware Description }
 '     top half (lines 0-15) driven by R1,G1,B1 pins
 '     bottom half (lines 16-31) driven by R2,G2,B2 pins
 '  Author's panel uses FM6126A chips
-'    max clock rate of 30MHz - [16.5ns hi/16.5ns lo]
+'    max clock rate of 30MHz - [16.5ns hi/16.5ns lo]   TESTED NEW
 ' ----------------------------------------------------------
 {
     ADAPTER_BASE_PIN = PINS_P16_P31
@@ -85,6 +94,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 1
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_8BIT
 '}
 
 
@@ -116,6 +129,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 2
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
 '}
 '
 ' -------------------------------------------------------------------------------------------------
@@ -146,7 +163,11 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 4
     MAX_PANELS_PER_COLUMN = 1
-}
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
+'}
 '
 ' -------------------------------------------------------------------------------------------------
 ' AUTHORs  4th configuration
@@ -160,7 +181,7 @@ CON { Hardware Description }
 '     top half (lines 0-15) driven by R1,G1,B1 pins
 '     bottom half (lines 16-31) driven by R2,G2,B2 pins
 '  Author's panel uses FM6124 chips (came in Hackbox)
-'    max clock rate of 30MHz - [16.5ns hi/16.5ns lo]
+'    max clock rate of 30MHz - [16.5ns hi/16.5ns lo]   TESTED NEW
 ' ----------------------------------------------------------
 {
     ADAPTER_BASE_PIN = PINS_P16_P31
@@ -179,6 +200,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 1
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_8BIT
 '}
 
 '
@@ -213,6 +238,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 1
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
 '}
 
 ' -------------------------------------------------------------------------------------------------
@@ -246,6 +275,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 2
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
 '}
 
 
@@ -261,7 +294,7 @@ CON { Hardware Description }
 '     top half (lines 0-31) driven by R1,G1,B1 pins
 '     bottom half (lines 32-63) driven by R2,G2,B2 pins
 '  Author's panel uses MBI5124 chips
-'    max clock rate of 20MHz - [25ns hi/25ns lo]
+'    max clock rate of 20MHz - [25ns hi/25ns lo]   TESTED NEW
 ' ----------------------------------------------------------
 {
     ADAPTER_BASE_PIN = PINS_P16_P31
@@ -280,6 +313,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 1
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_8BIT
 '}
 
 ' -------------------------------------------------------------------------------------------------
@@ -313,10 +350,52 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 2
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
 '}
 
 ' -------------------------------------------------------------------------------------------------
-' AUTHORs  5th configuration
+' AUTHORs  9th configuration (color swap issues)
+' -------------------------------------------------------------------------------------------------
+' PANEL: ---  P2.5-16S-V1.0  --- (cyan label)  S210164-M00739
+'   panel theory  3 bits per pixel
+'   64 columns x 32 rows = 2048 pixels
+'   16 lines [0-15]: 64 pixels / line
+'   2 halves: 1024 pixels / half (top and bottom)
+'     EA half: 1024 pixels
+'     top half (lines 0-15) driven by R1,G1,B1 pins
+'     bottom half (lines 16-31) driven by R2,G2,B2 pins
+'  Author's panel uses GS6238S chips
+'    max clock rate of 30MHz - [16.5ns hi/16.5ns lo]
+' ----------------------------------------------------------
+'{
+    ADAPTER_BASE_PIN = PINS_P16_P31
+   ' (1) determine what form of signalling the driver should use
+    PANEL_DRIVER_CHIP = CHIP_GS6238S ' CHIP_UNKNOWN
+
+    ' (2) describe the panel electrical layout
+    MAX_PANEL_COLUMNS = 64
+    MAX_PANEL_ROWS = 32
+    PANEL_ADDR_LINES = ADDR_ABCD
+
+    ' (3) describe the organization of panel(s)
+    ' panels organization: visual layout
+    '   [1]      1 row of 1 panel
+    '
+    ' (4) describe the organization in numbers of panels
+    MAX_PANELS_PER_ROW = 1
+    MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_7BIT
+'}
+
+
+' -------------------------------------------------------------------------------------------------
+' AUTHORs  105th configuration
 ' -------------------------------------------------------------------------------------------------
 ' PANEL: ---  P2-2020210240-200  ---
 '   panel theory  3 bits per pixel
@@ -329,7 +408,7 @@ CON { Hardware Description }
 '  Author's panel uses ICN2037 chips
 '    max clock rate of 20MHz - [25ns hi/25ns lo]
 ' ----------------------------------------------------------
-'{
+{
     ADAPTER_BASE_PIN = PINS_P16_P31
    ' (1) determine what form of signalling the driver should use
     PANEL_DRIVER_CHIP = CHIP_ICN2037
@@ -346,6 +425,10 @@ CON { Hardware Description }
     ' (4) describe the organization in numbers of panels
     MAX_PANELS_PER_ROW = 6
     MAX_PANELS_PER_COLUMN = 1
+
+    ' (5) describe the color depth you want to support [3-8] bits per LED
+    '    NOTE full 24bit color is DEPTH_8BIT
+    COLOR_DEPTH = DEPTH_4BIT
 '}
 
 
