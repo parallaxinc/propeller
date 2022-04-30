@@ -1,0 +1,269 @@
+'' =================================================================================================
+''
+''   File....... isp_i2c_pca9685_servo.spin2
+''   Purpose.... Servo Interface to underlying PCA9685 I2C Controller
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2021 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Jun 2021
+''   Updated.... 06 Jun 2021
+''
+'' =================================================================================================
+
+CON
+
+    #0, M_NOT_SET, M_ANGLE, M_USECS                                 ' write/read modes
+    #0, ST_NOT_SET, ST_STANDARD, ST_360_DEGREE                      ' Servo Types (limit behaviors)
+
+    CALCULATE_CENTER = -1
+    SERVO_POSITION_NOT_SET = -1
+
+    DEFAULT_LIMIT_USEC_MIN = 600
+    DEFAULT_LIMIT_USEC_MAX = 2400
+    DEFAULT_LIMIT_USEC_CTR = 1500
+
+    DEFAULT_SLEW_RATE_IN_USEC = 30
+
+VAR
+
+    LONG    channel                                             ' servo controller channel [0-15]
+    LONG    servoType                                           ' [ST_NOT_SET, ST_STANDARD, ST_360_DEGREE]
+    LONG    uSecPosn                                            ' [600..2400]
+    LONG    degrPosn                                            ' [0..180]
+    LONG    uSecMinimum                                         ' default 600
+    LONG    uSecCenter                                          ' default 1500
+    LONG    uSecMaximum                                         ' default 2400
+    LONG    uSecSlewRate                                        ' default {DEFAULT_SLEW_RATE_IN_USEC}
+    LONG    targetMode                                          ' valid only during slew
+    LONG    targetValue                                         ' valid only during slew
+
+    BYTE    bChannelSpecified                                   ' true when servo-channel is set up
+    BYTE    bStopped
+    BYTE    bHaveLimits                                         ' true when limits are specified
+    BYTE    bSlewInProgress                                     ' true when a slew has started, false when ended (or not started)
+
+OBJ
+
+    pca9685     : "isp_i2c_pca9685"                     ' our 16-chan servo controller
+    term        : "isp_jm_serial_singleton"                 ' debug terminal output
+
+PUB null()
+
+'' This is not a top-level object
+
+
+PUB init(chan, mode, value) | bValidMode, targetValue
+'' Configure servo output channel
+'' -- {chan} is pca9685 channel number [0-15] associated with this servo
+'' -- {mode} is M_ANGLE, M_USECS or 0 (M_NOT_SET)
+'' -- {value} is desired position angle[0-180], uSec[600-2400]
+' EX:
+'  servo.init(14, M_NOT_SET, 0)     ' just assign channel
+'  servo.init(14, M_ANGLE, 90)     ' assign channel and move servo to 90 degr
+    term.fstr3(string("+ init(CHAN %d, MODE %d, VAL %d)\r\n"), chan, mode, value)
+
+    setServoDefaults()
+
+    uSecSlewRate := DEFAULT_SLEW_RATE_IN_USEC  ' deafult to 30 uSec slew
+    bSlewInProgress := FALSE
+
+    channel := 0 #> chan <# 15                                  ' save controller channel for this servo
+    bChannelSpecified := TRUE                                   ' mark servo channel as specified
+
+    uSecPosn := SERVO_POSITION_NOT_SET  ' preset nonsense values so we move first time
+
+    if mode <> M_NOT_SET
+        bValidMode := isValidMode(mode)
+
+        if bValidMode
+            writePosition(mode, value)
+
+PUB stop()
+    '' Disable servo channel if previously configured
+    if (bChannelSpecified)
+        bChannelSpecified := FALSE
+
+PUB configureMinCtrMaxType(uSecMin, uSecCntr, uSecMax, type)
+    '' Configure limits and center for this servo instance
+    servoType := type
+    uSecMinimum := uSecMin
+    uSecMaximum := uSecMax
+    uSecCenter := uSecCntr
+    if(uSecCntr == CALCULATE_CENTER)
+        uSecCenter := ((uSecMaximum - uSecMinimum) / 2) + uSecMinimum
+    bHaveLimits := TRUE
+    term.fstr4(string("+ configureMinCtrMaxType(MIN %d, CTR %d, MAX %d, TYPE %d)\r\n"), uSecMin, uSecCenter, uSecMax, type)
+
+PUB centerMicroSec() : centerInMicroSecs
+    '' Return the center in uSec for this servo instance
+    centerInMicroSecs := uSecCenter
+
+PUB setSlewRate(newRatInUSec)
+    '' Set new slew rate for this servo instance (default 30 uSec)
+    uSecSlewRate := 5 #> newRatInUSec <# 450   ' min is 5 uSec ,max is 1/4 range
+    if newRatInUSec == 0
+        uSecSlewRate := DEFAULT_LIMIT_USEC_MAX - DEFAULT_LIMIT_USEC_MIN ' eff no slew!
+
+
+PUB slewToPostion(mode, value) | bHaveHardware, bIsValidMode, currUSec, targetUSec, deltaUSec, intermediateTarget
+    '' Start slew of servo to desired target position
+    bHaveHardware := hardwareConfigured(string("slewToPostion"))
+    bIsValidMode := isValidMode(mode)
+    if (bHaveHardware && bIsValidMode)
+        targetMode := mode
+        targetValue := value
+        continueSlew()
+
+PUB continueSlew() : bAtTargetStatus | bHaveHardware, bIsValidMode, currUSec, targetUSec, deltaUSec, intermediateTargetUSec
+    '' Continue slew to target position ... to final target or just next increment
+    bHaveHardware := hardwareConfigured(string("continueSlew"))
+    bIsValidMode := isValidMode(targetMode)
+    if (bHaveHardware && bIsValidMode)
+        targetUSec := convertPosition(targetMode, targetValue, M_USECS)
+        currUSec := readPosition(M_USECS)
+        deltaUSec := targetUSec - currUSec
+        term.fstr4(string("+ continueSlew() CHAN %d at %d, target %d, delta %d)\r\n"), channel, currUSec, targetUSec, deltaUSec)
+
+        ' if not at final target then move
+        if currUSec == SERVO_POSITION_NOT_SET || deltaUSec <> 0
+            ' if we have more then slew interval to move then just do slew distance
+            if (abs deltaUSec > uSecSlewRate)
+                bSlewInProgress := TRUE
+                if targetUSec < currUSec
+                    intermediateTargetUSec := currUSec - uSecSlewRate
+                else
+                    intermediateTargetUSec := currUSec + uSecSlewRate
+                writePosition(M_USECS, intermediateTargetUSec)
+            else
+                ' have less than slew distance do rest of travel
+                writePosition(M_USECS, targetUSec)
+                targetMode := M_NOT_SET ' done slewing
+        else
+            targetMode := M_NOT_SET ' done slewing
+
+PUB isAtPostion() : bAtTargetStatus | bHaveHardware, bIsValidMode, currUSec, targetUSec
+    '' Return T/F where T means this servo is at desired target position
+    bHaveHardware := hardwareConfigured(string("isAtPostion"))
+    if (bHaveHardware && targetMode <> M_NOT_SET)
+        targetUSec := convertPosition(targetMode, targetValue, M_USECS)
+        currUSec := readPosition(M_USECS)
+        bAtTargetStatus := (currUSec == targetUSec) ? TRUE : FALSE
+        term.fstr4(string("+ isAtPostion() CHAN %d at %d, target %d == %d  --SLEW--\r\n"), channel, currUSec, targetUSec, bAtTargetStatus)
+    else
+        bAtTargetStatus := TRUE ' if not slewing we are at desired target
+        'term.fstr2(string("+ isAtPostion() CHAN %d  == %d\r\n"), channel, bAtTargetStatus)
+
+PUB writePosition(mode, value) | bHaveHardware, bIsValidMode, currValue
+    '' Update servo
+    '' -- {mode} is M_ANGLE, M_USECS or 0 (M_NOT_SET)
+    '' -- {value} is desired position angle[0-180], uSec[600-2400]
+    bHaveHardware := hardwareConfigured(string("writePosition"))
+    bIsValidMode := isValidMode(mode)
+    if (bHaveHardware && bIsValidMode)
+        currValue := readPosition(mode)
+        if currValue <> value
+            term.fstr2(string("+ writePosition(MODE %d, %d degr/uS)\r\n"), mode, value)
+            uSecPosn, degrPosn := positionInLimits(mode, value)
+            pca9685.gotoMicroSec(channel, uSecPosn)                             ' update servo
+
+PUB readPosition(mode) : result | bHaveHardware, bIsValidMode
+    '' Return the current servo Position in {mode} units
+    result := 0
+    bHaveHardware := hardwareConfigured(string("readPosition"))
+    bIsValidMode := isValidMode(mode)
+    if (bHaveHardware && bIsValidMode)
+        if (mode == M_ANGLE)
+            result := degrPosn
+        else
+            result := uSecPosn
+        term.fstr3(string("+ readPosition(CHAN %d - MODE %d) = %d degr/uS\r\n"), channel, mode, result)
+
+CON  { ---- PRIVATE Utility Methods ---- }
+
+PRI isValidMode(mode) : bValidStatus
+    bValidStatus := FALSE
+    if (mode == M_ANGLE)
+        bValidStatus := TRUE
+    elseif (mode == M_USECS)
+        bValidStatus := TRUE
+    if NOT bValidStatus
+        term.fstr1(string("+ isValidMode() ERROR mode(%d) NOT valid\r\n"), mode)
+
+PRI hardwareConfigured(callerIDMsg) : bIsConfigured
+    bIsConfigured := bChannelSpecified
+    if NOT bChannelSpecified
+        term.fstr1(string("+ %s() ERROR Channel NOT configured\r\n"), callerIDMsg)
+
+PRI convertPosition(inMode, inValue, outMode) : outValue | bIsValidMode, tmpDegr, tmpUSec
+    bIsValidMode := isValidMode(inMode)
+    bIsValidMode &= isValidMode(outMode)
+    if (bIsValidMode)
+        tmpUSec, tmpDegr := positionInLimits(inMode, inValue)
+        if (outMode == M_ANGLE)
+            outValue := tmpDegr
+        elseif (outMode == M_USECS)
+            outValue := tmpUSec
+    else
+        term.fstr3(string("+ convertPosition(INMODE %d, VAL %d, OUTMODE %d) ERROR Bad Parameter!\r\n"), inMode, inValue, outMode)
+
+PRI positionInLimits(mode, value) : retUSec, retDegr
+    if (mode == M_ANGLE)
+        retDegr := 0 #> value <# 180                                   ' legal degrees
+        retUSec := angle2us(retDegr)                                  ' convert to uSecs
+        'term.fstr4(string("+ positionInLimits(ANGLE[%d], VAL %d) --> uSec %d, angle %d\r\n"), mode, value, retUSec, retDegr)
+    elseif (mode == M_USECS)
+        retUSec := uSecMinimum #> value <# uSecMaximum                 ' legal microseconds
+        retDegr := us2Angle(retUSec)                                  ' convert to degrPosn
+        'term.fstr4(string("+ positionInLimits(uSec[%d], VAL %d) --> uSec %d, angle %d\r\n"), mode, value, retUSec, retDegr)
+    else
+        term.fstr2(string("+ positionInLimits(MODE %d, VAL %d) ERROR Bad MODE!\r\n"), mode, value)
+
+PRI setServoDefaults()
+    ' configure default values for this servo if we don't yet have these
+    if not bHaveLimits
+        uSecMinimum := DEFAULT_LIMIT_USEC_MIN
+        uSecMaximum := DEFAULT_LIMIT_USEC_MAX
+        uSecCenter := DEFAULT_LIMIT_USEC_CTR
+        servoType := ST_STANDARD
+        bHaveLimits := TRUE
+
+PRI angle2us(degr) : uSecPosn | validDegr
+    ' convert degrees to uSecs
+    validDegr := 0 #> degr <# 180                           ' legal degrees
+    ' map our number of degrees to uSec time
+    uSecPosn := map(validDegr, 0, 180, uSecMinimum, uSecMaximum)
+    'term.fstr4(string("+ angle2us(%d degr) --> %d uSec [uSec min:%d, max:%d]\r\n"), validDegr, uSecPosn, uSecMinimum, uSecMaximum)
+
+PRI us2Angle(uSecs) : degrPosn | validUs
+    ' convert uSecs to degrees
+    validUs := uSecMinimum #> uSecs <# uSecMaximum          ' legal microseconds
+    ' map our uSec time to number of degrees
+    degrPosn := map(validUs, uSecMinimum, uSecMaximum, 0, 180)
+    'term.fstr4(string("+ us2Angle(uSec %d) --> %d degr [uSec min:%d, max:%d]\r\n"), validUs, degrPosn, uSecMinimum, uSecMaximum)
+
+PRI map(inValue,  inMin,  inMax,  outMin,  outMax) : outValue
+{
+    REF: https://www.arduino.cc/reference/en/language/functions/math/map
+
+    Re-maps a number from one range to another. That is, a value of fromLow would get mapped to toLow,
+    a value of fromHigh to toHigh, values in-between to values in-between, etc.
+
+    Does not constrain values to within the range, because out-of-range values are sometimes intended and
+    useful. The constrain() function may be used either before or after this function, if limits to the ranges are desired.
+
+    Note that the "lower bounds" of either range may be larger or smaller than the "upper bounds" so the
+    map() function may be used to reverse a range of numbers, for example
+
+    y = map(x, 1, 50, 50, 1);
+
+    The function also handles negative numbers well, so that this example
+
+    y = map(x, 1, 50, 50, -100);
+
+    is also valid and works well.
+
+    The map() function uses integer math so will not generate fractions, when the math might indicate that
+    it should do so. Fractional remainders are truncated, and are not rounded or averaged.
+}
+  outValue := (inValue - inMin) * (outMax - outMin) / (inMax - inMin) + outMin

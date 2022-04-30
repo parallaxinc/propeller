@@ -1,0 +1,1655 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Display_Demo
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.6
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ This is basically the code which was written to test the graphics & display & font driver code.
+ It is against good coding guidelines by purpose. Good coding of course means to figure out which
+ code is common and put that code into functions. But here I want to explicitly show, how similar
+ the code is, even if you have different displays.
+ Which in the end means, that with this driver-set you produce code that can easily be adopted to
+ other displays. Only change the display driver and maybe tweak differences that are related to
+ different screen resolutions.
+
+ Remember, the displays I am using are:
+   * 1.5inch 128x128 4bit grayscale SPI OLED display from Waveshare
+   * 1.3inch 240x240 16bit 5R6G5B SPI LCD display from Waveshare
+   * 1.14inch 240x135 16bit 5R6G5B SPI LCD display from Waveshare
+ Next to come:
+   * 128x64  1bit blue/white parallel STN LCD with 2 Avant SBN0064G chips
+   * 1.27inch 128x96 ? RGB SPI OLED display from Adafruit
+   * 0.96inch 128x64 blue SPI OLED display from DFRobot
+   * ePaper display
+
+ The philosophy:
+   * The main program is the master of everything! So, if the requirements regarding frame-rate
+     are not too high, there is no need to run the driver in it's own dedicated COG.
+   * The main program is also master of the screen-buffer and can use the buffer for other things
+     between doing display updates, if it helps to save RAM.
+   * Font files can also easily be stripped down to the minimal character set or could also
+     be replaced during runtime.
+
+ Known issues:
+   * -
+
+ Plans for the future:
+   * Use a general color concept (32bit 8A8R8G8B) in the graphics functions, which will
+     automatically be converted to the display color encoding. (8R8G8B done, missing is 8A)
+   * Function for reading 24bit BMP files
+   * Having a mode without screen-buffer
+   * Enhance the display drivers to support display hardware windows
+   * Emulate those hardware windows on displays without (allows to use window size screen buffers
+     instead of screen size screen buffers )
+   * Maybe another object which supports drawing of Windows(tm;o) and other graphical stuff?
+     ( Buttons, icons, sliders ... )
+
+ Feel free to add a hardware driver for your specific display and create a PR to keep things
+ together.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+
+
+CON { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+CON { fixed EVAL board io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDO   = 59  { O }
+  SD_SDI   = 58  { I }
+
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { IO }
+
+CON
+  DISPLAYA_BASE_PIN = 8
+  DISPLAYB_BASE_PIN = 16
+  DISPLAYC_BASE_PIN = 0
+  WAIT_TIME         = 2000
+
+  FONT_ATARI  = 0
+  FONT_CMD    = 1
+  FONT_TECH   = 2
+  FONT_AQUA   = 3
+  FONT_RUB    = 4
+  FONT_DUMMY  = 5
+
+  ' Use bit 0, 1, 2 to enable demo for display a, b, c
+  RUN_DISP    = 7
+  ' repeat counter for the different test loops
+  REPEATS     = 10
+
+OBJ
+  displays: "Display_Manager"
+
+  disp_a: "Wave_16GS128x128OledDrv"
+  disp_b: "Wave_16b240x240LCDDrv"
+  disp_c: "Wave_16b135x240LCDDrv"
+
+  {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+     This is a fun one. It can be used to send the image generated
+     for the disp_b to a debug window. If you enable debug, it
+     will do so for the line test, as it is of course pretty slow
+     to send a whole screen to the PC.
+     =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  disp_d: "Debug_16b240x240_Drv"
+
+  graphic : "Graphics"
+
+  font    : "Font_Manager"
+  font8x8a: "Font8x8_Atari"
+  font8x8b: "Font8x8_Cmd"
+  font8x8c: "Font8x8_Tech"
+  font8x8d: "Font8x8_Aqua"
+  font8x8e: "Font8x8_Burnrubber"
+
+  {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+     This does not contain a real font, it is only some quick hack
+     test fontset.
+     =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+  font8x8f: "Font14x11_Dummy"
+
+DAT
+  ' as I share the screen buffer with all displays, I simply pick the biggest value
+  screen byte $00[ disp_b.BUFFER_SIZE ]
+
+VAR
+  tstart, tend
+
+  ' historical: no need to remember anymore.
+  dispa_pix
+  dispb_pix
+  dispc_pix
+
+  ' actually no need to remember.
+  dispa_head
+  dispb_head
+  dispc_head
+
+
+PUB main() | x,y,c,r,x1,y1,c1,x2,y2,c2,f,sx,sy,cts,cte
+  setup()
+
+  repeat
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      This part is using the direct import of a RGB Bitmap file and
+      converts it to the display specific pixel format (5R6G5B).
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    cts:=getct()
+    graphic.convRGB( dispb_pix, 0, 0, 240, 240, 240, @image2+54 )
+    cte:=getct()
+    disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+    ' debug( "Conversion time ", udec( cte-cts ) )
+    waitms( WAIT_TIME )
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      For the smaller display having the same color format, the
+      screen buffer can directly be re-used.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat y from 0 to 100 step 2
+      disp_c.writeBuffer( @screen+y*240*2,disp_c.BUFFER_SIZE )
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      And now test the patial copy of a bmp.
+      A bit uncompfortable at the moment, because the bmp image is
+      written upside down, which makes calculations cumbersome.
+      Something to be improved in future.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat x from 2 to 60
+      disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+      disp_b.setClipping( x,disp_b.X_MAX-x,x,disp_b.Y_MAX-x )
+      graphic.convRGB( dispb_pix, x, x, 240, 240, 240, @image2+54-(240*x-x)*3 )
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+    disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      Show a grayscale screen on all 3 displays
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    if RUN_DISP&1
+      y:=0
+      repeat 128
+        c:=0
+        x:=0
+        repeat 128
+          graphic.pixel( dispa_pix, x, y,c )
+          x++
+          if (x//8)==0
+            c+=$101010
+        y++
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,-1)
+      graphic.text( dispa_pix, FONT_ATARI,  11,11+y1,$0,$3, string("Grayscale") )
+      graphic.text( dispa_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Grayscale") )
+      disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+      waitms( WAIT_TIME )
+
+    if RUN_DISP&2
+      y:=0
+      repeat 240
+        c:=$0
+        x:=0
+        repeat 240
+          graphic.pixel( dispb_pix, x, y,c )
+          x++
+          c+=$010101
+        y++
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,-1)
+      graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
+      graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
+      graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+      waitms( WAIT_TIME )
+
+    if RUN_DISP&4
+      y:=0
+      repeat 240
+        c:=$0
+        x:=0
+        repeat 240
+          graphic.pixel( dispc_pix, x, y,c )
+          x++
+          c+=$010101
+        y++
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,-1)
+      graphic.text( dispc_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Grayscale Test") )
+      graphic.text( dispc_pix, FONT_ATARI,   9,11+y1,0,-1, string("Grayscale Test") )
+      graphic.text( dispc_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Grayscale Test") )
+      disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+      waitms( WAIT_TIME )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+      Show some text with background color scrolling up and
+      a lot of pixels being updated with random position and color
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    if RUN_DISP&4
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
+      disp_c.setClipping( 0,disp_c.X_MAX,0,disp_c.Y_MAX )
+      repeat y1 from 99 to 0
+        repeat 2000
+          x:=getrnd()//disp_c.X_RES
+          y:=getrnd()//disp_c.Y_RES
+          c:=getrnd()
+          graphic.pixel( dispc_pix, x, y, c )
+        graphic.text( dispc_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Pixel Test") )
+        graphic.text( dispc_pix, FONT_ATARI,   9,11+y1,0,-1, string("Pixel Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  10,10+y1,$ffff,-1, string("Pixel Test") )
+        disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+      ' disp_c.setClipping( 0,disp_c.X_MAX,0,disc_b.Y_MAX )
+
+    if RUN_DISP&2
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+      disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+      repeat y1 from 99 to 0
+        repeat 2000
+          x:=getrnd()//disp_b.X_RES
+          y:=getrnd()//disp_b.Y_RES
+          c:=getrnd()
+          graphic.pixel( dispb_pix, x, y, c )
+        graphic.text( dispb_pix, FONT_ATARI,  11,11+y1,0,%00111_001111_00111, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_ATARI,   9,11+y1,0,-1, string("Pixel Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
+        disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+      disp_b.setClipping( 0,disp_b.X_MAX,0,disp_b.Y_MAX )
+
+    if RUN_DISP&1
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
+      disp_a.setClipping( 0,disp_a.X_MAX,0,disp_a.Y_MAX )
+      repeat y1 from 99 to 0
+        repeat 2000
+          x:=getrnd()//disp_a.X_RES
+          y:=getrnd()//disp_a.Y_RES
+          c:=getrnd()&$ffffff
+          graphic.pixel( dispa_pix, x, y, c )
+        graphic.text( dispa_pix, FONT_ATARI,  11,11+y1,$0,$3, string("Pixel Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10+y1,$ffffff,-1, string("Pixel Test") )
+        disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+      disp_a.setClipping( 0,disp_a.X_MAX,0,disp_a.Y_MAX )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Loop through all available fonts and show them on all displays
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat f from 0 to 5
+      if RUN_DISP&1
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
+        repeat y from 0 to 7
+          repeat x from 0 to 15
+            c:=(x*$080808)*3+$101010
+            graphic.char( dispa_pix, f, x*8, y*8+30, c, -1, y*16+x )
+        graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
+        disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+
+      if RUN_DISP&2
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+        repeat y from 0 to 7
+          repeat x from 0 to 15
+            c:=%00000_001000_00000*x+%00111_000111_00111
+            graphic.char( dispb_pix, f, x*10+45, y*10+45, c, -1, y*16+x )
+        graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
+        disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+
+      if RUN_DISP&4
+        graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
+        repeat y from 0 to 7
+          repeat x from 0 to 15
+            c:=%00000_001000_00000*x+%00111_000111_00111
+            graphic.char( dispc_pix, f, x*10+45, y*10+30, c, %00111_000000_00000, y*16+x )
+        graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Font Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Font Test") )
+        disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+
+      waitms( WAIT_TIME )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw 100 random lines with random colors per loop and display
+       the result. If debug is enabled, the content of display_b
+       is also sent to a display emulation debug window.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat REPEATS
+      if RUN_DISP&1
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
+        repeat 100
+          x1:=random( disp_a.X_MAX-10 ) + 5
+          y1:=random( disp_a.Y_MAX-10 ) + 5
+          x2:=random( disp_a.X_MAX-10 ) + 5
+          y2:=random( disp_a.Y_MAX-10 ) + 5
+          c1:=getrnd()& $ffffff
+          'c2:=getrnd()& $f
+          graphic.line(dispa_pix,x1,y1,x2, y2, c1) ', c2)
+        graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Line Test") )
+        disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+
+      if RUN_DISP&2
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+        repeat 100
+          x1:=random( disp_b.X_MAX-40 ) + 20
+          y1:=random( disp_b.Y_MAX-40 ) + 20
+          x2:=random( disp_b.X_MAX-40 ) + 20
+          y2:=random( disp_b.Y_MAX-40 ) + 20
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
+          graphic.line(dispb_pix,x1,y1,x2, y2, c1) ', c2)
+        graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
+        graphic.text( dispb_pix, FONT_ATARI,   9,11,$0,-1, string("Line Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  20,10,$ffffff,-1, string("Line Test") )
+        disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+        ' also show this in a debug window
+        disp_d.writeBuffer( 0,disp_b.BUFFER_SIZE )
+
+      if RUN_DISP&4
+        graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffff,0)
+        repeat 100
+          x1:=random( disp_c.X_MAX-40 ) + 20
+          y1:=random( disp_c.Y_MAX-40 ) + 20
+          x2:=random( disp_c.X_MAX-40 ) + 20
+          y2:=random( disp_c.Y_MAX-40 ) + 20
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$ffffff
+          graphic.line(dispc_pix,x1,y1,x2, y2, c1) ', c2)
+        graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Line Test") )
+        graphic.text( dispc_pix, FONT_ATARI,   9,11,$0,-1, string("Line Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  20,10,$ffffff,-1, string("Line Test") )
+        disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+
+      waitms( WAIT_TIME )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw some random boxes
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat REPEATS
+      if RUN_DISP&1
+        graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,0)
+        repeat 10
+          x1:=random( disp_a.X_MAX-20 )+10
+          x2:=random( disp_a.X_MAX-20 )+10
+          y1:=random( disp_a.Y_MAX-20 )+10
+          y2:=random( disp_a.Y_MAX-20 )+10
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.box(dispa_pix,x1,y1,x2,y2,c1,c2)
+
+        graphic.text( dispa_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
+        graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
+        disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+
+      if RUN_DISP&2
+        graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+        repeat 10
+          x1:=random( disp_b.X_MAX-40 ) + 20
+          x2:=random( disp_b.X_MAX-40 ) + 20
+          y1:=random( disp_b.Y_MAX-40 ) + 20
+          y2:=random( disp_b.Y_MAX-40 ) + 20
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.box(dispb_pix,x1,y1,x2,y2,c1,c2)
+
+        graphic.text( dispb_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
+        graphic.text( dispb_pix, FONT_ATARI,   9,11,$0,-1, string("Box Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
+        disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+
+      if RUN_DISP&4
+        graphic.box(dispb_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
+        repeat 10
+          x1:=random( disp_c.X_MAX-40 ) + 20
+          x2:=random( disp_c.X_MAX-40 ) + 20
+          y1:=random( disp_c.Y_MAX-20 ) + 10
+          y2:=random( disp_c.Y_MAX-20 ) + 10
+          c1:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.box(dispc_pix,x1,y1,x2,y2,c1,c2)
+
+        graphic.text( dispc_pix, FONT_ATARI,  11,11,$0,-1, string("Box Test") )
+        graphic.text( dispc_pix, FONT_ATARI,   9,11,$0,-1, string("Box Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Box Test") )
+        disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+
+      waitms( WAIT_TIME )
+
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw some random circles
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    repeat REPEATS
+      if RUN_DISP&1
+        graphic.box(dispa_pix,0, 0, disp_a.X_MAX, disp_a.Y_MAX, $0f, 0)
+        repeat 10
+          x:=random( disp_a.X_MAX-40 )+20
+          y:=random( disp_a.Y_MAX-40 )+20
+          r:=random( 30 )
+          c:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.circle( dispa_pix,x,y,r,c,c2 )
+        graphic.text( dispa_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
+        graphic.text( dispa_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
+        disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+
+      if RUN_DISP&2
+        graphic.box(dispb_pix,0, 0, disp_b.X_MAX, disp_b.Y_MAX, $ffffff, 0)
+        repeat 10
+          x:=random( disp_b.X_MAX-40 )+20
+          y:=random( disp_b.Y_MAX-40 )+20
+          r:=random( 60 )
+          c:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.circle( dispb_pix,x,y,r,c,c2 )
+        graphic.text( dispb_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
+        graphic.text( dispb_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
+        graphic.text( dispb_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
+        disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+
+      if RUN_DISP&4
+        graphic.box(dispc_pix,0, 0, disp_c.X_MAX, disp_c.Y_MAX, $ffffff, 0)
+        repeat 10
+          x:=random( disp_c.X_MAX-40 )+20
+          y:=random( disp_c.Y_MAX-40 )+20
+          r:=random( 60 )
+          c:=getrnd()&$ffffff
+          c2:=getrnd()&$1ffffff
+          if c2>$ffffff
+            c2:=-1
+          graphic.circle( dispc_pix,x,y,r,c,c2 )
+        graphic.text( dispc_pix, FONT_ATARI, 11,21,$0,-1, string("Circle Test") )
+        graphic.text( dispc_pix, FONT_ATARI,  9,21,$0,-1, string("Circle Test") )
+        graphic.text( dispc_pix, FONT_ATARI, 10,20,$ffffff,-1, string("Circle Test") )
+        disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+
+      waitms( WAIT_TIME )
+
+   {{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+       Draw the wolf image, which needs some conversion for the
+       RGB displays.
+      =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+    if RUN_DISP&1
+      repeat x from 0 to disp_a.BUFFER_SIZE
+        byte[ @screen ][ x ]:= byte[ @image1 ][ x ]
+      graphic.box(dispa_pix,0,0,disp_a.X_MAX,disp_a.Y_MAX,$ffffff,-1)
+      graphic.text( dispa_pix, FONT_ATARI,  11,11,0,-1, string("Wolf is back!") )
+      graphic.text( dispa_pix, FONT_ATARI,  10,10,$ffffff,-1, string("Wolf is back!") )
+      disp_a.writeBuffer( 0,disp_a.BUFFER_SIZE )
+
+    if RUN_DISP&2
+      graphic.box(dispb_pix,0,0,disp_b.X_MAX,disp_b.Y_MAX,$ffffff,0)
+      repeat 10
+        x:=random( disp_b.X_MAX-40 )+20
+        y:=random( disp_b.Y_MAX-40 )+20
+        r:=random( 60 )
+        c:=getrnd()&$ffffff
+        graphic.circle( dispb_pix,x,y,r,c,c>>1 )
+
+      repeat x from 0 to 127
+        repeat y from 0 to 127
+          word[ @screen ][ (y+45)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
+      graphic.box(dispb_pix,44,44,44+128,44+128,$ffffff,-1)
+      graphic.text( dispb_pix, FONT_ATARI,  11,11,0,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispb_pix, FONT_ATARI,   9,11,0,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispb_pix, FONT_ATARI,  10,10,$ffffff,-1, string("-= Wolf is back! =-") )
+      disp_b.writeBuffer( 0,disp_b.BUFFER_SIZE )
+
+    if RUN_DISP&4
+      graphic.box(dispc_pix,0,0,disp_c.X_MAX,disp_c.Y_MAX,$ffffff,0)
+      repeat 10
+        x:=random( disp_c.X_MAX-40 )+20
+        y:=random( disp_c.Y_MAX-40 )+20
+        r:=random( 60 )
+        c:=getrnd()&$ffffff
+        graphic.circle( dispc_pix,x,y,r,c,c>>1 )
+
+      repeat x from 0 to 127
+        repeat y from 0 to 127
+          word[ @screen ][ (y+5)*240+x+45 ]:= disp_a.getPixel( @image1, x,y )* %00010_000100_00010
+      graphic.box(dispc_pix,44,4,44+128,4+128,$ffffff,-1)
+      graphic.text( dispc_pix, FONT_ATARI,  11,11,0,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispc_pix, FONT_ATARI,   9,11,0,-1, string("-= Wolf is back! =-") )
+      graphic.text( dispc_pix, FONT_ATARI,  10,10,$ffffff,-1, string("-= Wolf is back! =-") )
+      disp_c.writeBuffer( 0,disp_c.BUFFER_SIZE )
+
+    waitms( WAIT_TIME )
+{{}}
+
+PRI random( limit ) : rnd | mask
+  mask:=1
+  repeat while mask<limit
+    mask:=mask<<1|1
+  repeat
+    rnd:=getrnd()&mask
+  until rnd<=limit
+
+PUB setup() | tmp, cnt, pix_adr
+  ' tell the display driver the pins where the display is attached
+  disp_a.setup( DISPLAYA_BASE_PIN )
+  ' tell the display driver where to find the screen buffer
+  disp_a.addScreenBuffer( @screen )
+  ' as buffer is initialized with 0, this will turn the screen black
+  disp_a.writeBuffer( 0, disp_a.BUFFER_SIZE )
+
+  ' same for the 2nd display. Both share the screen-buffer in this case
+  disp_b.setup( DISPLAYB_BASE_PIN )
+  disp_b.addScreenBuffer( @screen )
+  disp_b.writeBuffer( 0, disp_b.BUFFER_SIZE )
+
+  ' same for the 3rd display. All share the screen-buffer in this case
+  disp_c.setup( DISPLAYC_BASE_PIN )
+  disp_c.addScreenBuffer( @screen )
+  disp_c.writeBuffer( 0, disp_c.BUFFER_SIZE )
+
+  ' here is the fun ... using a DEBUG window to emulate a real display
+  disp_d.setup()
+  disp_d.addScreenBuffer( @screen )
+  disp_d.writeBuffer( 0, disp_b.BUFFER_SIZE )
+  ' in opposite to the other displays, this one does not need a pixel function,
+  ' it can simply show what the real display driver has written into the screen buffer
+  ' only resolution and color-encoding has to match to make this work
+
+  ' $130 is the end of COG-RAM which can be used for loading functions (see SPIN2 documentation: REGLOAD)
+  ' The function writing a pixel is loaded at the end of COG-RAM for the first display driver.
+  ' As return value, you get the address to call in COG-RAM, which is also the new end
+  dispa_head:=disp_a.loadPixelPASM( $130 )
+  displays.addDisplay( dispa_head )
+  dispa_pix:=displays.getPixelPASM( 0 )
+  ' So the second driver can 'install' it's pixel function in front of that and also returns a pointer
+  dispb_head:=disp_b.loadPixelPASM( dispa_pix )
+  displays.addDisplay( dispb_head )
+  dispb_pix:=displays.getPixelPASM( 1 )
+
+  dispc_head:=disp_c.loadPixelPASM( dispb_pix )
+  displays.addDisplay( dispc_head )
+  dispc_pix:=displays.getPixelPASM( 2 )
+
+  ' register the available font objects in font manager object
+  font.addFont( font8x8a.getFontHeader() )
+  font.addFont( font8x8b.getFontHeader() )
+  font.addFont( font8x8c.getFontHeader() )
+  font.addFont( font8x8d.getFontHeader() )
+  font.addFont( font8x8e.getFontHeader() )
+  font.addFont( font8x8f.getFontHeader() )
+
+
+DAT
+image1
+byte $00, $00, $00, $00, $00, $11, $22, $33
+byte $24, $33, $55, $56, $77, $78, $87, $77
+byte $66, $56, $78, $85, $44, $54, $43, $33
+byte $22, $33, $33, $33, $33, $33, $33, $33
+byte $44, $43, $44, $44, $44, $45, $43, $33
+byte $33, $24, $78, $BC, $C5, $22, $22, $22
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $00, $00, $00, $00, $01, $11, $22, $33
+byte $34, $44, $55, $56, $77, $88, $88, $88
+byte $76, $67, $88, $96, $56, $65, $64, $43
+byte $22, $33, $33, $33, $33, $33, $33, $33
+byte $33, $33, $44, $44, $44, $44, $43, $32
+byte $32, $13, $58, $AC, $D8, $22, $22, $22
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $00, $00, $00, $00, $01, $12, $22, $33
+byte $34, $55, $55, $57, $77, $98, $88, $89
+byte $87, $87, $89, $A9, $88, $77, $76, $54
+byte $33, $33, $33, $33, $33, $33, $33, $33
+byte $33, $34, $44, $44, $44, $54, $33, $33
+byte $32, $22, $57, $9B, $DC, $42, $22, $22
+byte $22, $22, $33, $33, $33, $33, $22, $22
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $00, $00, $00, $00, $01, $12, $22, $23
+byte $33, $45, $55, $66, $77, $89, $99, $89
+byte $89, $98, $99, $AB, $9A, $98, $77, $66
+byte $44, $33, $33, $33, $33, $33, $33, $33
+byte $33, $33, $44, $44, $45, $54, $23, $22
+byte $22, $12, $47, $9B, $CD, $83, $22, $22
+byte $22, $23, $33, $33, $33, $33, $33, $22
+byte $22, $22, $22, $22, $22, $22, $23, $33
+byte $00, $00, $00, $00, $01, $12, $22, $23
+byte $33, $44, $56, $55, $77, $89, $98, $88
+byte $9A, $A9, $9A, $AC, $BA, $A9, $99, $86
+byte $54, $44, $33, $33, $33, $33, $33, $33
+byte $23, $33, $34, $44, $45, $43, $23, $12
+byte $22, $22, $46, $9B, $CE, $B4, $23, $22
+byte $22, $23, $33, $33, $33, $33, $33, $33
+byte $22, $22, $22, $22, $22, $22, $22, $23
+byte $00, $00, $00, $00, $11, $11, $22, $33
+byte $33, $44, $46, $66, $78, $88, $98, $97
+byte $87, $77, $89, $AB, $BB, $BA, $AB, $97
+byte $65, $55, $43, $34, $33, $33, $33, $33
+byte $23, $33, $33, $44, $55, $43, $23, $22
+byte $24, $32, $46, $8B, $BD, $D7, $33, $33
+byte $33, $33, $33, $33, $44, $33, $33, $33
+byte $32, $22, $22, $22, $22, $22, $22, $23
+byte $00, $00, $00, $00, $11, $11, $22, $23
+byte $34, $44, $46, $66, $68, $88, $88, $77
+byte $43, $45, $68, $89, $AB, $CB, $AA, $98
+byte $67, $67, $55, $45, $43, $33, $33, $33
+byte $33, $33, $33, $34, $54, $33, $21, $21
+byte $23, $32, $46, $7A, $BC, $E9, $33, $33
+byte $33, $33, $34, $44, $44, $44, $44, $33
+byte $33, $32, $22, $22, $22, $22, $22, $23
+byte $00, $00, $00, $00, $11, $11, $23, $33
+byte $33, $55, $56, $65, $68, $98, $78, $63
+byte $12, $35, $67, $78, $AA, $BB, $A9, $98
+byte $67, $68, $77, $56, $54, $44, $33, $34
+byte $43, $33, $33, $35, $54, $43, $21, $11
+byte $23, $32, $35, $68, $BB, $DB, $63, $33
+byte $33, $33, $44, $44, $44, $44, $44, $43
+byte $33, $33, $23, $33, $23, $33, $33, $33
+byte $00, $00, $00, $01, $11, $12, $22, $33
+byte $44, $44, $66, $65, $56, $89, $77, $21
+byte $23, $44, $67, $78, $8B, $A9, $88, $89
+byte $97, $78, $78, $86, $76, $64, $44, $34
+byte $43, $34, $33, $46, $44, $32, $21, $12
+byte $23, $22, $33, $58, $AB, $DC, $73, $33
+byte $33, $33, $44, $44, $44, $44, $44, $44
+byte $33, $33, $33, $33, $33, $33, $33, $33
+byte $00, $00, $00, $11, $01, $12, $23, $34
+byte $35, $44, $56, $65, $56, $77, $73, $11
+byte $13, $34, $57, $78, $8A, $A9, $66, $89
+byte $99, $88, $9A, $A9, $99, $64, $64, $55
+byte $65, $44, $44, $66, $44, $43, $32, $22
+byte $21, $22, $23, $57, $9C, $CD, $95, $33
+byte $33, $34, $44, $44, $44, $44, $44, $44
+byte $43, $33, $33, $33, $33, $33, $33, $33
+byte $00, $00, $00, $01, $11, $12, $23, $34
+byte $53, $53, $55, $57, $67, $87, $51, $23
+byte $33, $34, $66, $99, $99, $BB, $87, $99
+byte $97, $99, $AB, $A9, $AA, $85, $87, $78
+byte $88, $77, $66, $87, $75, $53, $23, $22
+byte $31, $12, $23, $45, $8B, $CE, $B5, $33
+byte $33, $34, $44, $44, $44, $44, $44, $44
+byte $44, $33, $33, $33, $33, $33, $33, $33
+byte $00, $00, $00, $11, $11, $12, $32, $33
+byte $44, $55, $54, $46, $67, $89, $22, $23
+byte $33, $56, $78, $89, $99, $BB, $B9, $A9
+byte $98, $99, $AB, $A9, $AB, $98, $A9, $99
+byte $BA, $AA, $A8, $89, $A8, $65, $64, $43
+byte $31, $22, $12, $35, $8B, $BD, $C7, $43
+byte $34, $44, $44, $44, $44, $44, $44, $44
+byte $44, $43, $33, $33, $33, $33, $33, $43
+byte $00, $00, $01, $11, $21, $11, $33, $33
+byte $43, $25, $55, $55, $67, $86, $12, $33
+byte $34, $56, $89, $99, $99, $AA, $BA, $BA
+byte $AA, $AA, $BB, $AA, $AA, $9A, $AA, $AA
+byte $BC, $CB, $B9, $9B, $BA, $87, $77, $65
+byte $42, $22, $11, $14, $8B, $BC, $C7, $43
+byte $34, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $33, $33, $33, $33, $34, $44
+byte $00, $00, $00, $11, $22, $10, $13, $33
+byte $34, $12, $54, $46, $68, $93, $23, $43
+byte $44, $57, $88, $99, $99, $AA, $BC, $BA
+byte $BB, $AA, $BA, $AA, $AA, $9A, $AA, $AA
+byte $BC, $CB, $BA, $BB, $BB, $A9, $99, $A6
+byte $64, $34, $22, $35, $7A, $BC, $C8, $44
+byte $44, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $33, $33, $33, $34, $44
+byte $00, $00, $00, $11, $12, $21, $12, $12
+byte $23, $21, $43, $34, $67, $61, $23, $23
+byte $33, $45, $68, $AA, $98, $9A, $BC, $CB
+byte $BC, $BB, $BA, $AB, $AA, $9A, $89, $9A
+byte $AB, $BB, $BB, $BB, $BC, $CA, $BB, $C9
+byte $75, $44, $21, $67, $8A, $BC, $DA, $74
+byte $44, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $43, $33, $44, $44, $44
+byte $00, $00, $00, $11, $11, $22, $11, $21
+byte $22, $22, $32, $34, $56, $41, $34, $33
+byte $23, $34, $68, $89, $98, $9A, $AB, $CC
+byte $AB, $BB, $BA, $AA, $AA, $AA, $87, $8A
+byte $AA, $AB, $BA, $BB, $BB, $CB, $CC, $CB
+byte $A6, $34, $34, $87, $8A, $BC, $DC, $97
+byte $54, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $43, $34, $44, $44, $44
+byte $00, $00, $00, $12, $11, $12, $22, $22
+byte $23, $22, $44, $44, $66, $22, $44, $33
+byte $23, $35, $67, $88, $AB, $BB, $BC, $CC
+byte $BA, $AB, $BB, $AA, $BA, $BA, $97, $8A
+byte $99, $8A, $AB, $BA, $AB, $CB, $CC, $DC
+byte $B6, $45, $89, $97, $7B, $CD, $DE, $C8
+byte $44, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $43, $34, $44, $44, $44
+byte $00, $01, $11, $01, $20, $10, $12, $12
+byte $23, $33, $34, $66, $55, $23, $54, $33
+byte $34, $45, $66, $9A, $B9, $AB, $CC, $BC
+byte $CB, $9A, $BB, $AA, $AA, $AA, $98, $79
+byte $87, $79, $9B, $BA, $BB, $BB, $CC, $DC
+byte $B9, $87, $AB, $97, $7A, $BC, $DD, $C7
+byte $44, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $33, $33, $44, $44, $44
+byte $00, $01, $12, $11, $21, $00, $01, $22
+byte $24, $34, $54, $46, $54, $13, $55, $32
+byte $12, $45, $55, $69, $9A, $AB, $CC, $BB
+byte $CC, $A8, $AB, $BA, $AA, $AA, $A9, $66
+byte $67, $88, $AA, $AA, $AB, $BB, $BC, $CC
+byte $BB, $A9, $AB, $86, $9A, $BC, $CD, $C9
+byte $54, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $33, $33, $44, $44, $44
+byte $00, $01, $12, $32, $22, $21, $11, $24
+byte $43, $45, $55, $55, $52, $14, $54, $43
+byte $32, $35, $54, $59, $AB, $BA, $9B, $BB
+byte $CC, $B9, $9B, $BA, $99, $9A, $A9, $64
+byte $56, $67, $9A, $9B, $BB, $BB, $BC, $BB
+byte $BC, $BB, $AA, $78, $89, $AC, $CC, $DA
+byte $64, $44, $44, $44, $44, $44, $44, $44
+byte $44, $44, $44, $33, $33, $44, $44, $44
+byte $00, $00, $01, $22, $23, $33, $43, $22
+byte $34, $44, $45, $66, $42, $25, $55, $53
+byte $11, $13, $43, $69, $AA, $AA, $BB, $BA
+byte $BC, $BA, $99, $AA, $A9, $8A, $A9, $75
+byte $67, $67, $88, $AA, $BB, $BB, $AB, $BB
+byte $BB, $AB, $AA, $88, $99, $AC, $BC, $DB
+byte $64, $45, $55, $44, $44, $44, $44, $44
+byte $44, $44, $44, $33, $33, $44, $44, $44
+byte $00, $00, $01, $11, $11, $22, $32, $43
+byte $33, $24, $45, $66, $52, $26, $76, $44
+byte $33, $10, $23, $68, $78, $9B, $CB, $BA
+byte $BB, $BA, $99, $AA, $A9, $99, $98, $75
+byte $46, $77, $76, $99, $9A, $AA, $AB, $BA
+byte $9A, $AA, $AA, $A9, $99, $AB, $BC, $DA
+byte $64, $45, $55, $54, $44, $44, $44, $44
+byte $44, $44, $44, $44, $33, $34, $44, $44
+byte $00, $00, $01, $11, $21, $12, $22, $33
+byte $33, $22, $34, $56, $42, $46, $65, $44
+byte $32, $10, $03, $76, $68, $9A, $BB, $BA
+byte $AA, $BB, $99, $89, $99, $99, $97, $66
+byte $45, $67, $66, $78, $78, $89, $AB, $A9
+byte $9A, $AA, $BA, $A9, $89, $9B, $BC, $CB
+byte $74, $45, $55, $55, $55, $54, $44, $55
+byte $55, $55, $55, $44, $44, $44, $44, $44
+byte $00, $00, $11, $11, $21, $12, $22, $12
+byte $33, $33, $34, $44, $33, $57, $65, $44
+byte $22, $10, $01, $56, $79, $AA, $BC, $BB
+byte $99, $AB, $A9, $77, $88, $9A, $A8, $65
+byte $66, $67, $55, $66, $77, $78, $9A, $99
+byte $9A, $AA, $BB, $B9, $88, $AA, $BC, $DB
+byte $75, $55, $55, $55, $55, $55, $55, $55
+byte $56, $66, $55, $55, $44, $44, $44, $44
+byte $00, $00, $01, $11, $11, $11, $32, $12
+byte $22, $23, $33, $43, $23, $68, $65, $44
+byte $22, $00, $02, $36, $88, $9A, $BB, $BB
+byte $97, $9A, $B9, $75, $66, $9A, $A9, $65
+byte $66, $66, $63, $55, $67, $78, $98, $89
+byte $AA, $9A, $AB, $BA, $9A, $AA, $BC, $DC
+byte $85, $55, $55, $55, $55, $55, $55, $66
+byte $66, $66, $66, $65, $55, $54, $44, $44
+byte $00, $00, $00, $11, $11, $00, $13, $21
+byte $22, $32, $44, $43, $13, $78, $76, $53
+byte $34, $21, $23, $57, $78, $9A, $BB, $B9
+byte $87, $9A, $BA, $75, $57, $9A, $99, $87
+byte $65, $66, $65, $46, $68, $88, $98, $99
+byte $9A, $AA, $AA, $BA, $9A, $9A, $BB, $CA
+byte $65, $55, $55, $55, $55, $55, $66, $66
+byte $67, $76, $66, $66, $55, $55, $44, $43
+byte $00, $00, $11, $11, $22, $10, $01, $21
+byte $12, $33, $44, $54, $23, $78, $97, $52
+byte $35, $64, $54, $47, $89, $9A, $BB, $BA
+byte $97, $89, $BB, $86, $69, $AA, $99, $97
+byte $65, $56, $57, $57, $77, $89, $99, $99
+byte $99, $AA, $AA, $AA, $9A, $AA, $AB, $B9
+byte $75, $55, $55, $55, $55, $56, $66, $67
+byte $77, $77, $76, $66, $65, $55, $54, $44
+byte $00, $00, $12, $32, $22, $22, $11, $11
+byte $22, $44, $32, $23, $34, $79, $98, $63
+byte $34, $68, $66, $67, $99, $AA, $BB, $AA
+byte $A9, $98, $AA, $95, $59, $99, $99, $98
+byte $65, $66, $77, $88, $88, $99, $88, $98
+byte $98, $9A, $A9, $9A, $9A, $AA, $AA, $BC
+byte $85, $55, $55, $56, $66, $66, $66, $77
+byte $77, $77, $76, $66, $66, $65, $55, $44
+byte $00, $00, $12, $22, $33, $22, $22, $21
+byte $22, $33, $33, $23, $45, $68, $99, $75
+byte $43, $48, $BA, $99, $AB, $BC, $CB, $CA
+byte $99, $97, $98, $96, $47, $89, $9A, $99
+byte $98, $88, $76, $88, $98, $88, $98, $89
+byte $89, $9A, $98, $99, $79, $9A, $AA, $A9
+byte $96, $55, $55, $66, $66, $66, $67, $77
+byte $77, $77, $77, $66, $66, $66, $55, $54
+byte $00, $00, $00, $00, $11, $11, $11, $10
+byte $12, $22, $12, $23, $45, $69, $99, $86
+byte $43, $57, $AA, $AA, $BB, $BC, $BA, $87
+byte $85, $76, $89, $A8, $45, $9A, $AB, $98
+byte $89, $77, $88, $78, $68, $89, $8A, $88
+byte $98, $99, $89, $99, $9A, $98, $AB, $AB
+byte $75, $55, $55, $66, $66, $66, $67, $77
+byte $77, $77, $77, $66, $66, $66, $65, $54
+byte $00, $00, $00, $00, $00, $01, $22, $21
+byte $11, $32, $22, $23, $45, $68, $98, $77
+byte $53, $24, $8A, $AA, $99, $A9, $99, $75
+byte $76, $78, $78, $88, $56, $6A, $BB, $99
+byte $99, $97, $87, $75, $89, $98, $69, $88
+byte $88, $89, $99, $88, $99, $99, $AA, $BA
+byte $76, $55, $55, $66, $66, $67, $77, $77
+byte $77, $77, $77, $76, $66, $66, $65, $54
+byte $00, $00, $00, $00, $00, $01, $11, $11
+byte $11, $11, $21, $12, $55, $68, $87, $86
+byte $53, $22, $36, $99, $99, $98, $76, $85
+byte $56, $57, $76, $77, $55, $6A, $AB, $A9
+byte $9A, $A9, $86, $76, $68, $98, $88, $99
+byte $A8, $98, $88, $99, $89, $99, $BC, $CB
+byte $85, $55, $55, $66, $66, $67, $77, $78
+byte $88, $77, $77, $76, $66, $66, $65, $55
+byte $00, $00, $01, $11, $11, $11, $22, $11
+byte $11, $21, $11, $13, $55, $56, $88, $76
+byte $53, $21, $44, $57, $77, $76, $77, $55
+byte $44, $54, $55, $56, $44, $59, $A9, $AA
+byte $88, $99, $A8, $97, $68, $98, $99, $97
+byte $99, $99, $8A, $98, $99, $AB, $BC, $BA
+byte $76, $55, $55, $66, $66, $67, $77, $78
+byte $88, $77, $77, $77, $66, $66, $66, $65
+byte $11, $11, $12, $22, $33, $22, $21, $11
+byte $11, $12, $21, $12, $66, $57, $88, $76
+byte $54, $30, $25, $55, $54, $54, $55, $34
+byte $33, $32, $34, $45, $35, $58, $A9, $99
+byte $99, $98, $89, $97, $79, $88, $89, $97
+byte $99, $99, $99, $99, $99, $BB, $BC, $BA
+byte $86, $44, $55, $56, $66, $67, $77, $78
+byte $88, $77, $77, $77, $76, $66, $66, $66
+byte $00, $11, $11, $22, $21, $11, $22, $11
+byte $11, $12, $22, $11, $56, $55, $78, $65
+byte $54, $20, $04, $56, $65, $44, $33, $33
+byte $33, $22, $34, $43, $34, $38, $99, $88
+byte $89, $A7, $7A, $85, $67, $87, $79, $99
+byte $99, $A9, $AA, $99, $9A, $BB, $BC, $CB
+byte $A9, $75, $55, $55, $66, $66, $77, $77
+byte $88, $87, $77, $77, $77, $76, $66, $66
+byte $00, $01, $12, $22, $10, $11, $11, $11
+byte $01, $12, $32, $12, $47, $54, $56, $45
+byte $43, $10, $02, $57, $66, $54, $44, $33
+byte $33, $34, $43, $34, $55, $37, $89, $89
+byte $88, $A8, $7A, $85, $67, $98, $68, $99
+byte $89, $A9, $AA, $AA, $AA, $BB, $BC, $DC
+byte $CB, $95, $45, $55, $66, $66, $67, $77
+byte $78, $87, $77, $77, $77, $77, $66, $66
+byte $00, $11, $12, $11, $10, $11, $01, $22
+byte $11, $12, $22, $12, $58, $76, $86, $55
+byte $43, $21, $00, $36, $66, $54, $44, $34
+byte $23, $45, $66, $67, $55, $47, $88, $99
+byte $88, $99, $8A, $86, $67, $89, $87, $7A
+byte $9A, $AA, $AA, $AB, $BA, $BB, $BC, $CC
+byte $CC, $A7, $54, $55, $56, $66, $66, $77
+byte $77, $77, $77, $77, $77, $77, $76, $66
+byte $00, $01, $12, $21, $11, $10, $00, $11
+byte $11, $12, $22, $13, $68, $77, $87, $76
+byte $54, $32, $20, $03, $55, $65, $42, $22
+byte $24, $67, $88, $77, $74, $56, $67, $87
+byte $78, $97, $6A, $97, $66, $77, $87, $77
+byte $89, $99, $AA, $CC, $BB, $BB, $CC, $CD
+byte $DD, $CC, $96, $55, $55, $56, $66, $67
+byte $77, $77, $77, $77, $77, $77, $76, $66
+byte $00, $01, $11, $33, $32, $11, $22, $22
+byte $11, $23, $32, $13, $67, $77, $77, $77
+byte $64, $22, $33, $00, $23, $45, $33, $31
+byte $27, $A9, $89, $99, $86, $44, $57, $88
+byte $67, $88, $69, $98, $85, $68, $87, $86
+byte $7A, $AA, $AA, $AA, $BB, $BB, $BB, $CC
+byte $CD, $DD, $95, $44, $55, $55, $66, $66
+byte $77, $77, $77, $77, $77, $77, $76, $66
+byte $00, $00, $12, $32, $21, $01, $12, $22
+byte $11, $22, $12, $14, $78, $87, $79, $67
+byte $65, $22, $35, $20, $01, $24, $42, $21
+byte $28, $99, $88, $99, $89, $44, $77, $88
+byte $67, $76, $59, $77, $84, $47, $77, $89
+byte $99, $9B, $AA, $BB, $AB, $CC, $CC, $CB
+byte $BC, $DD, $C9, $64, $55, $55, $55, $66
+byte $66, $67, $77, $77, $77, $76, $66, $66
+byte $00, $10, $12, $12, $11, $23, $42, $12
+byte $21, $11, $21, $13, $67, $77, $99, $86
+byte $64, $23, $55, $64, $10, $02, $31, $13
+byte $79, $A7, $77, $89, $98, $53, $33, $35
+byte $77, $55, $59, $78, $96, $46, $89, $78
+byte $9A, $99, $AB, $CA, $BB, $BB, $CC, $CC
+byte $CC, $DD, $ED, $B7, $44, $45, $55, $55
+byte $55, $66, $66, $66, $66, $66, $66, $66
+byte $12, $22, $11, $12, $22, $24, $21, $22
+byte $21, $11, $11, $23, $67, $78, $88, $76
+byte $53, $34, $46, $66, $53, $10, $22, $13
+byte $9B, $CB, $97, $88, $89, $85, $55, $45
+byte $87, $65, $77, $76, $97, $55, $58, $87
+byte $9A, $99, $AB, $AB, $BB, $CC, $BC, $CC
+byte $CC, $DD, $DE, $C8, $54, $45, $45, $55
+byte $55, $55, $66, $66, $66, $66, $66, $66
+byte $22, $12, $11, $00, $12, $32, $11, $22
+byte $22, $12, $23, $33, $46, $67, $87, $65
+byte $43, $34, $56, $75, $64, $31, $12, $46
+byte $88, $AA, $B9, $67, $77, $85, $46, $67
+byte $77, $66, $76, $77, $77, $54, $56, $88
+byte $99, $99, $AA, $AB, $BA, $CC, $CC, $BB
+byte $BC, $CC, $DE, $DC, $85, $54, $55, $55
+byte $55, $55, $55, $55, $56, $66, $66, $66
+byte $21, $11, $22, $11, $24, $33, $33, $32
+byte $21, $33, $24, $54, $56, $67, $66, $54
+byte $22, $45, $55, $56, $64, $42, $36, $7A
+byte $B9, $89, $AA, $98, $76, $56, $63, $66
+byte $77, $67, $76, $46, $88, $54, $67, $78
+byte $88, $99, $AA, $BB, $BC, $CB, $BB, $BC
+byte $CC, $CC, $CD, $DD, $B8, $54, $44, $44
+byte $44, $45, $55, $55, $55, $55, $66, $66
+byte $11, $13, $32, $33, $45, $43, $34, $22
+byte $22, $23, $23, $45, $56, $45, $54, $55
+byte $33, $45, $54, $44, $54, $33, $69, $BA
+byte $BA, $98, $77, $78, $75, $55, $54, $56
+byte $67, $67, $67, $46, $88, $64, $57, $89
+byte $78, $99, $AA, $AB, $BB, $CC, $BB, $CC
+byte $CB, $CC, $CD, $EE, $DB, $64, $44, $44
+byte $44, $44, $44, $55, $55, $55, $66, $66
+byte $11, $12, $33, $34, $54, $23, $43, $23
+byte $22, $23, $33, $23, $35, $55, $44, $54
+byte $23, $44, $64, $34, $33, $35, $8A, $B9
+byte $89, $88, $75, $67, $57, $55, $35, $55
+byte $56, $66, $86, $77, $67, $75, $67, $79
+byte $88, $99, $9A, $BA, $AB, $BB, $BB, $BC
+byte $CC, $CC, $CD, $DE, $ED, $A5, $44, $44
+byte $44, $44, $44, $44, $45, $55, $56, $66
+byte $11, $12, $22, $33, $42, $24, $43, $33
+byte $22, $23, $33, $22, $35, $54, $44, $33
+byte $34, $54, $54, $24, $33, $67, $89, $A9
+byte $77, $77, $76, $66, $46, $64, $66, $66
+byte $65, $76, $75, $76, $78, $75, $67, $78
+byte $89, $9A, $99, $AA, $BB, $BB, $BB, $CB
+byte $BC, $BC, $CC, $DD, $EE, $D8, $54, $44
+byte $44, $33, $44, $44, $44, $55, $56, $66
+byte $12, $22, $33, $23, $22, $32, $23, $33
+byte $21, $23, $44, $22, $34, $44, $54, $44
+byte $45, $44, $45, $32, $57, $77, $99, $88
+byte $97, $86, $76, $75, $75, $54, $74, $56
+byte $54, $57, $56, $77, $67, $76, $56, $87
+byte $79, $88, $9A, $99, $AA, $BC, $CB, $AA
+byte $BC, $CC, $CC, $CD, $EE, $EC, $54, $44
+byte $44, $33, $33, $34, $44, $55, $56, $66
+byte $23, $22, $32, $43, $12, $24, $43, $33
+byte $21, $23, $44, $22, $24, $44, $44, $42
+byte $56, $55, $33, $35, $88, $87, $8A, $76
+byte $88, $86, $56, $77, $65, $74, $75, $66
+byte $55, $64, $55, $77, $67, $77, $45, $69
+byte $88, $79, $98, $9A, $BB, $AA, $BA, $BB
+byte $CC, $CB, $CC, $CC, $DD, $DE, $A5, $43
+byte $43, $33, $33, $33, $44, $45, $55, $66
+byte $22, $22, $34, $42, $32, $33, $22, $33
+byte $22, $33, $43, $32, $33, $43, $43, $42
+byte $44, $33, $34, $56, $87, $77, $55, $32
+byte $35, $76, $55, $57, $57, $68, $58, $66
+byte $55, $67, $67, $78, $88, $85, $44, $66
+byte $89, $99, $A8, $AA, $AB, $BA, $AB, $BB
+byte $BB, $CD, $CC, $CC, $DE, $EE, $DA, $53
+byte $33, $33, $33, $33, $34, $44, $55, $56
+byte $22, $23, $33, $33, $22, $32, $33, $22
+byte $22, $12, $44, $32, $45, $53, $23, $23
+byte $44, $55, $44, $79, $68, $97, $76, $67
+byte $53, $55, $66, $67, $88, $76, $97, $76
+byte $66, $57, $58, $77, $78, $77, $56, $65
+byte $86, $89, $AA, $9A, $AA, $AB, $BC, $BB
+byte $BA, $BC, $DD, $DC, $DD, $DE, $EA, $54
+byte $33, $33, $33, $33, $33, $34, $45, $55
+byte $12, $12, $34, $33, $11, $23, $22, $23
+byte $11, $13, $43, $32, $34, $44, $32, $44
+byte $24, $44, $46, $79, $88, $A8, $79, $94
+byte $85, $56, $65, $57, $79, $88, $89, $76
+byte $55, $47, $58, $78, $88, $77, $76, $66
+byte $88, $99, $A9, $AC, $AB, $AA, $AB, $BB
+byte $AB, $BC, $CC, $CB, $CD, $DE, $EC, $74
+byte $33, $33, $33, $33, $33, $33, $44, $45
+byte $11, $22, $33, $32, $13, $32, $22, $22
+byte $22, $24, $43, $21, $23, $44, $22, $32
+byte $34, $65, $56, $69, $89, $99, $99, $87
+byte $74, $75, $56, $56, $78, $87, $97, $87
+byte $68, $67, $67, $78, $76, $75, $58, $54
+byte $68, $89, $AA, $AB, $BB, $BB, $BA, $BB
+byte $BB, $BC, $CC, $DC, $CD, $DE, $ED, $A4
+byte $33, $33, $33, $22, $33, $33, $33, $44
+byte $01, $22, $23, $31, $23, $23, $32, $12
+byte $21, $22, $32, $11, $33, $32, $34, $43
+byte $56, $67, $65, $58, $86, $78, $99, $78
+byte $64, $66, $55, $67, $78, $78, $87, $88
+byte $98, $57, $85, $77, $76, $76, $57, $56
+byte $77, $89, $AA, $BB, $BA, $BA, $BA, $BB
+byte $BA, $BC, $CC, $CD, $CC, $DE, $ED, $B6
+byte $33, $33, $33, $22, $22, $23, $33, $33
+byte $12, $22, $23, $32, $23, $33, $21, $12
+byte $22, $32, $33, $21, $22, $23, $56, $55
+byte $76, $66, $55, $57, $85, $57, $88, $55
+byte $65, $66, $56, $77, $78, $89, $99, $99
+byte $97, $57, $96, $86, $87, $77, $76, $68
+byte $78, $99, $AB, $BB, $BA, $AA, $BA, $AB
+byte $BA, $BC, $CC, $CC, $CC, $DE, $EE, $D9
+byte $43, $33, $32, $22, $22, $22, $33, $33
+byte $22, $22, $34, $33, $34, $43, $11, $23
+byte $22, $22, $33, $22, $32, $35, $65, $54
+byte $34, $65, $45, $66, $78, $87, $89, $34
+byte $65, $66, $77, $76, $78, $79, $89, $99
+byte $97, $87, $88, $76, $67, $66, $65, $67
+byte $69, $9B, $BB, $AB, $BA, $AA, $BB, $CC
+byte $BA, $AC, $CD, $DC, $CB, $CD, $EE, $FD
+byte $73, $33, $32, $22, $22, $22, $33, $33
+byte $22, $22, $23, $33, $34, $33, $44, $43
+byte $22, $21, $23, $22, $34, $67, $77, $63
+byte $23, $55, $73, $54, $49, $98, $96, $23
+byte $67, $66, $78, $76, $79, $88, $9A, $89
+byte $86, $68, $76, $52, $66, $57, $74, $56
+byte $79, $9B, $CB, $BC, $BA, $BB, $BB, $CB
+byte $BB, $AA, $CC, $DC, $CB, $AC, $DE, $EE
+byte $B7, $43, $32, $22, $22, $23, $33, $33
+byte $12, $21, $32, $22, $13, $24, $33, $33
+byte $33, $21, $22, $22, $46, $76, $67, $77
+byte $75, $46, $86, $74, $49, $99, $96, $33
+byte $46, $77, $76, $68, $88, $88, $AA, $9A
+byte $A9, $78, $76, $A5, $36, $45, $24, $57
+byte $69, $AC, $CB, $CC, $BB, $BC, $BA, $99
+byte $97, $9B, $CC, $DC, $BB, $BC, $CD, $DD
+byte $C9, $43, $32, $22, $22, $23, $33, $33
+byte $24, $32, $23, $21, $13, $54, $32, $33
+byte $43, $22, $32, $34, $57, $88, $77, $87
+byte $76, $66, $97, $98, $69, $98, $97, $64
+byte $56, $68, $76, $58, $88, $76, $66, $99
+byte $88, $99, $A7, $78, $58, $96, $68, $57
+byte $8A, $AC, $CC, $BB, $BB, $BB, $BB, $A9
+byte $9A, $9A, $BC, $CB, $BB, $BB, $BD, $EE
+byte $D8, $43, $22, $22, $23, $33, $33, $33
+byte $56, $53, $22, $11, $24, $33, $44, $33
+byte $33, $22, $12, $35, $67, $78, $77, $65
+byte $75, $65, $44, $59, $88, $87, $74, $55
+byte $67, $67, $67, $78, $76, $88, $98, $99
+byte $88, $89, $78, $65, $76, $77, $78, $66
+byte $89, $BC, $CC, $BB, $CA, $BA, $BB, $A9
+byte $9A, $BB, $BC, $BA, $BC, $BB, $BC, $DD
+byte $A6, $32, $22, $22, $23, $33, $33, $33
+byte $46, $53, $32, $13, $45, $43, $54, $22
+byte $33, $42, $13, $56, $67, $87, $66, $45
+byte $44, $55, $24, $49, $89, $66, $65, $55
+byte $87, $88, $65, $56, $78, $76, $77, $86
+byte $76, $77, $89, $86, $76, $79, $86, $67
+byte $99, $BC, $CC, $BB, $CA, $AA, $BB, $CC
+byte $BA, $BB, $BB, $BD, $DB, $CC, $CC, $DE
+byte $C6, $32, $22, $22, $23, $33, $33, $33
+byte $55, $54, $41, $12, $45, $33, $32, $32
+byte $23, $22, $35, $56, $78, $98, $54, $33
+byte $26, $97, $45, $38, $85, $68, $65, $57
+byte $78, $67, $76, $55, $55, $56, $55, $57
+byte $66, $66, $79, $89, $76, $68, $88, $46
+byte $89, $AC, $CC, $CB, $CB, $BB, $A8, $78
+byte $9A, $BB, $BC, $EE, $ED, $CC, $CC, $CD
+byte $D8, $43, $22, $22, $23, $33, $33, $33
+byte $54, $44, $21, $12, $54, $22, $34, $43
+byte $33, $23, $56, $77, $67, $66, $54, $55
+byte $58, $99, $74, $26, $87, $88, $54, $56
+byte $67, $76, $55, $46, $54, $42, $23, $34
+byte $58, $98, $78, $89, $97, $67, $77, $56
+byte $68, $AB, $CC, $BB, $CB, $98, $54, $20
+byte $48, $CB, $CD, $EE, $EE, $DC, $CB, $CD
+byte $DB, $74, $22, $22, $23, $33, $33, $33
+byte $54, $42, $22, $22, $54, $33, $45, $42
+byte $22, $24, $56, $77, $66, $67, $76, $76
+byte $6A, $A9, $86, $55, $98, $56, $55, $64
+byte $76, $66, $55, $45, $43, $44, $56, $66
+byte $68, $99, $78, $99, $A8, $88, $77, $54
+byte $68, $9B, $BC, $CD, $DB, $41, $3B, $A3
+byte $7B, $DD, $DD, $EE, $EE, $DB, $BB, $CD
+byte $DA, $52, $22, $22, $33, $33, $33, $33
+byte $55, $43, $21, $11, $54, $33, $55, $44
+byte $55, $45, $67, $77, $56, $88, $89, $A6
+byte $69, $AA, $99, $86, $88, $55, $55, $65
+byte $67, $66, $54, $44, $43, $56, $78, $88
+byte $98, $9A, $99, $AA, $9A, $99, $88, $66
+byte $69, $AB, $BB, $CD, $D9, $10, $28, $B5
+byte $7E, $DE, $DD, $EE, $EE, $DC, $CC, $CD
+byte $DA, $42, $22, $22, $23, $33, $33, $33
+byte $66, $54, $21, $13, $55, $33, $64, $67
+byte $76, $57, $67, $77, $67, $78, $88, $97
+byte $59, $BA, $99, $87, $79, $65, $66, $66
+byte $47, $77, $54, $44, $43, $24, $55, $55
+byte $78, $89, $99, $A9, $AA, $99, $79, $78
+byte $78, $99, $BB, $CC, $D7, $86, $7B, $A6
+byte $8D, $DD, $DE, $EE, $FF, $ED, $DD, $DD
+byte $DB, $63, $22, $22, $23, $33, $33, $33
+byte $88, $75, $31, $25, $65, $44, $35, $77
+byte $64, $45, $67, $87, $66, $57, $78, $98
+byte $69, $B9, $89, $89, $87, $66, $56, $66
+byte $56, $65, $64, $34, $21, $45, $43, $45
+byte $47, $78, $79, $A9, $BA, $98, $77, $86
+byte $88, $89, $9B, $BC, $C7, $6C, $CA, $56
+byte $BE, $DC, $DD, $EE, $FF, $ED, $DD, $CC
+byte $DC, $84, $22, $22, $22, $33, $33, $33
+byte $99, $86, $42, $25, $76, $42, $47, $65
+byte $32, $35, $79, $87, $66, $68, $88, $78
+byte $77, $8A, $87, $89, $75, $54, $55, $55
+byte $67, $76, $66, $42, $14, $31, $00, $11
+byte $24, $67, $78, $9A, $BA, $A9, $88, $87
+byte $78, $A9, $AA, $BC, $B9, $23, $44, $68
+byte $CE, $DD, $DE, $DE, $EF, $FE, $ED, $CC
+byte $CC, $73, $22, $22, $22, $33, $33, $33
+byte $A9, $87, $43, $36, $77, $43, $53, $33
+byte $24, $68, $88, $87, $76, $88, $77, $88
+byte $77, $9B, $79, $78, $85, $45, $55, $46
+byte $67, $46, $65, $32, $11, $00, $32, $10
+byte $02, $55, $56, $9A, $BB, $A9, $85, $AA
+byte $99, $9A, $AB, $BC, $BA, $62, $47, $9B
+byte $DD, $DC, $DE, $DE, $EF, $FE, $EE, $DD
+byte $CB, $A6, $22, $22, $22, $33, $33, $33
+byte $A9, $64, $42, $47, $75, $44, $44, $43
+byte $46, $67, $78, $77, $77, $68, $76, $66
+byte $86, $78, $58, $68, $54, $55, $45, $45
+byte $44, $45, $64, $32, $00, $04, $10, $01
+byte $20, $44, $45, $9B, $BA, $99, $68, $9A
+byte $8A, $AA, $BB, $BC, $BB, $99, $8A, $CD
+byte $DD, $DD, $DE, $EE, $FF, $FE, $DE, $ED
+byte $DB, $75, $32, $12, $22, $33, $33, $33
+byte $A6, $44, $42, $47, $64, $45, $35, $54
+byte $54, $67, $87, $77, $66, $77, $46, $78
+byte $76, $77, $79, $57, $44, $55, $33, $32
+byte $21, $21, $23, $55, $41, $05, $41, $14
+byte $30, $15, $55, $8A, $AA, $97, $78, $9A
+byte $89, $AA, $BC, $CB, $CC, $A9, $BD, $DD
+byte $DD, $DC, $DE, $EE, $FF, $FF, $DD, $EE
+byte $EC, $84, $22, $22, $22, $23, $33, $33
+byte $85, $44, $42, $47, $54, $44, $67, $65
+byte $44, $67, $87, $77, $66, $66, $78, $87
+byte $76, $76, $78, $55, $45, $55, $31, $22
+byte $32, $23, $57, $89, $A6, $11, $75, $55
+byte $10, $03, $57, $8A, $AA, $97, $89, $98
+byte $9A, $BB, $AB, $CC, $BC, $CC, $DC, $CC
+byte $DE, $CB, $DD, $DE, $EF, $FF, $EE, $EE
+byte $EC, $85, $43, $32, $22, $33, $33, $33
+byte $64, $46, $32, $67, $54, $36, $76, $53
+byte $45, $57, $77, $66, $56, $77, $89, $87
+byte $64, $77, $67, $76, $66, $53, $21, $58
+byte $76, $66, $78, $89, $AB, $82, $13, $20
+byte $00, $00, $36, $9A, $A9, $88, $89, $A9
+byte $BA, $BB, $BB, $CC, $BC, $DC, $DD, $DD
+byte $DD, $BD, $DE, $EE, $EF, $FF, $EE, $EE
+byte $DC, $72, $22, $33, $22, $33, $33, $33
+byte $63, $55, $32, $57, $63, $56, $75, $44
+byte $44, $57, $78, $77, $56, $78, $88, $99
+byte $56, $76, $66, $86, $65, $63, $23, $7A
+byte $A9, $76, $78, $99, $AB, $B9, $52, $10
+byte $00, $00, $15, $8A, $AA, $98, $88, $AA
+byte $AA, $BB, $BB, $BB, $BC, $CD, $DD, $DD
+byte $DC, $BC, $CD, $DE, $EF, $FF, $FE, $DD
+byte $DD, $93, $22, $22, $22, $33, $33, $33
+byte $64, $55, $54, $57, $74, $66, $65, $44
+byte $45, $57, $87, $55, $66, $66, $77, $78
+byte $76, $77, $55, $65, $56, $83, $15, $9A
+byte $AA, $98, $78, $89, $AB, $BC, $A9, $75
+byte $42, $10, $05, $79, $99, $88, $98, $9A
+byte $AB, $BB, $BB, $BA, $BB, $CD, $DD, $DD
+byte $CB, $AB, $DD, $EE, $EF, $FF, $FE, $ED
+byte $CD, $C5, $22, $22, $22, $33, $33, $33
+byte $65, $66, $64, $68, $76, $66, $65, $44
+byte $43, $47, $76, $66, $55, $56, $56, $66
+byte $46, $77, $65, $44, $67, $73, $38, $BC
+byte $BA, $A8, $77, $77, $8A, $BB, $BB, $BA
+byte $97, $54, $15, $68, $99, $87, $88, $98
+byte $9A, $BB, $BA, $CB, $BC, $BC, $DE, $CC
+byte $CA, $AB, $DE, $EE, $EF, $FF, $FF, $ED
+byte $DC, $A5, $22, $22, $22, $33, $33, $33
+byte $66, $76, $54, $88, $75, $57, $65, $34
+byte $33, $47, $77, $64, $34, $56, $55, $75
+byte $67, $66, $63, $45, $76, $53, $6A, $CC
+byte $BB, $A9, $87, $76, $67, $AB, $BB, $BB
+byte $99, $87, $46, $78, $89, $88, $88, $78
+byte $99, $AB, $BA, $BB, $CD, $CB, $CD, $DD
+byte $CB, $CD, $EE, $EE, $EE, $FF, $FF, $ED
+byte $DC, $94, $22, $22, $22, $33, $33, $33
+byte $68, $56, $46, $97, $46, $68, $75, $44
+byte $33, $68, $76, $65, $56, $67, $65, $65
+byte $66, $56, $44, $68, $56, $54, $7B, $CC
+byte $CC, $CB, $88, $76, $67, $8A, $BA, $AB
+byte $98, $88, $77, $97, $77, $78, $88, $89
+byte $99, $9A, $BB, $BD, $DD, $DB, $CC, $DD
+byte $DD, $DD, $DD, $DE, $EF, $FF, $FE, $ED
+byte $DD, $73, $22, $22, $22, $33, $33, $33
+byte $78, $65, $67, $85, $54, $78, $64, $44
+byte $45, $78, $77, $66, $78, $77, $66, $78
+byte $85, $56, $56, $46, $57, $53, $7B, $CC
+byte $CB, $AA, $A8, $77, $56, $79, $AA, $BA
+byte $A9, $89, $79, $98, $76, $79, $99, $99
+byte $99, $9A, $CB, $BC, $CD, $CC, $CC, $CC
+byte $DE, $ED, $DE, $EE, $EF, $FF, $FF, $ED
+byte $EE, $93, $22, $22, $22, $33, $33, $33
+byte $78, $55, $45, $65, $55, $97, $55, $44
+byte $44, $57, $67, $77, $75, $68, $66, $68
+byte $86, $66, $64, $34, $45, $56, $9B, $CC
+byte $BC, $BA, $A9, $77, $64, $68, $99, $AA
+byte $99, $9A, $99, $A9, $76, $89, $9B, $BA
+byte $A9, $99, $AB, $BB, $BC, $CC, $CC, $CC
+byte $DF, $FE, $EE, $EE, $DE, $FF, $FF, $ED
+byte $EE, $B6, $22, $22, $22, $33, $33, $33
+byte $88, $55, $45, $65, $46, $87, $53, $33
+byte $34, $67, $78, $66, $45, $77, $56, $76
+byte $77, $55, $65, $34, $34, $77, $8B, $DD
+byte $DC, $BB, $A9, $97, $54, $56, $78, $99
+byte $99, $99, $98, $8A, $98, $98, $9A, $AA
+byte $A9, $99, $AB, $BA, $AB, $CD, $DC, $DD
+byte $DF, $FF, $EE, $DE, $DE, $EF, $FE, $DD
+byte $DD, $B6, $22, $22, $22, $33, $33, $33
+byte $88, $66, $24, $55, $47, $76, $52, $33
+byte $45, $77, $77, $66, $67, $65, $43, $45
+byte $54, $56, $76, $35, $65, $77, $8B, $CD
+byte $CC, $BB, $A9, $88, $64, $45, $67, $87
+byte $88, $98, $87, $88, $78, $99, $88, $99
+byte $A9, $A9, $AB, $A9, $AB, $CD, $DD, $DD
+byte $EF, $FF, $EE, $ED, $DE, $EF, $EE, $DD
+byte $DE, $84, $22, $12, $22, $23, $33, $32
+byte $98, $64, $34, $35, $57, $65, $43, $44
+byte $55, $77, $79, $87, $78, $86, $43, $55
+byte $45, $65, $76, $66, $87, $76, $8B, $CD
+byte $DC, $BB, $BA, $98, $65, $44, $44, $67
+byte $87, $88, $87, $88, $78, $88, $AA, $99
+byte $99, $99, $BB, $A9, $AA, $CD, $DD, $DC
+byte $DF, $FF, $EE, $ED, $DE, $EF, $FE, $DD
+byte $EE, $B4, $22, $22, $22, $22, $22, $33
+byte $97, $64, $45, $45, $66, $54, $44, $45
+byte $55, $87, $99, $98, $9A, $96, $67, $55
+byte $45, $45, $76, $77, $99, $65, $8B, $CC
+byte $CC, $BB, $AA, $98, $86, $56, $67, $88
+byte $76, $88, $78, $98, $78, $99, $9A, $A9
+byte $88, $99, $AA, $A9, $9A, $CD, $EE, $DD
+byte $DF, $FF, $EE, $ED, $CD, $EF, $ED, $CC
+byte $DD, $A6, $22, $22, $22, $22, $22, $32
+byte $75, $55, $45, $55, $65, $54, $43, $34
+byte $54, $86, $89, $99, $A9, $98, $87, $34
+byte $44, $46, $88, $77, $99, $86, $8B, $CC
+byte $DC, $CB, $BA, $A9, $87, $78, $89, $88
+byte $87, $98, $78, $88, $67, $99, $9A, $A9
+byte $88, $99, $9B, $A9, $9B, $CD, $DD, $ED
+byte $DE, $FF, $FE, $DE, $DD, $EE, $EC, $CC
+byte $DD, $84, $22, $22, $22, $22, $22, $22
+byte $75, $44, $55, $55, $56, $44, $33, $34
+byte $36, $65, $88, $89, $98, $9A, $85, $45
+byte $55, $67, $88, $89, $AB, $97, $8B, $CC
+byte $CC, $CB, $BB, $A8, $88, $9A, $AA, $98
+byte $89, $98, $77, $87, $77, $89, $99, $98
+byte $87, $88, $AB, $BA, $AC, $CC, $DD, $EE
+byte $DE, $FF, $EE, $DE, $ED, $EE, $EC, $CC
+byte $CE, $93, $22, $22, $22, $22, $22, $22
+byte $65, $43, $55, $54, $55, $45, $43, $34
+byte $46, $46, $78, $78, $88, $AA, $88, $76
+byte $45, $67, $98, $9A, $BB, $97, $8A, $CC
+byte $CB, $BA, $BB, $A9, $9A, $BB, $BB, $AA
+byte $9A, $98, $77, $66, $67, $88, $99, $98
+byte $98, $88, $99, $BA, $9A, $BB, $CD, $EE
+byte $EE, $FF, $ED, $DD, $DD, $EE, $DC, $BC
+byte $DD, $A5, $22, $22, $22, $22, $22, $22
+byte $64, $54, $65, $54, $55, $54, $32, $34
+byte $54, $45, $67, $89, $98, $88, $77, $43
+byte $45, $58, $89, $9B, $AA, $98, $9B, $CC
+byte $BC, $BB, $BA, $99, $9A, $AA, $AB, $BA
+byte $AA, $97, $77, $77, $78, $99, $99, $99
+byte $88, $89, $AA, $BA, $A9, $AB, $CD, $DE
+byte $EE, $FF, $EC, $CD, $DE, $ED, $DB, $CC
+byte $CC, $73, $22, $22, $22, $22, $22, $22
+byte $74, $44, $55, $44, $44, $55, $23, $44
+byte $43, $34, $68, $98, $78, $76, $54, $13
+byte $33, $67, $99, $AB, $AA, $99, $AB, $CC
+byte $CB, $BB, $BA, $99, $A9, $AB, $BB, $BB
+byte $AA, $98, $87, $77, $78, $89, $99, $99
+byte $88, $99, $9A, $AA, $AA, $AA, $BC, $DE
+byte $EE, $FE, $DD, $CD, $DE, $DB, $BC, $CC
+byte $BA, $52, $22, $22, $22, $22, $22, $22
+byte $74, $55, $43, $34, $55, $64, $34, $44
+byte $43, $45, $68, $87, $88, $97, $95, $32
+byte $33, $58, $89, $9A, $BB, $AA, $AA, $CC
+byte $BB, $CB, $AA, $AA, $AB, $BB, $BB, $BB
+byte $BA, $A9, $98, $88, $89, $9A, $A9, $98
+byte $77, $88, $99, $AB, $BB, $AA, $AC, $DE
+byte $EE, $FD, $CC, $CD, $EE, $CB, $BB, $CC
+byte $A6, $22, $22, $22, $22, $22, $22, $22
+byte $73, $44, $44, $44, $45, $43, $44, $54
+byte $43, $45, $78, $89, $9A, $BB, $B8, $63
+byte $44, $45, $78, $9A, $BB, $AB, $AA, $CC
+byte $BC, $BB, $BA, $AA, $BB, $BB, $BB, $BB
+byte $BB, $AA, $87, $88, $99, $99, $99, $A8
+byte $87, $89, $99, $AB, $BA, $AA, $BC, $DD
+byte $EE, $ED, $CC, $DD, $ED, $BA, $AA, $CA
+byte $62, $22, $22, $22, $22, $22, $22, $22
+byte $84, $44, $44, $44, $25, $44, $44, $54
+byte $43, $25, $78, $9A, $AB, $BB, $BA, $87
+byte $74, $35, $57, $AA, $CB, $AB, $BB, $BC
+byte $CB, $BA, $AA, $AA, $BA, $BB, $BB, $BB
+byte $BB, $A9, $88, $88, $88, $99, $A9, $89
+byte $76, $78, $88, $9A, $BA, $99, $BC, $CD
+byte $EE, $FC, $CC, $DC, $CA, $99, $A9, $B8
+byte $32, $22, $22, $22, $22, $22, $22, $22
+byte $64, $44, $44, $54, $34, $44, $34, $44
+byte $42, $46, $68, $9A, $BB, $AB, $BA, $A7
+byte $73, $34, $48, $BA, $BA, $BA, $BB, $BB
+byte $BB, $AA, $AA, $AA, $BB, $BB, $BA, $BB
+byte $BA, $A9, $98, $88, $89, $99, $9A, $89
+byte $76, $67, $77, $9B, $BA, $88, $AC, $DD
+byte $EE, $FD, $BD, $DC, $A7, $79, $A9, $95
+byte $22, $22, $22, $22, $22, $22, $22, $22
+byte $54, $44, $45, $64, $44, $44, $44, $33
+byte $32, $45, $58, $9A, $AA, $AB, $AA, $98
+byte $63, $44, $58, $9A, $AA, $BB, $AB, $BA
+byte $AA, $AA, $AA, $AA, $AA, $BB, $AB, $BB
+byte $BB, $AA, $98, $99, $89, $99, $AA, $98
+byte $76, $66, $57, $8A, $BA, $98, $9B, $DD
+byte $DD, $EE, $CC, $CC, $B7, $47, $87, $63
+byte $22, $22, $22, $22, $22, $22, $22, $21
+byte $54, $44, $35, $54, $45, $44, $54, $33
+byte $23, $34, $68, $99, $AA, $AA, $89, $76
+byte $54, $55, $56, $89, $8A, $BB, $9A, $AA
+byte $AA, $AA, $99, $9A, $AA, $AB, $AB, $BB
+byte $BB, $BA, $99, $88, $98, $99, $9A, $99
+byte $88, $76, $56, $8A, $BB, $98, $9B, $DE
+byte $DD, $DE, $DB, $BC, $B7, $44, $44, $52
+byte $22, $22, $22, $22, $22, $22, $22, $11
+byte $44, $44, $35, $54, $45, $34, $33, $33
+byte $22, $44, $67, $88, $98, $88, $79, $53
+byte $35, $65, $45, $78, $89, $AB, $99, $BB
+byte $BA, $AA, $99, $99, $99, $AB, $AB, $BB
+byte $BB, $BB, $99, $89, $99, $99, $99, $9A
+byte $AA, $97, $56, $8A, $BB, $A8, $9A, $CD
+byte $DD, $DE, $FB, $AB, $B6, $33, $22, $43
+byte $22, $22, $22, $22, $22, $22, $21, $11
+byte $44, $45, $44, $54, $54, $43, $32, $32
+byte $12, $45, $66, $77, $87, $87, $87, $33
+byte $45, $65, $46, $67, $88, $AB, $99, $BB
+byte $BA, $99, $88, $99, $AA, $AA, $AA, $AA
+byte $AA, $AB, $A9, $88, $89, $88, $99, $AA
+byte $AA, $97, $66, $7A, $BB, $A8, $9A, $BC
+byte $DE, $EE, $FD, $AA, $A8, $42, $22, $33
+byte $22, $22, $22, $22, $22, $22, $21, $11
+byte $44, $45, $45, $53, $43, $43, $22, $22
+byte $13, $45, $66, $66, $87, $67, $66, $56
+byte $55, $77, $56, $67, $78, $9A, $A9, $BB
+byte $AA, $88, $78, $99, $99, $AA, $AA, $AA
+byte $BB, $BB, $A9, $87, $88, $99, $99, $99
+byte $AB, $BA, $97, $79, $AB, $A8, $89, $BC
+byte $CD, $FF, $FE, $B9, $65, $53, $33, $33
+byte $22, $22, $22, $22, $22, $22, $22, $11
+byte $54, $34, $34, $44, $42, $33, $22, $32
+byte $13, $55, $65, $45, $87, $87, $87, $87
+byte $77, $88, $76, $65, $77, $8A, $A9, $AB
+byte $AA, $98, $88, $88, $AA, $AA, $AA, $AA
+byte $AA, $BB, $BA, $88, $88, $89, $99, $99
+byte $98, $AB, $AA, $9A, $AA, $A9, $78, $8A
+byte $CD, $EF, $FE, $96, $43, $34, $33, $33
+byte $32, $22, $22, $22, $22, $22, $11, $11
+byte $54, $33, $22, $45, $52, $32, $21, $21
+byte $14, $45, $45, $57, $77, $87, $87, $88
+byte $88, $88, $84, $46, $68, $79, $A8, $AB
+byte $AA, $87, $87, $67, $89, $AA, $AA, $AA
+byte $AA, $BA, $AA, $87, $78, $99, $99, $99
+byte $AA, $AA, $A9, $98, $89, $A9, $88, $8A
+byte $CC, $CF, $FF, $A4, $33, $33, $33, $33
+byte $32, $22, $22, $22, $22, $22, $11, $11
+byte $54, $33, $22, $44, $42, $32, $11, $20
+byte $02, $35, $45, $57, $88, $77, $86, $76
+byte $78, $76, $64, $55, $67, $77, $98, $9A
+byte $AA, $87, $77, $55, $69, $AA, $AA, $9A
+byte $99, $AA, $AA, $75, $67, $89, $99, $9A
+byte $A9, $99, $87, $55, $67, $99, $9A, $AA
+byte $BC, $CD, $FF, $B4, $33, $33, $33, $33
+byte $32, $22, $22, $22, $22, $21, $11, $11
+byte $54, $33, $32, $44, $43, $33, $11, $10
+byte $01, $34, $34, $67, $66, $67, $65, $57
+byte $76, $44, $43, $35, $55, $57, $88, $98
+byte $AA, $87, $75, $56, $67, $9A, $98, $89
+byte $99, $AA, $AA, $88, $98, $88, $99, $9A
+byte $AA, $97, $65, $45, $56, $78, $99, $99
+byte $AB, $CC, $FF, $C4, $33, $33, $33, $33
+byte $33, $22, $22, $22, $12, $21, $11, $11
+byte $44, $44, $44, $53, $43, $22, $21, $10
+byte $01, $22, $23, $44, $45, $65, $35, $76
+byte $54, $34, $44, $35, $46, $56, $77, $87
+byte $78, $66, $55, $66, $78, $99, $98, $86
+byte $78, $99, $AA, $A8, $99, $99, $99, $AA
+byte $A9, $85, $34, $53, $32, $44, $65, $7A
+byte $BB, $CD, $DF, $C5, $44, $43, $33, $33
+byte $32, $33, $22, $22, $22, $11, $11, $11
+byte $25, $44, $55, $43, $42, $21, $11, $10
+byte $00, $11, $11, $32, $34, $42, $15, $66
+byte $55, $54, $55, $55, $55, $66, $77, $77
+byte $66, $65, $56, $77, $78, $99, $A8, $86
+byte $66, $8A, $AA, $A9, $99, $89, $98, $AA
+byte $AA, $73, $22, $11, $12, $22, $33, $57
+byte $9A, $99, $AF, $C4, $33, $44, $33, $33
+byte $33, $33, $32, $21, $11, $21, $11, $11
+byte $15, $44, $64, $32, $33, $11, $10, $00
+byte $10, $00, $03, $33, $33, $32, $46, $77
+byte $76, $55, $77, $76, $66, $77, $77, $76
+byte $66, $65, $67, $78, $88, $89, $99, $86
+byte $54, $6A, $AA, $99, $AA, $99, $A8, $AA
+byte $AA, $61, $01, $11, $22, $22, $22, $13
+byte $54, $22, $6F, $C4, $33, $34, $33, $33
+byte $33, $33, $32, $21, $11, $11, $11, $11
+byte $24, $44, $55, $32, $23, $12, $20, $11
+byte $10, $00, $04, $33, $33, $44, $55, $88
+byte $86, $56, $88, $86, $67, $76, $67, $76
+byte $66, $55, $67, $77, $88, $99, $99, $97
+byte $63, $36, $99, $99, $9A, $A9, $8A, $AA
+byte $AA, $71, $01, $21, $11, $00, $00, $00
+byte $20, $00, $8F, $B3, $33, $33, $33, $33
+byte $33, $33, $32, $21, $11, $11, $11, $11
+byte $24, $44, $55, $44, $22, $23, $21, $22
+byte $20, $00, $02, $24, $44, $54, $45, $89
+byte $66, $77, $88, $67, $77, $66, $77, $76
+byte $66, $66, $66, $67, $78, $77, $89, $98
+byte $73, $23, $79, $99, $88, $99, $99, $9B
+byte $AA, $82, $00, $00, $00, $00, $00, $00
+byte $00, $02, $DF, $C5, $43, $33, $33, $33
+byte $33, $33, $32, $21, $11, $11, $11, $11
+byte $34, $44, $45, $44, $43, $12, $11, $21
+byte $21, $10, $00, $24, $45, $44, $37, $95
+byte $55, $56, $76, $77, $77, $77, $87, $76
+byte $67, $76, $67, $77, $76, $55, $68, $99
+byte $86, $43, $49, $AA, $AA, $AA, $A8, $7A
+byte $AA, $94, $00, $00, $00, $00, $00, $02
+byte $21, $77, $FF, $B5, $43, $33, $33, $33
+byte $33, $33, $32, $21, $11, $11, $11, $11
+byte $24, $33, $45, $55, $43, $22, $22, $22
+byte $11, $11, $00, $13, $44, $43, $56, $53
+byte $55, $45, $67, $77, $88, $78, $87, $65
+byte $78, $76, $77, $66, $65, $55, $57, $78
+byte $99, $75, $35, $9A, $98, $98, $89, $9A
+byte $A9, $86, $21, $00, $00, $00, $00, $04
+byte $87, $56, $FF, $93, $43, $33, $33, $33
+byte $33, $33, $22, $21, $11, $11, $11, $10
+byte $23, $33, $35, $65, $43, $33, $33, $32
+byte $11, $11, $21, $02, $33, $44, $54, $33
+byte $43, $45, $76, $68, $77, $77, $77, $66
+byte $77, $77, $76, $55, $55, $77, $67, $66
+byte $78, $87, $54, $59, $AA, $9A, $99, $99
+byte $99, $87, $20, $00, $00, $00, $01, $12
+byte $31, $1D, $FF, $93, $33, $33, $43, $33
+byte $33, $33, $22, $21, $11, $11, $00, $00
+byte $33, $33, $34, $55, $54, $33, $33, $32
+byte $11, $21, $10, $12, $24, $43, $32, $33
+byte $32, $34, $66, $67, $66, $67, $77, $77
+byte $77, $67, $66, $56, $76, $88, $76, $66
+byte $67, $78, $88, $35, $99, $89, $99, $89
+byte $A9, $98, $62, $00, $00, $00, $12, $24
+byte $21, $AF, $FE, $84, $33, $33, $33, $33
+byte $33, $33, $22, $21, $11, $11, $10, $00
+byte $33, $33, $43, $46, $44, $44, $43, $32
+byte $22, $32, $11, $11, $22, $32, $23, $32
+byte $22, $33, $54, $45, $55, $57, $77, $78
+byte $88, $77, $66, $67, $87, $88, $76, $78
+byte $77, $88, $88, $73, $48, $99, $88, $89
+byte $99, $97, $65, $20, $00, $13, $43, $44
+byte $5A, $DF, $FD, $54, $43, $33, $43, $33
+byte $33, $33, $22, $21, $11, $11, $00, $00
+byte $33, $23, $42, $35, $34, $44, $44, $43
+byte $22, $23, $11, $21, $01, $22, $23, $33
+byte $33, $33, $33, $44, $44, $57, $77, $88
+byte $98, $77, $66, $67, $88, $88, $76, $78
+byte $89, $99, $89, $97, $57, $88, $98, $99
+byte $88, $87, $65, $53, $22, $21, $12, $48
+byte $BC, $DE, $D8, $34, $43, $33, $33, $33
+byte $33, $33, $32, $21, $11, $11, $00, $00
+byte $23, $24, $33, $35, $34, $35, $55, $43
+byte $43, $33, $11, $11, $00, $11, $12, $23
+byte $32, $23, $33, $43, $45, $56, $66, $77
+byte $87, $67, $77, $78, $76, $68, $76, $78
+byte $89, $AA, $99, $AA, $98, $88, $89, $77
+byte $77, $66, $64, $43, $32, $23, $35, $9A
+byte $BB, $CB, $74, $34, $44, $43, $33, $33
+byte $33, $33, $32, $21, $11, $10, $00, $00
+byte $23, $23, $44, $34, $34, $35, $45, $33
+byte $43, $32, $11, $11, $10, $10, $10, $33
+byte $22, $33, $34, $33, $44, $54, $55, $67
+byte $76, $67, $77, $88, $76, $67, $77, $89
+byte $9A, $AA, $AB, $BB, $BB, $BA, $98, $76
+byte $76, $55, $44, $32, $34, $66, $34, $7A
+byte $B8, $66, $54, $34, $44, $43, $33, $33
+byte $33, $33, $32, $21, $11, $00, $00, $00
+byte $22, $23, $44, $44, $43, $45, $55, $43
+byte $43, $22, $11, $22, $11, $11, $11, $22
+byte $22, $33, $35, $33, $24, $34, $44, $55
+byte $76, $66, $77, $77, $67, $87, $89, $9A
+byte $AB, $AA, $BB, $BC, $CC, $CC, $B9, $76
+byte $45, $44, $44, $33, $32, $32, $25, $AB
+byte $94, $33, $44, $34, $44, $43, $33, $33
+byte $33, $33, $32, $21, $10, $00, $00, $00
+byte $20, $34, $44, $34, $32, $53, $44, $44
+byte $43, $22, $22, $32, $22, $21, $13, $32
+byte $33, $24, $35, $33, $23, $34, $44, $45
+byte $55, $66, $77, $77, $77, $88, $9A, $9A
+byte $AA, $AB, $CB, $CC, $CC, $CD, $DC, $BA
+byte $97, $56, $54, $32, $23, $46, $9C, $A6
+byte $42, $33, $34, $34, $44, $43, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $11, $45, $42, $34, $32, $52, $24, $32
+byte $33, $22, $33, $32, $23, $21, $24, $43
+byte $32, $33, $35, $53, $24, $34, $44, $44
+byte $55, $66, $77, $77, $88, $89, $9A, $BA
+byte $AA, $BC, $CC, $CC, $CC, $DD, $DD, $ED
+byte $ED, $96, $67, $78, $89, $AB, $B8, $32
+byte $33, $33, $34, $34, $44, $33, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $12, $46, $33, $45, $44, $32, $24, $43
+byte $22, $23, $43, $43, $33, $21, $24, $44
+byte $32, $33, $33, $43, $24, $44, $44, $44
+byte $55, $66, $77, $77, $88, $99, $9A, $A9
+byte $AB, $CC, $CC, $CC, $CD, $DD, $DE, $EE
+byte $A8, $52, $34, $56, $68, $86, $33, $22
+byte $32, $33, $34, $43, $44, $33, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $12, $44, $34, $55, $43, $43, $22, $43
+byte $22, $24, $34, $43, $33, $22, $24, $44
+byte $43, $22, $32, $43, $33, $44, $55, $54
+byte $45, $66, $77, $77, $78, $9A, $A9, $9A
+byte $BB, $CC, $CC, $CD, $DD, $DE, $ED, $DD
+byte $C7, $10, $00, $00, $03, $14, $23, $21
+byte $22, $33, $33, $33, $44, $43, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $12, $43, $34, $55, $54, $33, $23, $43
+byte $12, $24, $34, $43, $22, $22, $24, $34
+byte $32, $23, $32, $44, $44, $45, $55, $55
+byte $55, $56, $77, $77, $77, $89, $99, $AA
+byte $BB, $CC, $CC, $CD, $DD, $EE, $DB, $CA
+byte $74, $31, $00, $00, $01, $22, $13, $21
+byte $22, $33, $33, $44, $44, $43, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $12, $32, $34, $65, $54, $44, $33, $32
+byte $22, $23, $33, $33, $22, $22, $23, $23
+byte $22, $22, $22, $34, $44, $44, $44, $55
+byte $55, $66, $77, $76, $78, $89, $9A, $BB
+byte $BB, $BD, $CC, $CD, $DD, $EE, $EA, $88
+byte $31, $01, $10, $00, $01, $21, $11, $12
+byte $22, $33, $33, $34, $43, $33, $33, $33
+byte $33, $33, $32, $21, $10, $00, $00, $00
+byte $23, $22, $34, $55, $55, $44, $32, $22
+byte $12, $23, $23, $34, $32, $22, $23, $33
+byte $32, $32, $22, $44, $34, $33, $34, $45
+byte $55, $67, $77, $76, $78, $99, $AB, $BB
+byte $BC, $CC, $CD, $DD, $DE, $EE, $ED, $65
+byte $41, $10, $21, $00, $10, $01, $11, $12
+byte $22, $33, $33, $33, $33, $33, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $32, $22, $34, $44, $55, $54, $42, $23
+byte $23, $33, $33, $34, $44, $34, $33, $43
+byte $23, $32, $22, $34, $35, $43, $44, $45
+byte $55, $66, $77, $76, $78, $89, $AB, $BB
+byte $CC, $CC, $CD, $DD, $DE, $EE, $ED, $92
+byte $42, $11, $11, $10, $10, $01, $11, $12
+byte $22, $33, $33, $33, $33, $33, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $32, $22, $22, $23, $54, $54, $42, $24
+byte $32, $33, $44, $44, $45, $44, $43, $44
+byte $23, $33, $22, $23, $35, $54, $43, $45
+byte $55, $56, $67, $77, $78, $89, $AA, $BC
+byte $CC, $CC, $CD, $DD, $DE, $EE, $DD, $A4
+byte $23, $22, $11, $11, $10, $00, $11, $11
+byte $22, $33, $33, $33, $33, $33, $33, $33
+byte $33, $33, $22, $21, $10, $00, $00, $00
+byte $22, $23, $21, $23, $32, $54, $33, $34
+byte $42, $23, $44, $44, $46, $55, $44, $45
+byte $33, $33, $33, $33, $34, $55, $54, $45
+byte $56, $65, $66, $77, $89, $99, $AA, $BC
+byte $CC, $CC, $CD, $DE, $EE, $ED, $DB, $96
+byte $33, $32, $22, $12, $10, $00, $11, $11
+byte $22, $23, $33, $33, $33, $33, $33, $34
+byte $43, $33, $22, $21, $10, $00, $00, $00
+byte $32, $23, $32, $34, $32, $44, $33, $43
+byte $33, $33, $44, $44, $45, $65, $44, $45
+byte $43, $33, $23, $33, $34, $55, $55, $45
+byte $65, $66, $67, $78, $89, $9A, $AB, $BB
+byte $CC, $CD, $DC, $EE, $EE, $EE, $DA, $55
+byte $43, $33, $22, $22, $11, $00, $01, $11
+byte $22, $23, $33, $33, $33, $33, $34, $44
+byte $43, $33, $22, $21, $10, $00, $00, $00
+byte $42, $23, $33, $34, $32, $44, $34, $43
+byte $24, $34, $43, $44, $55, $65, $45, $44
+byte $43, $34, $34, $44, $34, $56, $55, $46
+byte $66, $67, $78, $88, $9A, $9A, $BB, $CC
+byte $CC, $CD, $CD, $DE, $EE, $ED, $CA, $54
+byte $43, $33, $33, $22, $21, $10, $01, $11
+byte $12, $23, $33, $33, $33, $33, $34, $44
+byte $44, $33, $22, $21, $10, $00, $00, $00
+
+image2
+file "Eibsee.bmp"
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+

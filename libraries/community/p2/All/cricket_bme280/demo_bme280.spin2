@@ -1,0 +1,133 @@
+' Title         : Cricket BME280 I2C Demo , Spin2 that thing
+' Description   : Demo program for Bosch 280 temperature , pressure and humidity sensor
+' Date          : 12_20_20
+' Author        : mcalyer
+' Requirements  : bme280_i2C ,  jm_i2c objects , debug print
+' Notes         : Pressure is in hPa units ,  1 hPa = .030 inHg
+' Terms of Use  : See end
+' Verison  Date      Change log
+' 1.0      07/05/21  First release
+
+
+CON
+  _clkfreq = 200_000_000
+
+  #0, PU_NONE, PU_1K5, PU_3K3, PU_15K      ' I2C pullup modes , from jm_i2c
+
+  BME280_I2C_ADDR  = $77
+
+  ERROR_NONE             = 0               ' bme280_i2C error codes
+  ERROR_CHIP_ID          = 1
+  ERROR_CALIB_NVM        = 2
+  ERROR_CALIB_TP         = 3
+  ERROR_CALIB_HUM        = 4
+  ERROR_THP              = 5
+  ERROR_MEAS_TIMEOUT     = 6
+  ERROR_NOT_NORMAL_MODE  = 7
+
+
+VAR
+
+
+OBJ
+    b280 : "bme280_i2c"
+
+pub demo() | r,d,tc,tf,h,p,i
+
+   debug("BME280 Spin 2 that thing Demo")
+
+  ' Initialze I2C bus , SCL = pin 0 , SDA = 1 , speed 100 kz , no pullup , device address $77
+  ' Your device address and pullup requirements may be different
+  ' Spped 100 , 400 , 1000  khz
+  ' Compile in debug mode to see key sensor info BME280_I2C_ADDR
+
+  if r := b280.setup(0,1,100,PU_NONE,BME280_I2C_ADDR)
+     debug("Setup failed , Error Code : " , udec(r))
+     abort
+
+  ' Set sensor config , using CONFIG_0
+  ' This mode provides a on demand , one time measurement of t,h,p with 4X oversampling
+  ' Several configs have been created , see above you can create your own ,
+  ' you will need to read sensor data sheet and follow CONFIG_0 bits & byte packing
+
+  ' Sensor config returns measurent time , for this mode
+  d := b280.sensor_config(b280.CONFIG_0)
+  debug(10,13,"CONFIG_0 Measurement time (ms) : " , udec(d))
+
+  waitms(10)
+
+  ' **** Example 1 : Force measurement wait for results , blocking
+  r,tc,tf,p,h := b280.forced_measurement()
+  if r
+    debug("Measurement failed , Error Code : " , udec(r))
+    abort
+  debug(10,13,"CONFIG_0 Forced Measurement : " , udec(tc,tf,p,h))
+
+
+  ' You can see sensor info
+  debug(10,13,"Take a look at sensor info CONFIG_0")
+  b280.sensor_info()
+
+
+
+  ' ***** Example 2 : Force measurement  , non blocking
+  b280.start_forced_measurement()
+
+  ' Do something else , come back later (at least 1 measurement time) to get t,h,p
+  waitms(d)
+
+  ' Get requested temperature , pressure , humidity
+  r,tc,tf,p,h := b280.get_thp()
+  if r
+    debug("Measurement failed , Error Code : " , udec(r))
+    abort
+  debug(10,13,"CONFIG_0 Forced Measurement : " , udec(tc,tf,p,h))
+
+
+
+  ' **** Example 3 : sensor continous update *****
+  ' Set config to measure every second , 4x over sampling
+  ' Note : measurement time = standby time + sensor measurement time
+   d := b280.sensor_config(b280.CONFIG_1)
+
+  ' Do something else , come back after measurement delay time to get t,h,p
+   debug(10,13,"Take a look at sensor info CONFIG_1")
+   b280.sensor_info()
+
+  ' Lets just read 10
+  debug(10,13,"CONFIG_1 measurement every 1 second + sensor measurement time")
+  i := 0
+  repeat 10
+    i++
+    waitms(1000 + d)
+    ' Get temperature , pressure , humidity
+    r,tc,tf,p,h := b280.periodic_measurement()
+    if r
+      debug("Measurement failed , Error Code : " , udec(r))
+      abort
+    debug("CONFIG_1 Measurement :  " , udec_(i) , "  " , udec(tc,tf,p,h))
+
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}
+

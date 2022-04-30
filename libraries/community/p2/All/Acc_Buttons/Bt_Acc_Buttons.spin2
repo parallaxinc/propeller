@@ -1,0 +1,93 @@
+'' =================================================================================================
+''
+''   File....... bt_Acc_Buttons.spin2
+''   Purpose.... Eval Accessory board Buttons Module Control code
+''   Authors.... Bryan Thomas
+''               -- based on unsigned work in GitHubDocs\resources\Accessory Test Code
+''   E-mail..... bthomas69@live.com
+''   Started.... 12/6/2020
+''
+''
+'' =================================================================================================
+{Usage }
+{For use as a On/Off switch: set Switch to true, otherwise the buttons will act as momentary switches
+and not retain there state when released}
+VAR
+  long  base
+  byte  switch
+  byte  reg1
+  byte  reg2
+  byte  cognum
+  long  StkAddr[100]
+pub Main()'not top object
+pub Start(s)
+switch:=s
+cognum:=COGSPIN(newcog, init(8,switch) , @StkAddr)
+pub getReg() : result
+if switch
+  return reg2
+else
+  return reg1
+pri run() | debounce
+repeat
+   reg1:=rd_btns()
+   if reg1 <> debounce
+    if switch                   'Decide to hold or discard state of register 2
+      reg2:=reg2^reg1
+    debounce:=reg1
+   wr_leds(reg2^reg1)
+pri init(basepin,OnOff) | pinfield'' Initialize IO: basepin is lowest pin of 8 bitgroup
+  base := basepin                                               ' save base
+  switch:=OnOff
+  pinfield := base addpins 3                                    ' pins base..base+3
+  pinlow(pinfield)                                              ' set all low (off)
+  pinfield := base+4 addpins 3                                  ' pins base..base+3
+  wrpin(pinfield, P_LOW_15K)                                    ' select 15K pull-downs
+  pinlow(pinfield)                                              ' activate pull-downs
+  run()
+pri wr_leds(bits) | ch ' Write LEDs as a 4-bit group
+  repeat ch from 0 to 3
+    wr_led(ch, bits.[0])                                        ' output lsb
+    bits >>= 1
+pri rd_btns() : result | ch ' Return state of control buttons as a 4-bit value
+  repeat ch from 3 to 0
+    result <<= 1                                                ' make room for next
+    result |= rd_btn(ch)                                        ' read next, add to result
+pri rd_btn(ch) : result  '' Return state of specified button : 1= pressed, 0= not pressed
+  case ch
+    0 : result := pinread(base+5)
+    1 : result := pinread(base+4)
+    2 : result := pinread(base+6)
+    3 : result := pinread(base+7)
+pri wr_led(ch, state)
+  if (state)                                                    ' promote non-0 to 1
+    state := 1
+  repeat 2
+    pinwrite(base+ch, 0)
+    waitms(10)
+    pinwrite(base+ch, state)
+    waitms(10)
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

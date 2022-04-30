@@ -1,0 +1,296 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_screenAccess.spin2
+''   Purpose.... Light weight shared acccess to screen geometry and buffer location
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 17 Oct 2020
+''
+'' =================================================================================================
+
+CON { reinterpret the users selections for driver internal use }
+
+    ' interface forwarding so driver-internal objects don't know of the hwGeometry file!
+
+    ' possible Adapter Connections
+    PIN_GROUP_P0_P15 = user.PINS_P0_P15
+    PIN_GROUP_P16_P31 = user.PINS_P16_P31
+    PIN_GROUP_P32_P47 = user.PINS_P32_P47
+    PIN_GROUP_P48_P63 = user.PINS_P48_P63
+
+    ' the user-selected location
+    ADAPTER_BASE_PIN = user.ADAPTER_BASE_PIN
+
+    ' chip types
+    CHIP_UNKNOWN = user.CHIP_UNKNOWN
+    CHIP_MANUAL_SPEC = user.CHIP_MANUAL_SPEC
+    CHIP_FM6126A = user.CHIP_FM6126A
+    CHIP_FM6124 = user.CHIP_FM6124
+    CHIP_ICN2037 = user.CHIP_ICN2037
+    CHIP_MBI5124_8S = user.CHIP_MBI5124_8S
+    CHIP_UNK_LAT_END_ENCL = user.CHIP_UNK_LAT_END_ENCL
+    CHIP_UNK_LAT_END_ENCL_SLO_CLK = user.CHIP_UNK_LAT_END_ENCL_SLO_CLK
+    CHIP_GS6238S = user.CHIP_GS6238S
+
+    LAT_STYLE_OFFSET = user.LAT_STYLE_OFFSET
+    LAT_POSN_OVERLAP = user.LAT_POSN_OVERLAP
+    INIT_PANEL_REQUIRED = user.INIT_PANEL_REQUIRED
+    CLK_WIDE_PULSE = user.CLK_WIDE_PULSE
+    CLK_WIDE_PULSE = user.CLK_WIDE_PULSE
+    RB_SWAP = user.RB_SWAP
+    SCAN_4 = user.SCAN_4
+
+    ' which chip driver should be used
+    PANEL_DRIVER_CHIP = user.PANEL_DRIVER_CHIP
+
+    ' address ranges
+    ADDR_UNKNOWN = user.ADDR_UNKNOWN
+    ADDR_ABC = user.ADDR_ABC
+    ADDR_ABCD = user.ADDR_ABCD
+    ADDR_ABCDE = user.ADDR_ABCDE
+
+    ' possible color depths
+    DEPTH_3BIT = user.DEPTH_3BIT
+    DEPTH_4BIT = user.DEPTH_4BIT
+    DEPTH_5BIT = user.DEPTH_5BIT
+    DEPTH_6BIT = user.DEPTH_6BIT
+    DEPTH_7BIT = user.DEPTH_7BIT
+    DEPTH_8BIT = user.DEPTH_8BIT
+
+    ' users' choice for color depth
+    COLOR_DEPTH = user.COLOR_DEPTH
+
+    ' how many address lines are being used
+    PANEL_ADDR_LINES = user.PANEL_ADDR_LINES
+
+    ' how big is each panel
+    MAX_PANEL_ROWS = user.MAX_PANEL_ROWS
+    MAX_PANEL_COLUMNS = user.MAX_PANEL_COLUMNS
+
+    ' how many panels are connected
+    MAX_PANELS_PER_ROW =  user.MAX_PANELS_PER_ROW
+    MAX_PANELS_PER_COLUMN =  user.MAX_PANELS_PER_COLUMN
+    MAX_PANELS = MAX_PANELS_PER_ROW * MAX_PANELS_PER_COLUMN
+
+    ' how big is our overall display
+    MAX_DISPLAY_COLUMNS = MAX_PANELS_PER_ROW * MAX_PANEL_COLUMNS
+    MAX_DISPLAY_ROWS = MAX_PANELS_PER_COLUMN * MAX_PANEL_ROWS
+
+    MAX_DISPLAY_ROW_IN_BYTES = MAX_DISPLAY_COLUMNS
+    MAX_DISPLAY_ROW_IN_LONGS = (MAX_DISPLAY_ROW_IN_BYTES + 3) / 4
+
+    ' we have to generate clocks and latching based on physical size of hardware
+    MAX_PHYSICAL_COLUMNS = MAX_PANELS * MAX_PANEL_COLUMNS
+    MAX_PHYSICAL_ROWS = MAX_PANEL_ROWS
+
+    ' what is our PWM frame size
+    MAX_PWM_FRAME_SIZE_IN_BYTES = (MAX_PHYSICAL_COLUMNS * MAX_PHYSICAL_ROWS) / 2
+    MAX_PWM_FRAME_SIZE_IN_LONGS = (MAX_PWM_FRAME_SIZE_IN_BYTES + 3) / 4
+
+    ' what is one row within our PWM buffer
+    MAX_PWM_ROW_SIZE_IN_BYTES = MAX_PHYSICAL_COLUMNS
+    MAX_PWM_ROW_SIZE_IN_LONGS = MAX_PWM_ROW_SIZE_IN_BYTES / 4
+
+    ' driver COG internal buffer size
+    MAX_COG_BUFFER_SIZE_IN_BYTES = 1024
+    MAX_COG_BUFFER_SIZE_IN_LONGS = MAX_COG_BUFFER_SIZE_IN_BYTES / 4
+
+    ' how many PWM frames/subpages does our DRIVER use?
+    ' --------------------------------------------------------------------------
+    '  NOTE: a PWM frame can be larger than our COG buffer size (1 kBytes.)
+    '  When it is, the driver thinks of each PWM frame as being composed of
+    '  a sequential list of 1kB subpages
+    ' --------------------------------------------------------------------------
+    '
+    MAX_PWM_BUFFERS = COLOR_DEPTH     ' compiled color depth: nbr bits is nbr of PWM frames we need
+
+    MAX_PWM_ROWS_IN_COG_BUFFER = MAX_COG_BUFFER_SIZE_IN_LONGS / MAX_PWM_ROW_SIZE_IN_LONGS
+    MAX_SUBPAGE_SIZE_IN_LONGS = MAX_PWM_ROWS_IN_COG_BUFFER * MAX_PWM_ROW_SIZE_IN_LONGS
+    MAX_SUBPAGE_SIZE_IN_BYTES = MAX_SUBPAGE_SIZE_IN_LONGS * 4
+    MAX_PWM_ROW_SIZE_IN_BYTES = MAX_SUBPAGE_SIZE_IN_BYTES / MAX_PWM_ROWS_IN_COG_BUFFER
+
+    ' this then is the count of subpages within a single PWM frame
+    MAX_PWM_SUBPAGES = MAX_PWM_FRAME_SIZE_IN_LONGS / MAX_SUBPAGE_SIZE_IN_LONGS
+
+
+    DISPLAY_BITS_PER_COLOR = 24
+    PANEL_BITS_PER_COLOR = 3
+
+    ' (8 bits per byte)
+    DISPLAY_BYTES_PER_COLOR = DISPLAY_BITS_PER_COLOR / 8
+
+    ' (rounded up to fill a full long - leaves 0-3 bytes unused at end)
+    ' --------------------------------------------------------------------------
+    '  NOTE: the display buffer contains 3 bytes for each pixel (for R,G, and B.)
+    '   a single PWM frame is 1/6 the size and contains 1 byte for every 2 pixels.
+    '
+    '  However the bottom half of the display is overlapped with the top half so
+    '  we can send both values at the same time.
+    '  In other woard the RGB1 value for the pixel is in the same byte as the RGB2
+    '  value a half-panel further down in the display.
+    '
+    '  e.g., for a 64x32 panel the byte containing the RGB1 values for the pixel at
+    '  the top-left of the panel (row 0, col 0) also contains the RGB2 value for the
+    '  pixel mid-way down the panel (row 16, col 0.)
+    '
+    ' so, in review let's say we have a 64x32 panel:
+    '   Number Pixels: 64x32 = 2048 (2k Pixels)
+    '   Display buffer: 2048x3 = 6144 (6k Bytes)
+    '   PWM Buffer: 6144/6 = 1024 (1k Bytes)
+    '    but we in this driver version,, we have 16 PWM buffers so our buffer
+    '    space is 6kB + 1kB * 16 (16kB) = 22k Bytes total of static buffer for a
+    '    single 64x32 pixel panelSet.
+    '
+    ' NOTE: the next panel type we are adding is a 1/8 scan panel meaning 4 lines
+    '  of pixels are written for each line. This was 2 lines (RGB1, RGB2) but in
+    '  this case we now write two pixels data for each column.
+    ' --------------------------------------------------------------------------
+    '
+    DISPLAY_SIZE_IN_BYTES = (((MAX_DISPLAY_COLUMNS * MAX_DISPLAY_ROWS * DISPLAY_BYTES_PER_COLOR) + 3) / 4) * 4
+    DISPLAY_SIZE_IN_LONGS = (DISPLAY_SIZE_IN_BYTES / 4)
+
+OBJ { include the users' settings }
+
+    user    : "isp_hub75_hwGeometry"
+
+PUB null()
+
+    '' This is not a top level object
+
+DAT { shared access variables }
+
+' target screen and geometry thereof
+pExtScreen      long    0
+
+PUB setScreen(pScreen)
+    '' Save the location of the external screen buffer
+    'debug("7s:setScreen")
+    pExtScreen := pScreen
+
+PUB screenAddress() : pScreen
+    '' Return the address of the external screen buffer
+    pScreen := pExtScreen
+
+PUB pwmFrameCount() : nbrPwmFrames
+    '' Return the number of pwm frames to display for selected bit depth
+    case COLOR_DEPTH
+        DEPTH_3BIT:
+            nbrPwmFrames := 7
+        DEPTH_4BIT:
+            nbrPwmFrames := 15
+        DEPTH_5BIT:
+            nbrPwmFrames := 31
+        DEPTH_6BIT:
+            nbrPwmFrames := 63
+        DEPTH_7BIT:
+            nbrPwmFrames := 127
+        DEPTH_8BIT:
+            nbrPwmFrames := 255
+        other:
+            nbrPwmFrames := 15  ' default to DEPTH_4BIT if set badly
+
+PUB offsetToPanel(panelIndex) : offsetPixelRows, offsetPixelColumns | gridRow, gridColumn
+    '' Return x,y offset to specified panel from top-left corner of display
+    offsetPixelRows := offsetPixelColumns := 0
+    if MAX_PANELS > 0
+        panelIndex :=  0 #> panelIndex <# MAX_PANELS - 1
+        if MAX_PANELS_PER_ROW == 1
+            ' we have a column of panels
+            offsetPixelRows := panelIndex * MAX_PANEL_ROWS
+        elseif MAX_PANELS_PER_COLUMN == 1
+            ' we have a row of panels
+            offsetPixelColumns := panelIndex * MAX_PANEL_COLUMNS
+        else
+            ' we have a grid of panels: MAX_PANELS_PER_ROW x MAX_PANELS_PER_COLUMN
+            gridRow := panelIndex / MAX_PANELS_PER_ROW
+            gridColumn := panelIndex // MAX_PANELS_PER_ROW
+            offsetPixelRows := gridRow * MAX_PANEL_ROWS
+            offsetPixelColumns := gridColumn * MAX_PANEL_COLUMNS
+
+    return offsetPixelRows, offsetPixelColumns
+
+PUB getDriverFlags() : desiredFlags, origFlags
+    '' Return flags describing the compiled driver configuration
+    desiredFlags := origFlags := PANEL_DRIVER_CHIP  ' value configured by user
+    if origFlags == CHIP_FM6126A
+        desiredFlags := CHIP_MANUAL_SPEC | LAT_POSN_OVERLAP | LAT_STYLE_OFFSET | INIT_PANEL_REQUIRED
+    elseif origFlags == CHIP_GS6238S
+        desiredFlags := CHIP_MANUAL_SPEC | LAT_POSN_OVERLAP | LAT_STYLE_OFFSET '| INIT_PANEL_REQUIRED | RB_SWAP
+    elseif origFlags == CHIP_MBI5124_8S
+        desiredFlags := CHIP_MANUAL_SPEC | CHIP_UNK_LAT_END_ENCL | SCAN_4 | INIT_PANEL_REQUIRED
+    elseif origFlags == CHIP_FM6124 or origFlags == CHIP_UNK_LAT_END_ENCL
+        if origFlags == CHIP_FM6124
+            desiredFlags := CHIP_MANUAL_SPEC
+    elseif origFlags == CHIP_ICN2037 or origFlags == CHIP_UNK_LAT_END_ENCL_SLO_CLK
+        if origFlags == CHIP_ICN2037
+            desiredFlags := CHIP_MANUAL_SPEC | CLK_WIDE_PULSE | RB_SWAP
+    elseif origFlags & $ff <> CHIP_MANUAL_SPEC
+        ' report ERROR and exit
+        debug("- have unknown CHIP ", ubin_word(desiredFlags))
+        abort
+
+PUB dbgMemDump(bfrId, buffer, len) | bytBffr, colIdx, rowIdx, maxCol, maxRow, dispLen
+    '' Dump bytes in hex format to debug() terminal
+    debug("`temp '", zstr_(bfrId), ": bffr=", uhex_long_(buffer), "(", udec_(len), ")' 13")
+    maxCol := len >= 16 ? 15 : len
+    maxRow := (len / 16)
+    if maxRow * 16 < len
+        maxRow++
+    if maxRow == 0
+        maxRow := 1
+
+    bytBffr := buffer
+    waitus(35)
+    'returns
+    dispLen := 0
+    repeat rowIdx from 1 to maxRow
+        if rowIdx < 10
+            debug("`temp ' '")	' space
+        debug("`temp '  ", uhex_long_(bytBffr), ": '")
+        repeat colIdx from 0 to maxCol
+            debug("`temp '", uhex_byte_(byte[bytBffr+colIdx]), " '")
+            dispLen++
+            if dispLen >= len
+                quit
+            if colIdx == 7
+                debug("`temp ' '")	' space
+
+        bytBffr += 16
+        debug("`temp 13")		' newline
+        waitus(85)  ' 50 too short, 70 less issue, 75 better,
+    waitms(2)
+
+
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+}}

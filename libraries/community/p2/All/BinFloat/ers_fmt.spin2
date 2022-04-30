@@ -1,0 +1,133 @@
+{{
+   Numeric formatting routines
+
+   Written by Eric R. Smith, Total Spectrum Software Inc.
+   Distributed under the MIT license, see LICENSE.md for details
+
+   Provides routines like dec(x), hex(y), and so forth that
+   use the Spin2 SEND routine to transmit formatted numbers
+   Before using any of these routines, set SEND to the address of the
+   transmit routine, e.g. SEND := @serial.tx. Then call these functions
+   and they will use SEND to transmit the characters.
+   
+   str(x):     print memory pointed to by `x` as a string
+   dec(x):     print `x` as a signed integer in the minimal number of decimal digits
+   unsdec(x):  print `x` as an unsigned integer in the minimal number of decimal digits
+   hex(x):     print `x` as an (unsigned) hex number
+   bin(x):     print `x` as an (unsigned) binary number
+
+   decn(x, n): print `x` as a signed decimal using exactly n digits
+   unsdecn(x, n): print `x` as an unsigned decimal using exactly n digits
+   hexn(x, n): print `x` as a hex number using exactly n digits
+   binn(x, n): print `x` as a binary number using exactly n digits
+   nl():       print a newline
+
+   At the base all of these call "unsnum" to do the work. That has
+   signature:
+   
+   unsnum(x, base, digitsNeeded)
+
+   which prints `x` in base `base` with the requested number of digits (set `digitsNeeded` to -1 to print just as many digits as required)
+}}
+
+''
+'' print an number "val" with a given base
+''  "digitsNeeded", if > 0, gives the exact number
+''  of digits to print
+'' if it is < 0, it indicates we should print
+''  exactly that many digits
+''
+'' signflag indicates how to handle the sign of the
+'' number:
+''   0 == print nothing before positive numbers
+''   anything else: print before positive numbers
+'' for signed negative numbers we always print a "-"
+''
+
+pub signnum(val, base, digitsNeeded, signflag)
+
+  '' if signflag is nonzero, it indicates the
+  '' character we should print for positive numbers (typically "+")
+  
+  if (val < 0)
+    signflag := "-"
+    val := -val
+
+  if signflag
+     send(signflag)
+  unsnum(val, base, digitsNeeded)
+
+''
+'' Print an unsigned number `val` in base `base`. `digitsNeeded` is
+'' the number of digits to print, or -1 to print as many as required
+''
+pub unsnum(val, base, digitsNeeded) | i, digit, r1, q1
+
+  ' a request for 0 digits means to output nothing
+  if digitsNeeded == 0
+    return
+    
+  ' figure out the lowest order digit (the unsigned remainder
+  ' when divided by base) and the remaining value
+  digit := val +// base
+  val := val +/ base
+  
+  ' output all previous digits, if necessary
+  ' when is it necessary?
+  '   (a) if digitsNeeded > 0 (we need a specific number of digits)
+  '   (b) if digitsNeeded < 0 (we want all digits required) and val <> 0
+  if (digitsNeeded > 0 or val <> 0)
+    unsnum(val, base, digitsNeeded-1)
+
+  '
+  ' convert "digit" to an ASCII number
+  '
+  if digit <= 9
+    digit += "0"
+  else
+    digit := (digit - 10) + "A"
+    
+  send(digit)
+
+'
+' send a signed decimal number with as many digits as required
+'
+PUB dec(x)
+  signnum(x, 10, -1, 0)
+
+' send an unsigned decimal number
+PUB unsdec(x)
+  unsnum(x, 10, -1)
+
+' send an (unsigned) hex number
+PUB hex(x)
+  unsnum(x, 16, -1)
+
+' send an (unsigned) binary number
+PUB bin(x)
+  unsnum(x, 2, -1)
+
+' send a decimal number with a specific number of digits
+' note that for positive numbers put a space in front of the digits
+' so that they occupy the same width as negative numbers
+PUB decn(x, n)
+  signnum(x, 10, n, " ")
+  
+' send a hex number with a specific number of digits
+PUB hexn(x, n)
+  unsnum(x, 16, n)
+
+' send a binary number with a specific number of digits
+PUB binn(x, n)
+  unsnum(x, 2, n)
+
+' send a newline
+PUB nl()
+  send(13)
+  send(10)
+
+' send a string
+PUB str(x) | c
+  repeat while (c := byte[x++]) <> 0
+    send(c)
+

@@ -1,0 +1,1169 @@
+'' =================================================================================================
+''
+''   File....... isp_hub75_rgb3bit.spin2
+''   Purpose.... Drive a HUB75 panel of RGB LEDs
+''   Authors.... Stephen M Moraco
+''               -- Copyright (c) 2020 Iron Sheep Productions, LLC
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... Oct 2020
+''   Updated.... 17 Oct 2020
+''
+'' =================================================================================================
+
+
+CON { timing }
+
+' clock is setup in top-level file
+
+CON { I/O PINs }
+
+' New P2 Eval Board HUB75 Adapter:
+
+    ' the user-selected location: one of 0, 16, 32, and 48
+    MTX_LED_BASE_PIN = screen.ADAPTER_BASE_PIN
+
+    MTX_LED_SPARE_2 = MTX_LED_BASE_PIN + 15
+    MTX_LED_SPARE_1 = MTX_LED_BASE_PIN + 14
+
+    MTX_LED_PIN_B2 = MTX_LED_BASE_PIN + 13
+    MTX_LED_PIN_G2 = MTX_LED_BASE_PIN + 12
+    MTX_LED_PIN_R2 = MTX_LED_BASE_PIN + 11
+    MTX_LED_PIN_B1 = MTX_LED_BASE_PIN + 10
+    MTX_LED_PIN_G1 = MTX_LED_BASE_PIN + 9
+    MTX_LED_PIN_R1 = MTX_LED_BASE_PIN + 8
+
+    MTX_LED_PIN_E = MTX_LED_BASE_PIN + 7
+    MTX_LED_PIN_D = MTX_LED_BASE_PIN + 6
+    MTX_LED_PIN_C = MTX_LED_BASE_PIN + 5
+    MTX_LED_PIN_B = MTX_LED_BASE_PIN + 4
+    MTX_LED_PIN_A = MTX_LED_BASE_PIN + 3
+
+    MTX_LED_PIN_LATCH = MTX_LED_BASE_PIN + 2
+    MTX_LED_PIN_OE = MTX_LED_BASE_PIN + 1
+    MTX_LED_PIN_CLK = MTX_LED_BASE_PIN + 0
+
+    MTX_ROW_ADDR_PINS = MTX_LED_PIN_A ADDPINS 4     ' TESTING use 4, use 3 for live!
+
+    MTX_COLOR_PINS    = MTX_LED_PIN_R1 ADDPINS 5
+    MTX_COLOR_RGB1_PINS = MTX_LED_PIN_R1 ADDPINS 2
+    MTX_COLOR_RGB2_PINS = MTX_LED_PIN_R2 ADDPINS 2
+
+    MTX_CTL_PINS      = MTX_LED_PIN_CLK ADDPINS 2
+
+    MTX_LA_XTRA_PINS_BASE =  8
+    MTX_LA_XTRA_PINS =  MTX_LA_XTRA_PINS_BASE ADDPINS 3 ' 4 extra pins
+    MTX_LA_XT_P08 =  MTX_LA_XTRA_PINS_BASE + 0
+    MTX_LA_XT_P09 =  MTX_LA_XTRA_PINS_BASE + 1
+    MTX_LA_XT_P10 =  MTX_LA_XTRA_PINS_BASE + 2
+    MTX_LA_XT_P11 =  MTX_LA_XTRA_PINS_BASE+  3
+
+CON { Data }
+
+    WAIT_TIME_IN_MS = 500
+
+    DELAY_CNT = 4
+
+    SCREEN_BYTES = 768
+
+' offsets in longs
+    RED_OFFSET = 0
+    GREEN_OFFSET = 64
+    BLUE_OFFSET = 128
+
+' bits within color
+    RED_BIT = 2
+    GREEN_BIT = 1
+    BLUE_BIT = 0
+
+' Colors
+    BLACK   = $00
+    BLUE    = $01
+    GREEN   = $02
+    CYAN    = $03
+    RED     = $04
+    MAGENTA = $05
+    YELLOW  = $06
+    WHITE   = $07
+
+    #0, CMD_DONE, CMD_CLEAR, CMD_SHOW_BUFFER, CMD_FILL_COLOR, CMD_SHOW_PWM_BUFFER, CMD_STOP
+
+OBJ
+
+    screen      : "isp_hub75_screenAccess"
+    color       : "isp_hub75_color"
+
+VAR
+    long    ptrCommand      ' ptra[2]
+    long    ptrArgument     ' ptra[3]  @buffer -OR- color value [0-7]
+
+       ' write values here to pass to driver
+    long    dvrCommand
+    long    dvrArgument
+
+    long    dvrConfig
+    long    driverFlags
+    long    driverConfigRaw
+    long    bSwapRB
+    long    bInitPanel
+    long    bScan_1_4
+    long    cog
+
+
+' --------------------------------------------------------------------------------------------------
+PUB start() : ok | tmpVar, panelCt, tmpConstant, widthInPanels, heightInPanels
+    '' Setup the pasm2 driver vars, then start a new cog running the driver
+
+    stop()
+
+    ' post time constants to driver
+    'msec_001 := CLKFREQ / 1_000                                   ' ticks in 1ms
+    'usec_001 := CLKFREQ / 1_000_000                               ' ticks in 1us
+    'tm_64usec := usec_001 * 64
+
+    'debug("- times: ", sdec_long(usec_001), sdec_long(tm_64usec))
+
+    tmpConstant := screen.COLOR_DEPTH
+    debug("- Driver CONFIG ColorDepth = ", udec_long_(tmpConstant))
+
+    ' initialize our max count for initial frame of frameSet
+    maxCtPerFrame := (screen.pwmFrameCount() + 1) >> 1
+    debug("- Driver CONFIG 1st bit ", udec_long(maxCtPerFrame))
+
+    dvrConfig, driverConfigRaw := screen.getDriverFlags()
+    debug("- Driver CONFIG ", ubin_word(driverConfigRaw))
+    debug("- Driver CONFIG       ", ubin_word(dvrConfig))
+    if driverConfigRaw == screen.CHIP_FM6126A
+        debug("---->     FM6126A")
+    elseif driverConfigRaw == screen.CHIP_MBI5124_8S
+        debug("---->     MBI5124-8S")
+    elseif driverConfigRaw == screen.CHIP_GS6238S
+        debug("---->     GS6238S")
+    elseif driverConfigRaw == screen.CHIP_FM6124 or driverConfigRaw == screen.CHIP_UNK_LAT_END_ENCL
+        if driverConfigRaw == screen.CHIP_FM6124
+            debug("---->     FM6124")
+    elseif driverConfigRaw == screen.CHIP_ICN2037 or driverConfigRaw == screen.CHIP_UNK_LAT_END_ENCL_SLO_CLK
+        if driverConfigRaw == screen.CHIP_ICN2037
+            debug("---->     ICN2037")
+    panelCt := screen.MAX_PANELS
+    heightInPanels := screen.MAX_PANELS_PER_COLUMN
+    widthInPanels := screen.MAX_PANELS_PER_ROW
+    debug("---->     ", udec_(panelCt), " panel(s), wh=(", udec_(widthInPanels), "x", udec_(heightInPanels), ")")
+
+    debug("- * Driver BFFR CogBuffer[256]=0x", uhex_long_(@@CogBuffer))
+
+    driverFlags := dvrConfig & $ff00
+    ' if following flags are set...
+    modeOverlapDAT := (driverFlags & screen.LAT_POSN_OVERLAP) <> 0 ? True : False
+    modeLatchEnclosed := (driverFlags & screen.LAT_STYLE_OFFSET) <> 0 ? False : True
+    bInitPanel := (driverFlags & screen.INIT_PANEL_REQUIRED) <> 0 ? True : False
+    modeSlowCLK := (driverFlags & screen.CLK_WIDE_PULSE) <> 0 ? True : False
+    ' post value of panel needing swap so we can do correct color fixes
+    bSwapRB := (driverFlags & screen.RB_SWAP) > 0 ? True : False
+    ' post value of our need to alter our scan from 1/16, 1/32 to 1/8
+    bScan_1_4 := (driverFlags & screen.SCAN_4) > 0 ? True : False
+
+    debug("- Driver CONFIG (intrp) ", ubin_word(dvrConfig))
+    debug("  -- ", ubin_word(driverFlags))
+    debug("  -- ", ubin_byte(modeOverlapDAT))
+    debug("  -- ", ubin_byte(modeLatchEnclosed))
+    debug("  -- ", ubin_byte(bInitPanel))
+    debug("  -- ", ubin_byte(modeSlowCLK))
+    debug("  -- ", ubin_byte(bSwapRB))
+    debug("  -- ", ubin_byte(bScan_1_4))
+
+    ' when using a panel w/FM6126A chips we have to issue a reset!
+    '   before attempting to use the panel
+    if bInitPanel
+        setupPins()
+        if driverConfigRaw == screen.CHIP_MBI5124_8S
+            resetPanelMBI5124()
+        elseif driverConfigRaw == screen.CHIP_FM6126A
+            resetPanelFM6126()
+
+    ' configure our driver
+    case screen.ADAPTER_BASE_PIN
+        screen.PIN_GROUP_P0_P15:
+            debug("- I/O P00 - P15")
+            bSetLowPins := TRUE
+            modeUsePortA  := TRUE
+        screen.PIN_GROUP_P16_P31:
+            debug("- I/O P16 - P31")
+            bSetLowPins := FALSE
+            modeUsePortA  := TRUE
+        screen.PIN_GROUP_P32_P47:
+            debug("- I/O P32 - P47")
+            bSetLowPins := TRUE
+            modeUsePortA  := FALSE
+        screen.PIN_GROUP_P48_P63:
+            debug("- I/O P48 - P63")
+            bSetLowPins := FALSE
+            modeUsePortA  := FALSE
+
+    if bSetLowPins
+        if screen.PANEL_ADDR_LINES == screen.ADDR_ABCDE
+            maskAllPins := %00000000_00000000_00111111_11111111         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_00000000_00000000_11111000     ' pins at 00-15 A/B-pins
+            addrValueMax := $0000_00F8                              ' 31 but in upper 5-bits of byte
+            rowCtrMax   := 32
+        elseif screen.PANEL_ADDR_LINES == screen.ADDR_ABCD
+            maskAllPins := %00000000_00000000_00111111_01111111         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_00000000_00000000_01111000     ' pins at 00-15 A/B-pins
+            addrValueMax := $0000_0078                              ' 15 but in upper 5-bits of byte
+            rowCtrMax   := 16
+        else  '  == screen.ADDR_ABC
+            maskAllPins := %00000000_00000000_00111111_00111111         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_00000000_00000000_00111000     ' pins at 00-15 A/B-pins
+            addrValueMax := $0000_0038                              ' 7 but in upper 5-bits of byte
+            rowCtrMax   := 8
+        maskRgb12   := %00000000_00000000_00111111_00000000         ' rgb2rgb1 now grounded to lsbit - pins at 00-15 A/B-pins
+        addrValue1  := $0000_0008                                   ' 1 but in upper 5-bits of byte
+        modeDatRotLeft := TRUE
+    else
+        if screen.PANEL_ADDR_LINES == screen.ADDR_ABCDE
+            maskAllPins := %00111111_11111111_00000000_00000000         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_11111000_00000000_00000000     ' pins at 16-31 A/B-pins
+            addrValueMax := $00F8_0000                              ' 31 but in upper 5-bits of byte
+            rowCtrMax   := 32
+        elseif screen.PANEL_ADDR_LINES == screen.ADDR_ABCD
+            maskAllPins := %00111111_01111111_00000000_00000000         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_01111000_00000000_00000000     ' pins at 16-31 A/B-pins
+            addrValueMax := $0078_0000                              ' 15 but in upper 5-bits of byte
+            rowCtrMax   := 16
+        else  '  == screen.ADDR_ABC
+            maskAllPins := %00111111_00111111_00000000_00000000         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            maskAddr    := %00000000_00111000_00000000_00000000     ' pins at 16-31 A/B-pins
+            addrValueMax := $0038_0000                              ' 7 but in upper 5-bits of byte
+            rowCtrMax   := 8
+        maskRgb12   := %00111111_00000000_00000000_00000000         ' rgb2rgb1 now grounded to lsbit - pins at 16-31 A/B-pins
+        addrValue1  := $0008_0000                                   ' 1 but in upper 5-bits of byte
+        modeDatRotLeft := FALSE
+    debug("  -- ", ubin_long(bSetLowPins))
+    debug("  -- ", ubin_long(modeUsePortA))
+
+    ' set width of one row
+    colCtrMax := screen.MAX_PHYSICAL_COLUMNS
+    if bScan_1_4
+        colCtrMax := screen.MAX_PHYSICAL_COLUMNS * 2
+    colCtrMaxLngs := colCtrMax / 4
+    ' set following in case we are driving an FM6126A panel
+    colCtrLatchCt := (modeOverlapDAT) ? colCtrMax - 3 : colCtrMax ' for the setup form of the driver we latch during last three columns
+    debug("* Driver:  ", udec(rowCtrMax), udec(colCtrMax), udec(colCtrMaxLngs))
+    tmpConstant := screen.MAX_COG_BUFFER_SIZE_IN_LONGS
+    tmpVar := screen.MAX_PWM_FRAME_SIZE_IN_LONGS
+    debug("* Driver:  MAX_PWM_FRAME_SIZE_IN_LONGS=", udec_(tmpVar), ", MAX_COG_BUFFER_SIZE_IN_LONGS=", udec_(tmpConstant))
+    tmpConstant := screen.MAX_PWM_SUBPAGES
+    tmpVar := screen.MAX_SUBPAGE_SIZE_IN_LONGS
+    debug("* Driver:  MAX_SUBPAGE_SIZE_IN_LONGS=", udec_(tmpVar), ", MAX_PWM_SUBPAGES=", udec_(tmpConstant))
+
+{
+    ' test mask off rgb1 or rgb2 in ABCDE case (testing matrix)
+    if bSetLowPins
+        if screen.PANEL_ADDR_LINES == screen.ADDR_ABCDE
+            maskAllPins := %00000000_00000000_00111000_11111111         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            'maskAllPins := %00000000_00000000_00000111_11111111         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+    else
+        if screen.PANEL_ADDR_LINES == screen.ADDR_ABCDE
+            maskAllPins := %00111000_11111111_00000000_00000000         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+            'maskAllPins := %00000111_11111111_00000000_00000000         ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+'}
+    'debug("- ", ubin_long(maskAddr))
+    'debug("- ", ubin_long(maskRgb12))
+    'debug("- ", ubin_long(maskAllPins))
+    'debug("- ", uhex_long(addrValue1))
+    'debug("- ", uhex_long(addrValueMax))
+
+    'tmpVar := screen.MAX_COG_BUFFER_SIZE_IN_LONGS
+    'debug("- COG Buffer in Longs ", udec_long_(tmpVar))
+    'tmpVar := screen.MAX_PWM_SUBPAGES
+    'debug("- # PWM SubPages ", udec_long_(tmpVar))
+
+    ' pass values to our driver
+    ptrCommand := @dvrCommand
+    ptrArgument := @dvrArgument
+    dvrCommand := CMD_DONE      ' ensure we start here
+
+    ok := cog := coginit(16, @drive_matrix, @ptrCommand) + 1
+    if ok == -1
+        debug("- Matrix: pasm cog start failed!")
+        abort
+    'repeat        ' do nothing, forever (lock us up) -- for TESTING ONLY
+
+    ' clear this COGs use of the pins
+    pinclear(MTX_ROW_ADDR_PINS)
+    pinclear(MTX_COLOR_PINS)
+    pinclear(MTX_CTL_PINS)
+
+
+PUB stop()
+    '' Stop the cog that is running the driver
+
+    ' FIXME: UNDONE issue command to driver to stop and release pins??
+    'dvrCommand := CMD_STOP
+    'repeat while (dvrCommand <> CMD_DONE)
+
+    if cog
+        cogstop(cog - 1)
+
+    pinclear(MTX_ROW_ADDR_PINS)
+    pinclear(MTX_COLOR_PINS)
+    pinclear(MTX_CTL_PINS)
+
+' --------------------------------------------------------------------------------------------------
+PUB fillScreenNoPWM(color3bit) | cValue, redBit, greenBit, blueBit
+    '' Request that driver fill the buffer with {3bitColor} value (no PWM)
+    cValue := 0 #> color3bit <# 7
+    if bSwapRB
+        ' if our driver says Red and Blue are swapped let's do so!
+        redBit := (cValue & color.BASE_RED) > 0 ? 1 : 0
+        greenBit := (cValue & color.BASE_GREEN) > 0 ? 1 : 0
+        blueBit := (cValue & color.BASE_BLUE) > 0 ? 1 : 0
+        cValue := (redBit << 2) | (greenBit << 1) | blueBit
+
+    dvrArgument := cValue    ' set color value of BLACK
+    dvrCommand := CMD_FILL_COLOR
+    repeat while (dvrCommand <> CMD_DONE)
+
+PUB clearPanel()
+    '' Request that driver fill the buffer with 0's - black
+    fillScreenNoPWM(BLACK)
+
+PUB writeBuffer(pBuffer)
+    '' Request that driver copy our buffer to its buffer and display it (no PWM)
+    dvrArgument := pBuffer
+    dvrCommand := CMD_SHOW_BUFFER
+    repeat while (dvrCommand <> CMD_DONE)
+
+PUB writePwmBuffer(pBuffer)
+    'debug("- r3b:wrtPwmBuffer ")
+    '' Request that driver copy each buffer of PWM bufferSet to its buffer and display it
+    dvrArgument := pBuffer
+    dvrCommand := CMD_SHOW_PWM_BUFFER
+    ' this will keep showing same PWM buffer until caller changes command!
+    ' so it just returns immediately
+
+PRI setupPins()
+    ' configure Matrix Panel HUB75 pins
+    debug("* Driver Set up Pins")
+    ' Enable all comm & address pins as outputs, set default states:
+    PINLOW(MTX_LED_PIN_CLK)
+    PINLOW(MTX_LED_PIN_LATCH)
+    PINHIGH(MTX_LED_PIN_OE)   ' high! (/OE)
+    PINLOW(MTX_ROW_ADDR_PINS)
+    PINLOW(MTX_COLOR_PINS)
+
+
+' --------------------------------------------------------------------------------------------------
+
+PRI resetPanelOld() | columnIdx, bitIdx, panelIdx
+    debug("* Driver FM6126A Init")
+    ' write the required init sequence to our panel drivers
+
+    ' REF: https://www.gitmemory.com/issue/mrfaptastic/ESP32-RGB64x32MatrixPanel-I2S-DMA/23/665659409
+    ' 64 & 128 do not appear to be different?? - 64: 1x panel, 128: 2x panels, etc.
+
+
+    ' Control Register 0 - LE w/10? clocks  (FM6127!)
+    ' Control Register 1 - LE w/11 clocks
+    ' Control Register 2 - LE w/12 clocks
+
+    ' All FM6126A code is based on the excellent guesswork by shades66 in --> https://github.com/hzeller/rpi-rgb-led-matrix/issues/746
+
+    ' Register 12 - brightness/gain settings, three 6bit values, aaaaaabbbbbbcccccc a= darkness?
+    '                seems to add red to the background when the leds are off, b=main brightness c=finer brightness
+    '                (i'm not sure if b & c are actually as 12 bit value but with b set to all 1's the value in c doesn't seem to make much difference)
+
+    ' Register 13 - not sure what it's doing yet, just that 1 specific bit within seems to be an overall enable function.
+
+    ' Now set all the values at the top to the same value for each of register 12/13 to get the same settings across the panel, the
+    '   current code loads different settings into each 32 columns.
+
+    ' clocking in the register is simply clocking in the value (i've 2 panels so 128bits of data) and for the last 12/13 bits depending
+    '   on the register setting the latch to high. the final drop of latch to low clocks in the configuration. this is done by sending
+    '   the same value to r1/r2/g1/g2/b1/b2 at the same time to load the config into all the FM6126 chips
+
+    ' Some necessary magic bit fields
+    ' b12  - 1  adds red tinge
+    ' b12  - 9/8/7/6/5  =  4 bit brightness
+    ' b13  - 9   =1 screen on
+    ' b13  - 6   =1 screen off
+
+    ' NOTES from code:
+    '                 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1
+    '                 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+    '  int C12[16] = {0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}; // HIGH *NOTE* from https://github.com/2dom/PxMatrix/blob/master/PxMatrix.h#L372
+    '  int C12[16] = {0,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1}; // LOW
+    '  int C13[16] = {0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0};
+            ' send data to Control Register 11
+
+    ' REF: https://gitlab.infra4future.de/lukas/pixelflut-rgb-matrix-server/-/blob/master/lib/framebuffer.cc (Ex code)
+    ' REF:
+    '
+    '  Register 1
+    '  11111111 11001110 default
+    '  |||||||| ||||||||- Low Gray Compensation Bit 0 (0-7, default 4) (default 0)
+    '  |||||||| |||||||-- Output enable 1=On, 0=Off (default 1)
+    '  |||||||| ||||||--- Intensity Bit 0 (15-63, default 63) (default 1)
+    '  |||||||| |||||---- Intensity Bit 1 (15-63, default 63) (default 1)
+    '  |||||||| ||||----- Inflection Point Bit 0 (0-7, default 4) (default 0)
+    '  |||||||| |||------ Inflection Point Bit 1 (0-7, default 4) (default 0)
+    '  |||||||| ||------- Inflection Point Bit 2 (0-7, default 4 (FM6126=6)) (default 1)
+    '  |||||||| |-------- Intensity Bit 2 (15-63, default 63) (default 1)
+    '
+    '  ||||||||---------- Intensity Bit 3 (15-63, default 63) (default 1)
+    '  |||||||----------- Intensity Bit 4 (15-63, default 63) (default 1)
+    '  ||||||------------ Intensity Bit 5 (15-63, default 63) (default 1)
+    '  |||||------------- Lower Blanking Level #1 Bit 0 (0-15, default 15) (default 1)
+    '  ||||-------------- Lower Blanking Level #1 Bit 1 (0-15, default 15) (default 1)
+    '  |||--------------- Lower Blanking Level #1 Bit 2 (0-15, default 15) (default 1)
+    '  ||---------------- Lower Blanking Level #1 Bit 3 (0-15, default 15) (default 1)
+    '  |----------------- First Line of Dark Compensation Bit 4 (0-15, default 8) (default 1)
+    '
+    '  Register 2
+    '  11111000 01100010 default red
+    '  11110000 01100010 default green
+    '  11101000 01100010 default blue
+    '  |||||||| ||||||||- Low Gray Compensation Bit 1 (0-7, default 4) (default 0)
+    '  |||||||| |||||||-- Low Gray Compensation Bit 2 (0-7, default 4) (default 1)
+    '  |||||||| ||||||--- SDO Output delay 1=On, 0=Off (Default 0)
+    '  |||||||| |||||---- Lower Blanking Level #2 (0-1, default 0)
+    '  |||||||| ||||----- Ghosting Enhancement (0=off*, 1=on)
+    '  |||||||| |||------ Always 1
+    '  |||||||| ||------- LE Data latch 1=On, 0=Off (Default 1)
+    '  |||||||| |-------- Always 0
+    '
+    '  ||||||||---------- First Line of Dark Compensation Bit 0 (0-15, default 8) (default 0)
+    '  |||||||----------- First Line of Dark Compensation Bit 1 (0-15, default 8) (default 0)
+    '  ||||||------------ First Line of Dark Compensation Bit 2 (0-15, default 8) (default 0)
+    '  |||||------------- OE Delay Bit 0
+    '  ||||-------------- OE Delay Bit 1 (0-3, default red=3, green=2, blue=1)
+    '  |||--------------- Always 1
+    '  ||---------------- Always 1
+    '  |----------------- Always 1
+    '
+    '  Register 3
+    '  00011111 00000000  default
+    '  |||||||| ||||||||- Always 0
+    '  |||||||| |||||||-- Always 0
+    '  |||||||| ||||||--- Always 0
+    '  |||||||| |||||---- Always 0
+    '  |||||||| ||||----- Always 0
+    '  |||||||| |||------ Always 0
+    '  |||||||| ||------- Always 0
+    '  |||||||| |-------- Always 0
+
+    '  ||||||||---------- Always 1
+    '  |||||||----------- Always 1
+    '  ||||||------------ Always 1
+    '  |||||------------- Always 1
+    '  ||||-------------- Always 1
+    '  |||--------------- Always 0
+    '  ||---------------- Bad Pixel Elimination 1=On 0=Off*
+    '  |----------------- Always 0
+
+
+
+    ' FM6126A LED Driver chips are 16 channels wide (so we are configuring using bitIdx=0-15)
+    ' for register 11 we set bit0 to low, rest of bits high indicating panel should be at 100% brightness
+    ' for register 12, we set bit9 to high indicating panel should be enabled
+    '
+    PINHIGH(MTX_LED_PIN_OE)
+    PINLOW(MTX_LED_PIN_LATCH)
+    PINLOW(MTX_LED_PIN_CLK)
+
+    ' TRY #1 1 seq accross both boards
+    repeat columnIdx from 0 to screen.MAX_PHYSICAL_COLUMNS - 1
+        bitIdx := columnIdx // 16
+        if bitIdx == 0
+            PINLOW(MTX_COLOR_PINS)
+        else
+            PINHIGH(MTX_COLOR_PINS)
+
+        ' mark the data: drive latch during last 11 columns
+        if columnIdx > (screen.MAX_PHYSICAL_COLUMNS - (11+1))
+            PINHIGH(MTX_LED_PIN_LATCH)
+        else
+            PINLOW(MTX_LED_PIN_LATCH)
+
+        ' clock the data
+        PINHIGH(MTX_LED_PIN_CLK)
+        PINLOW(MTX_LED_PIN_CLK)
+
+    ' end reg 11 setup
+    PINLOW(MTX_LED_PIN_LATCH)
+    'waitms(1)
+
+    ' send data to Control Register 12
+    repeat columnIdx from 0 to screen.MAX_PHYSICAL_COLUMNS - 1
+        bitIdx := columnIdx // 16
+        'if bitIdx <> 9
+        'if bitIdx <> 9 and bitIdx <> 6
+        if bitIdx <> 9
+            PINLOW(MTX_COLOR_PINS)
+        else
+            PINHIGH(MTX_COLOR_PINS)
+
+        ' mark the data: drive latch during last 12 columns
+        if columnIdx > (screen.MAX_PHYSICAL_COLUMNS - (12+1))
+            PINHIGH(MTX_LED_PIN_LATCH)
+        else
+            PINLOW(MTX_LED_PIN_LATCH)
+
+        ' clock the data
+        PINHIGH(MTX_LED_PIN_CLK)
+        PINLOW(MTX_LED_PIN_CLK)
+
+    ' end reg 12 setup
+    PINLOW(MTX_LED_PIN_LATCH)
+
+    ' end the setup effort
+    PINLOW(MTX_LED_PIN_OE)
+    'waitms(2)
+
+PRI resetPanelMBI5124()
+    ' see datasheet
+    debug("* Driver missing MBI5124 init")
+
+PRI resetPanelFM6126()
+    debug("* Driver FM6126A Init")
+
+    org
+    ' init control pins
+                    drvl    #MTX_ROW_ADDR_PINS
+                    drvl    #MTX_LED_PIN_A
+                    drvl    #MTX_COLOR_PINS
+                    drvh    #MTX_LED_PIN_OE
+                    drvl    #MTX_LED_PIN_OE
+                    drvh    #MTX_LED_PIN_OE
+                    drvl    #MTX_LED_PIN_LATCH
+                    drvl    #MTX_LED_PIN_CLK
+    ' execute init sequence - write reg #11
+                    xor     columnIdx, columnIdx
+                    rep     @.end11,#screen.MAX_PHYSICAL_COLUMNS
+                    mov     bitIdx, columnIdx
+                    and     bitIdx, #$0F    wz
+                    waitx   #6 ' let data settle
+    if_z            drvl    #MTX_COLOR_PINS
+    if_nz           drvh    #MTX_COLOR_PINS
+                    waitx   #6 ' let data settle
+                    ' mark the data: drive latch during last 11 columns
+                    cmp     columnIdx, #screen.MAX_PHYSICAL_COLUMNS - (11+1)    wcz
+    if_c_or_z       drvl    #MTX_LED_PIN_LATCH
+    if_nc_and_nz    drvh    #MTX_LED_PIN_LATCH
+                    waitx   #6
+                    add     columnIdx, #1
+                    ' clock the data
+                    drvh    #MTX_LED_PIN_CLK
+                    waitx   #511 ' 6 = 30ns, 24=
+                    drvl    #MTX_LED_PIN_CLK
+                    waitx   #500
+.end11
+                    ' end reg 11 setup
+                    waitx   #6
+                    drvl    #MTX_LED_PIN_LATCH
+
+                    waitx   #50 ' delay between register loads
+
+    ' execute init sequence - write reg #12
+                    xor     columnIdx, columnIdx
+                    rep     @.end12,#screen.MAX_PHYSICAL_COLUMNS
+                    mov     bitIdx, columnIdx
+                    and     bitIdx, #$0F
+                    cmp     bitIdx, #9      wz
+                    waitx   #6 ' let data settle
+    if_z            drvh    #MTX_COLOR_PINS
+    if_nz           drvl    #MTX_COLOR_PINS
+                    waitx   #6 ' let data settle
+                    ' mark the data: drive latch during last 12 columns
+                    cmp     columnIdx, #screen.MAX_PHYSICAL_COLUMNS - (12+1)    wcz
+    if_c_or_z       drvl    #MTX_LED_PIN_LATCH
+    if_nc_and_nz    drvh    #MTX_LED_PIN_LATCH
+                    waitx   #6
+                    add     columnIdx, #1
+                    ' clock the data
+                    drvh    #MTX_LED_PIN_CLK
+                    waitx   #511
+                    drvl    #MTX_LED_PIN_CLK
+                    waitx   #500
+.end12
+                    ' end reg 12 setup
+                    waitx   #6
+                    drvl    #MTX_LED_PIN_LATCH
+
+                    ' end the setup effort
+                    drvl    #MTX_LED_PIN_OE
+                    ret
+
+columnIdx         long    0
+bitIdx            long    0
+
+    end
+
+
+PRI resetPanelOld1()
+
+    org
+    ' init control pins
+                    drvl    #MTX_ROW_ADDR_PINS
+                    drvl    #MTX_LED_PIN_A
+                    drvl    #MTX_COLOR_PINS
+                    drvh    #MTX_LED_PIN_OE
+                    drvl    #MTX_LED_PIN_OE
+                    drvh    #MTX_LED_PIN_OE
+                    drvl    #MTX_LED_PIN_LATCH
+                    drvl    #MTX_LED_PIN_CLK
+
+    ' execute init sequence - write reg #12
+                    xor     columnIdx, columnIdx
+                    rep     @.end12,#screen.MAX_PHYSICAL_COLUMNS
+                    mov     bitIdx, columnIdx
+                    and     bitIdx, #$0F
+                    cmp     bitIdx, #9      wz
+                    waitx   #6 ' let data settle
+    if_z            drvh    #MTX_COLOR_PINS
+    if_nz           drvl    #MTX_COLOR_PINS
+                    waitx   #6 ' let data settle
+                    ' mark the data: drive latch during last 12 columns
+                    cmp     columnIdx, #screen.MAX_PHYSICAL_COLUMNS - (12+1)    wcz
+    if_c_or_z       drvl    #MTX_LED_PIN_LATCH
+    if_nc_and_nz    drvh    #MTX_LED_PIN_LATCH
+                    waitx   #6
+                    add     columnIdx, #1
+                    ' clock the data
+                    drvh    #MTX_LED_PIN_CLK
+                    waitx   #511
+                    drvl    #MTX_LED_PIN_CLK
+.end12
+                    ' end reg 12 setup
+                    waitx   #6
+                    drvl    #MTX_LED_PIN_LATCH
+
+    ' execute init sequence - write reg #11
+                    xor     columnIdx, columnIdx
+                    rep     @.end11,#screen.MAX_PHYSICAL_COLUMNS
+                    mov     bitIdx, columnIdx
+                    and     bitIdx, #$0F    wz
+                    waitx   #6 ' let data settle
+    if_z            drvl    #MTX_COLOR_PINS
+    if_nz           drvh    #MTX_COLOR_PINS
+                    waitx   #6 ' let data settle
+                    ' mark the data: drive latch during last 11 columns
+                    cmp     columnIdx, #screen.MAX_PHYSICAL_COLUMNS - (11+1)    wcz
+    if_c_or_z       drvl    #MTX_LED_PIN_LATCH
+    if_nc_and_nz    drvh    #MTX_LED_PIN_LATCH
+                    waitx   #6
+                    add     columnIdx, #1
+                    ' clock the data
+                    drvh    #MTX_LED_PIN_CLK
+                    waitx   #511 ' 6 = 30ns, 24=
+                    drvl    #MTX_LED_PIN_CLK
+.end11
+                    ' end reg 11 setup
+                    waitx   #6
+                    drvl    #MTX_LED_PIN_LATCH
+
+                    waitx   #50 ' delay between register loads
+
+
+
+                    ' end the setup effort
+                    drvl    #MTX_LED_PIN_OE
+                    ret
+
+columnIdx         long    0
+bitIdx            long    0
+
+    end
+
+
+DAT     { driver assembly code }
+                    org     0       ' COG code
+
+' --------------------------------------------------------------------------------------------------
+'
+' DRAFT matrix driver - best speed
+'
+drive_matrix
+                    stalli    ' disable interrupts
+                    mov     ijmp1, #isr1
+                    mov     ijmp2, #isr2
+                    mov     ijmp3, #isr3
+                    'allowi    ' enable interrupts
+                    rdlong  pCommmand, ptra[0]
+                    rdlong  pArgument, ptra[1]
+
+                    drvl    #MTX_LA_XT_P08
+                    drvl    #MTX_LA_XT_P09
+                    drvl    #MTX_LA_XT_P10
+                    drvl    #MTX_LA_XT_P11
+
+                    ' init buffer display counters
+                    mov     pwmFrameCt, ##0
+                    mov     pwmSubPgCt, ##0
+                    mov     fillSubPgCt, ##0
+
+                    ' configure our output & dir instructions to use A or B set of pins
+                    '  (if modeUsePortA is FALSE...)
+                    or      modeUsePortA, modeUsePortA  wz
+    if_nz           setd    dirInst1of1, #DIRA
+    if_nz           setd    outInst1of3, #OUTA
+    if_nz           setd    outInst2of3, #OUTA
+    if_nz           setd    outInst3of3, #OUTA
+    if_z            setd    dirInst1of1, #DIRB
+    if_z            setd    outInst1of3, #OUTB
+    if_z            setd    outInst2of3, #OUTB
+    if_z            setd    outInst3of3, #OUTB
+                    or      bSetLowPins, bSetLowPins  wz
+    if_nz           SETR    outInst2of3, #%1000110_01       ' setbyte #1
+    if_z            SETR    outInst2of3, #%1000110_11       ' setbyte #3
+
+                    or      modeDatRotLeft, modeDatRotLeft   wz
+    if_nz           SETR    rotInstr1of2,#%0000001_00	'make into ROR instruction
+    if_z            SETR    rotInstr1of2,#%0000000_00	'make into ROL instruction
+
+                    or      modeOverlapDAT, modeOverlapDAT   wz
+    if_nz           SETR    jmpInstr1of1,#%0000000_00	'make into NOP instruction
+    if_nz           SETD    jmpInstr1of1,##0	        'make into NOP instruction
+
+'                    or      modeSlowCLK, modeSlowCLK   wz
+'    if_z            SETR    waitInst1of1,#%0000000_00	'make into NOP instruction
+'    if_z            SETD    waitInst1of1,##0	        'make into NOP instruction
+
+' configure all pins
+dirInst1of1         or      DIRA, maskAllPins   ' set all of our pins to OUTPUT!  for this COG
+
+' default to NOT using PWM
+                    xor     pwmFrameCt, pwmFrameCt      ' initial setup: NOT doing PWM
+
+' init row address
+                    mov     row_addr, addrValueMax      ' reset address to 31|15|7 - [A-E|D|C] addr: all ones
+' write address
+                    call    #emitAddr
+                    'call    #dumpTwinRows
+
+getCommand
+                    'new PWM support
+                    cmp     pwmSubPgCt, #0  wz
+    if_nz           jmp     #nextPwmSubpage
+                    cmp     fillSubPgCt, #0  wz
+    if_nz           jmp     #nextFill
+                    cmp     pwmFrameCt, #0  wz
+    if_nz           jmp     #nextPwmFrame
+                    rdlong  nxtCommand, pCommmand
+                    rdlong  nxtArgument, pArgument
+                    cmp     nxtCommand, #CMD_DONE  wz
+    if_z            jmp     #chksDone                   ' redraw current buffer
+                    cmp     nxtCommand,priorCommand wz
+    if_z            jmp     #chkShow
+                    ' process NEW command
+                    'debug("* cmd=", udec_(nxtCommand), ", arg=", uhex_long_(nxtArgument))
+                    outnot    #MTX_LA_XT_P08    ' start NEW command
+                    outnot    #MTX_LA_XT_P08
+                    mov     priorCommand, nxtCommand
+chkShow
+                    cmp     nxtCommand, #CMD_SHOW_BUFFER    wz
+    if_nz           jmp     #chkShowPwm
+                    call    #loadPWMsubpage
+                    'debug(" - load done")
+                    jmp     #markCmdComplete            ' redraw current buffer
+chkShowPwm
+                    cmp     nxtCommand, #CMD_SHOW_PWM_BUFFER    wz
+    if_nz           jmp     #chkFill
+                    call    #displayPwmFrames
+                    'debug(" - PWM frame done")
+                    jmp     #getCommand                         ' check for next command (or same still there)
+chkFill
+                    cmp     nxtCommand, #CMD_FILL_COLOR wz
+    if_nz           jmp     #chksDone                           ' redraw current buffer
+                    call    #fillCogBufferWithColor
+                    wrlong  #CMD_DONE, pCommmand                ' signal command completed
+                    'debug(" - fill done")
+                    jmp     #displayCogBffrFullFrame            ' redraw current buffer
+'
+' displayPwmFrames(nxtArgument=hubAddressOfPWMFrameSet)
+'
+displayPwmFrames
+                    outnot    #MTX_LA_XT_P09    ' start of PWM FrameSet
+                    outnot    #MTX_LA_XT_P09
+                    mov     pwmBffrStart, nxtArgument           ' preserve our new start address
+                    mov     ptra, pwmBffrStart                  ' ptra scans frameset until done (pwmBffrStart is used to reset to front of frame)
+                    mov     pwmFrameStart, ptra                 ' capture 1st pwmFrame start addr (for redisplay)
+'                    rdfast  #0,pwmBffrStart                    ' initialize our FIFO (#0 means no wrap!)
+                    mov     pwmFrameSetCt, maxCtPerFrame        ' set initial count: 4 for 3 bit, 8 for 4 bit, 16 for 5bit, etc.
+                    mov     pwmFrameCt, #screen.MAX_PWM_BUFFERS  ' set loop to PWM N frames then stop to see what to do next
+nextSamePwmFrame
+                    outnot    #MTX_LA_XT_P10    ' start of single PWM Frame
+                    outnot    #MTX_LA_XT_P10
+                    mov     pwmSameFrameCt, pwmFrameSetCt
+nextPwmFrame
+                    call    #display1PwmFrame                   ' load subpages of current pwmFrame into display buffer
+                    sub     pwmSameFrameCt, #1 wz               ' go show another of same subpage if not done
+    if_nz           mov     ptra, pwmFrameStart                 ' reset to start of same pwmFrame
+    if_nz           jmp     #nextPwmFrame                       ' go display same pwmFrame again
+                    ' start next pwmFrame
+                    mov     pwmFrameStart, ptra                 ' capture NEXT pwmFrame start addr (for redisplay)
+                    shr     pwmFrameSetCt, #1                   ' div our count by 2:  16->8->4->2->1
+                    djnz    pwmFrameCt, #nextSamePwmFrame           ' have another of the PWM N frames to show?
+                    mov     nxtArgument, pwmBffrStart           ' no point back to first of N PWM frame buffers
+                    ret                                         ' loop again if no command, we'll do another PWM set
+'
+' display1PwmFrame(nxtArgument=hubAddressOfFrame)
+'
+display1PwmFrame
+                    outnot    #MTX_LA_XT_P11    ' start of single PWM Frame
+                    outnot    #MTX_LA_XT_P11
+                    ' PWM frames are broken in cogBuffer sized subpages
+                    ' iterate over subpages to complete the 1 pwm frame
+                    ' set addr to start
+                    mov     row_addr, addrValueMax      ' reset address to 31|15|7 [A-E|D|C addr all ones]
+                    ' interate over PWM Frame subpages
+                    mov     pwmSubPgCt, #screen.MAX_PWM_SUBPAGES    ' set loop to PWM N frames then stop to see what to do next
+showPwmSubpage
+                    call    #loadPWMsubpage                         ' load the current pwm frame subpage into display buffer
+                    jmp     #wrCogBuffer                            ' display subpage
+
+                    ' following called from dispatcher, above
+nextPwmSubpage
+                    add     nxtArgument,##screen.MAX_SUBPAGE_SIZE_IN_LONGS          ' point to next subpage o PWM frame
+                    djnz    pwmSubPgCt, #showPwmSubpage             ' have another of subpage of the PWM frame to show?
+                    ret                                             ' loop again to see if we should do another PWM set
+'
+' display1PwmFrame(nxtArgument=hubAddressOfFrame)
+'
+displayCogBffrFullFrame
+                    ' set addr to start
+                    mov     row_addr, addrValueMax      ' reset address to 31|15|7 [A-E|D|C addr all ones]
+                    ' interate over non-PWM Frame subpages
+                    mov     fillSubPgCt, #screen.MAX_PWM_SUBPAGES   ' set loop to PWM N frames then stop to see what to do next
+showFill
+                    jmp     #wrCogBuffer                            ' display subpage
+
+                    ' following called from dispatcher, above
+nextFill
+                    djnz    fillSubPgCt, #showFill                  ' have another of subpage of the PWM frame to show?
+                    ret                                             ' loop again to see if we should do another PWM set
+'
+' loadPWMsubpage(nxtArgument=hubAddressOfFrameSubPage)
+'
+loadPWMsubpage
+                    ' copy HUB buffer (set earlier)
+                    '  into MAX_SUBPAGE_SIZE_IN_LONGS cogBuffer
+                    setq	#screen.MAX_SUBPAGE_SIZE_IN_LONGS - 1
+	    _ret_       rdlong	cogBuffer, ptra++ ' when done, return to caller
+'00
+' fillCogBufferWithColor(nxtArgument=colorvalue3bit)
+'
+fillCogBufferWithColor      ' fill COG buffer with desired 3-bit color
+                    ' first, build our color...
+                    and     nxtArgument, #$07
+                    mov     fillLong, nxtArgument
+                    shl     fillLong, #3
+                    or      fillLong, nxtArgument       ' completed one byte, do 3 more
+                    mov     fillOffset, fillLong
+                    shl     fillLong, #8
+                    or      fillLong, fillOffset        ' 2 bytes
+                    shl     fillLong, #8
+                    or      fillLong, fillOffset        ' 3 bytes
+                    shl     fillLong, #8
+                    or      fillLong, fillOffset        ' 4 bytes
+                    'debug("- (DBG) ", uhex_long(fillLong))
+                    ' then fill the COG buffer with the new color
+                    call    #writeColorToBuffer
+                    'call    #dumpTwinRows
+                    ret
+'
+' writeColorToBuffer(fillLong=fillValueID)
+'
+writeColorToBuffer       ' fill COG buffer with 'fillLong' value
+                    mov     fillOffset, #0
+                    mov     fillCount, ##screen.MAX_COG_BUFFER_SIZE_IN_LONGS
+writeNextLong
+                    altd    fillOffset, #cogBuffer
+                    mov     0-0, fillLong               '  fill long with value
+                    add     fillOffset, #1
+                    djnz    fillCount, #writeNextLong
+                    ret
+
+dumpTwinRows
+                    'debug(" Red TL,R ", uhex_long_(cogBuffer+0), ", ", uhex_long_(cogBuffer+1))
+                    'debug(" Red BL,R ", uhex_long_(cogBuffer+62), ", ", uhex_long_(cogBuffer+63))
+                    'debug(" Grn TL,R ", uhex_long_(cogBuffer+64), ", ", uhex_long_(cogBuffer+65))
+                    'debug(" Grn BL,R ", uhex_long_(cogBuffer+126), ", ", uhex_long_(cogBuffer+127))
+                    'debug(" Blu TL,R ", uhex_long_(cogBuffer+128), ", ", uhex_long_(cogBuffer+129))
+                    'debug(" Blu BL,R ", uhex_long_(cogBuffer+190), ", ", uhex_long_(cogBuffer+191))
+                    ret
+
+chksDone
+                    cmp     nxtCommand, #CMD_DONE  wz
+    if_z            jmp     #wrCogBuffer  ' redraw current buffer
+                    'debug("--> *ERROR* Unknown cmd(", udec_(nxtCommand), ")   arg=", uhex_long_(nxtArgument))
+markCmdComplete
+                    'debug(" - unknown cmd done")
+                    wrlong  #CMD_DONE, pCommmand        ' signal command completed
+
+wrCogBuffer
+                    ' -----------------------------------------------
+                    ' here to dump cogBuffer out our hub75 connector
+                    ' -----------------------------------------------
+                    ' repeat the following to end of COG buffer
+                    mov     row_ctr, rowCtrMax          ' 32|16|8 -> 0 so we can use djnz
+                    xor     reg_offset, reg_offset      ' start of [0-1023] buffer
+                    drvl    #MTX_LED_PIN_OE
+
+                    ' following instru is modified by startup to #wrLatchAtEnd or #wrLineLatchOvlp
+                    ' it either jumps or is a NOP when the driver is running
+jmpInstr1of1        jmp     #wrLatchAtEnd
+
+' --------------------------------------------------------------------------------------------------
+'  the following routine is for panels that DO overlap latching with serial data bits
+'   (so far this is ONLY panels with FM6126A) (author's pink tagged panels)
+wrLineLatchOvlp
+'   for bit 0 to 63
+'     toggle clock (28MHz)
+                    mov     col_lng_ctr, colCtrMaxLngs      ' this is physical display width wide!
+                ' this tracks when we need to toggle latch at right-edge of row
+                    xor     col_addr, col_addr              ' clear register (reg = 0)
+clkNextReg
+                ' in buffer: RGB1 is byte-bits[0-2], RGB2 is byte-bits[3-5]
+                    mov     byt_ctr, #4                     ' 4 -> 0 so we can use djnz
+                    ALTS    reg_offset, #cogBuffer          ' calc addr of source long and place in instru
+                    mov     reg_value, 0-0                  ' get COG register with 4 bytes of rgb1rgb2 values
+rotInstr1of2        rol     reg_value, #8                   ' YEAH, i've no idea why! but fixes our byte ordering problem! (AUGH! this change from rol -> ror for some panels??!)
+clkNextByte
+                    ' write our 6 color bits
+                    SETQ    maskRgb12                       ' load Q bit w/ RGB[12] mask
+outInst1of3         MUXQ    OUTA, reg_value                 ' write contents of LS-byte anded with mask to output pins
+noDbgOvly           ror     reg_value, #8                   ' shift next most significant into LS-byte position
+
+' time to begin latch?
+                    cmp     col_addr, colCtrLatchCt     wz  ' at last three columns?
+    if_z            drvh    #MTX_LED_PIN_OE
+    if_z            drvh    #MTX_LED_PIN_LATCH
+
+                    ' toggle clock
+                    drvh    #MTX_LED_PIN_CLK
+                    nop     ' move from 2.5nS to 7.5 nS @ 335Mhz clock
+                    drvl    #MTX_LED_PIN_CLK
+
+                    ' setup for next column
+                    add     col_addr, #1
+                    djnz    byt_ctr, #clkNextByte
+                    add     reg_offset, #1
+                    djnz    col_lng_ctr, #clkNextReg
+                    ' LATCH DATA complete...
+                    drvl    #MTX_LED_PIN_LATCH              ' end latch data
+
+                    ' write address AFTER
+                    add     row_addr, addrValue1            ' incr address by 1
+                    call    #emitAddr
+
+                    cmp     row_ctr, #1 wz
+    if_nz           drvl    #MTX_LED_PIN_OE                 ' enable output if NOT at end of frame!
+                    '
+                    ' ---  inter-line gap  ---
+                    '
+                    sub     row_ctr, #1
+                    cmp     reg_offset, #screen.MAX_SUBPAGE_SIZE_IN_LONGS  wc
+    if_c            jmp     #wrLineLatchOvlp
+                    '
+                    ' ---  inter-frame gap  ---
+                    '
+                    jmp     #getCommand
+
+' --------------------------------------------------------------------------------------------------
+'  the following routine is for panels that DO NOT overlap latching with serial data bits
+'   (so far this is all panels BUT those using FM6126A)
+wrLatchAtEnd
+                    mov     byteOffset, #0
+wrLineLatchAtEnd
+'   for bit 0 to 63
+'     toggle clock (15-18MHz)
+                ' this tracks when we need to toggle latch at right-edge of row
+'                    mov     col_lng_ctr, colCtrMaxLngs          ' this is physical display width wide!
+
+                ' in buffer: RGB1 is byte-bits[0-2], RGB2 is byte-bits[3-5]
+'                    ' the following instru is either a ROR or ROL as configured by setup code
+clkNONextByte
+                    rep     @eobytes, colCtrMax         ' this is physical row in px (or 2x if 1/8 scan panel)
+                    ' write our 6 color bits
+                    altgb   byteOffset, pCogBffrIncr
+                    getbyte colorByte, 0-0, #0-0
+                    drvl    #MTX_LED_PIN_CLK            ' falling edge in prep for rising...
+outInst2of3         setbyte OUTA, colorByte, #3         ' modded to byte 1 or byte 3
+                    nop
+'                    nop     ' 2nd nop is new... clock was too fast
+'                    nop     ' 2nd nop is new... clock was too fast
+'                    waitx   #4  ' this any better? (3 no diff)
+                    drvh    #MTX_LED_PIN_CLK            ' rising edge - 15nSec pulse at 335 MHz
+                    nop     ' new extend clock pulse x1
+                    nop     ' new extend clock pulse x2
+eobytes
+                    waitx   #2                          ' is this doing anything?
+                    drvl    #MTX_LED_PIN_CLK            ' falling edge - reset clock after end of loop
+
+                    drvh    #MTX_LED_PIN_OE             ' disable output (in prep for latch)
+                    ' write address
+                    add     row_addr, addrValue1       ' incr address by 1
+                    call    #emitAddr
+
+                    drvh    #MTX_LED_PIN_LATCH
+                    waitx   #3  ' 2 + 3 x clk           ' let LATCH settle
+                    ' LATCH DATA complete...
+                    or      modeLatchEnclosed, modeLatchEnclosed      wz
+    if_z            drvl    #MTX_LED_PIN_OE
+    if_z            drvl    #MTX_LED_PIN_LATCH          ' end latch data
+'    if_z            waitx   #3  ' 2 + 3 x clk           ' let LATCH settle
+    if_nz           drvl    #MTX_LED_PIN_LATCH          ' end latch data
+    if_nz           waitx   #3  ' 2 + 3 x clk           ' let LATCH settle
+    if_nz           drvl    #MTX_LED_PIN_OE
+                    waitx   #3  ' 2 + 3 x clk           ' let LATCH settle
+                    '
+                    ' ---  inter-line gap  ---
+                    '
+                    cmp      byteOffset, ##screen.MAX_SUBPAGE_SIZE_IN_BYTES wc
+    if_c            jmp     #wrLineLatchAtEnd
+                    drvh    #MTX_LED_PIN_OE
+                    '
+                    ' ---  inter-subframe gap  ---
+                    '
+                    jmp     #getCommand
+
+' --------------------------------------------------------------------------------------------------
+' subroutines
+'
+emitAddr
+                    SETQ    maskAddr                ' load Q with w/ Address[A-C|D|E] mask
+outInst3of3         MUXQ    OUTA, row_addr          ' but in upper 5-bits of ls byte of  31-0 depending upon pingroup
+                    waitx   #3                      ' 2 + 3 x clk  let ADDR settle
+                    ret
+
+' Dummy ISR routines in case we need them
+isr1
+                    nop
+                    reti1
+isr2
+                    nop
+                    reti2
+isr3
+                    nop
+                    reti3
+
+
+'DAT    { data }
+
+' INITIALIZED data
+
+' --------------------------------------------------------------------------------------------------
+'   The following variables are poulated from the initialization SPIN code before this driver starts
+'
+' Driver Config Values
+bSetLowPins         long    FALSE   ' T/F where T means we are using high word of 32bits vs. low word
+modeUsePortA        long    FALSE   ' T/F where T means we are using portA vs. portB
+modeOverlapDAT      long    FALSE   ' T/F where T means LATCH_OVERLAPPED, F means LATCH_AFTER
+modeLatchEnclosed   long    FALSE   ' T/F where T means LATCH_ENCLOSED, F means LATCH_OFFSET
+modeDatRotLeft      long    FALSE   ' T/F where T means ROR, F means ROL
+modeSlowCLK         long    FALSE   ' T/F where T means add waitx to slow clock, F means no use of waitx
+
+'msec_001            long    0                                   ' ticks in 1ms
+'usec_001            long    0                               ' ticks in 1us
+
+'tm_64usec           long    0
+
+maxCtPerFrame       long    0       ' initial count for compiled bit-depth
+
+' the follwing are I/O pin masks and data values we use for our primary I/O
+maskAddr            long    %00000000_01111000_00000000_00000000   ' pins at 16-31 A/B-pins
+maskRgb12           long    %00111111_00000000_00000000_00000000   ' rgb2rgb1 now grounded to lsbit - pins at 16-31 A/B-pins
+maskAllPins         long    %00111111_01111111_00000000_00000000   ' adds new E addr bit (off for now) - pins at 16-31 A/B-pins
+
+                    ' PINS A 00-15  USE $0000_0008
+                    ' PINS A 16-31  USE $0008_0000
+                    ' PINS B 32-47  USE $0000_0008
+                    ' PINS B 48-63  USE $0008_0000
+addrValue1          long    $0008_0000                                  ' 1 but in upper 5-bits of byte
+
+                    ' PINS A 00-15  USE $0000_0078
+                    ' PINS A 16-31  USE $0078_0000
+                    ' PINS B 32-47  USE $0000_0078
+                    ' PINS B 48-63  USE $0078_0000
+addrValueMax        long    $0078_0000                                  ' 15 but in upper 5-bits of byte
+'
+rowCtrMax           long    16                                          ' 16 of 8/16/32 rows total
+colCtrMax           long    64                                          ' 64 columns total
+colCtrMaxLngs       long    16                                          ' 64 cols = 16 longs total
+colCtrLatchCt       long    61                                          ' colCtrMax-3 columns total
+pCogBffrIncr        long    cogBuffer + $200                            ' pointer to CogBuffer with auto-increment flag set
+
+' --------------------------------------------------------------------------------------------------
+'screen buffer 1024B of %00bgrbgr where byte is 00{rgb2}{rgb1}
+                ALIGNL
+cogBuffer
+                ' COG buffer for shipping subPages of PWM buffer out to panelSet
+                long    0[screen.MAX_COG_BUFFER_SIZE_IN_LONGS]
+endCogBuffer
+
+' UNINITIALIZED data
+'
+' basic driver variables
+pCommmand       res     1
+pArgument       res     1
+byteOffset      res     1
+colorByte       res     1
+priorCommand    res     1
+nxtCommand      res     1
+nxtArgument     res     1
+pwmBffrStart    res     1
+pwmFrameStart   res     1
+pwmFrameCt      res     1
+pwmFrameSetCt   res     1       ' initial count for each pwmFrame: 8->4->2->1->0
+pwmSameFrameCt  res     1       ' current count this pwmFrame
+pwmSubPgCt      res     1
+fillSubPgCt     res     1
+
+fillLong        res     1       ' value to write to each long
+fillCount       res     1       ' remaining count of bytes to write
+fillOffset      res     1       ' offset into buffer
+
+reg_offset      res     1
+reg_value       res     1
+byt_ctr         res     1
+
+' variables
+row_addr        res     1
+row_ctr         res     1
+col_addr        res     1
+col_lng_ctr     res     1
+'
+                FIT     496
+
+
+CON { license }
+
+{{
+
+
+ -------------------------------------------------------------------------------------------------
+  MIT License
+
+  Copyright (c) 2020 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+ =================================================================================================
+
+}}

@@ -3,19 +3,19 @@
 ''   File....... jm_nstr.spin2
 ''   Purpose.... Convert numbers to strings
 ''   Authors.... Jon McPhalen
-''               -- Copyright (c) 2020 Jon McPhalen
+''               -- Copyright (c) 2020-2022 Jon McPhalen
 ''               -- see below for terms of use
 ''   E-mail..... jon.mcphalen@gmail.com
 ''   Started....
-''   Updated.... 19 AUG 2020
+''   Updated.... 04 JAN 2022
 ''
 '' =================================================================================================
 
 
 con
 
-  NBUF_SIZE = 48                                               
-  PBUF_SIZE = 128   
+  NBUF_SIZE =  48
+  PBUF_SIZE = 128
 
 
 var
@@ -29,7 +29,7 @@ pub null()
 '' This is not a top level object
 
 
-pub fmt_number(value, radix, digits, width, pad) : p_str        ' *** changed 19 AUG 2020 ***
+pub fmt_number(value, radix, digits, width, pad) : p_str        ' *** changed 23 JUN 2021 ***
 
 '' Return pointer to string of value converted to number in padded field
 '' -- value is converted using radix
@@ -39,17 +39,17 @@ pub fmt_number(value, radix, digits, width, pad) : p_str        ' *** changed 19
 '' -- pad is character used to pad final field (if needed)
 
   case radix
-    "b", "B" : p_str := padstr(itoa(value,  2, digits), width, pad)
-    "q", "Q" : p_str := padstr(itoa(value,  4, digits), width, pad)
-    "o", "O" : p_str := padstr(itoa(value,  8, digits), width, pad)
-    "d", "D" : p_str := padstr(itoa(value, 10, digits), width, pad)
-    "u", "U" : p_str := padstr(usdec(value, digits), width, pad) 
-    "x", "X" : p_str := padstr(itoa(value, 16, digits), width, pad)
-    "f", "F" : p_str := padstr(dpdec(value, digits), width, pad) 
-    other    : p_str := string("?")
+    "d", "D", 10 : p_str := padstr(dec(value, digits),      width, pad)
+    "u", "U", 11 : p_str := padstr(usdec(value, digits),    width, pad)
+    "f", "F", 12 : p_str := padstr(dpdec(value, digits),    width, pad)
+    "b", "B", 02 : p_str := padstr(itoa(value,  2, digits), width, pad)
+    "q", "Q", 04 : p_str := padstr(itoa(value,  4, digits), width, pad)
+    "o", "O", 08 : p_str := padstr(itoa(value,  8, digits), width, pad)
+    "x", "X", 16 : p_str := padstr(itoa(value, 16, digits), width, pad)
+    other        : p_str := string("?")
 
 
-pub dec(value, digits) : p_str | sign, len
+pub dec(value, digits) : p_str
 
 '' Convert decimal value to string
 '' -- digits is 0 (auto size) to 10
@@ -62,8 +62,8 @@ pub usdec(value, digits) : p_str | len
 '' Convert unsigned decimal value to string
 '' -- digits is 0 (auto size) to 10
 
-  digits := 0 #> digits <# 10                                   ' limit printable digits 
-        
+  digits := 0 #> digits <# 10                                   ' limit printable digits
+
   bytefill(@nbuf, 0, NBUF_SIZE)                                 ' clear buffer
   p_str := @nbuf + 9                                            ' point to end of udec string
 
@@ -72,13 +72,13 @@ pub usdec(value, digits) : p_str | len
   repeat
     byte[--p_str] := (value +// 10) + "0"                       ' extract digit, convert to ASCII
     value +/= 10                                                ' remove digit from value
-    if (digits)                                                 ' length limited?  
-      if (++len == digits)                                      '  check size      
+    if (digits)                                                 ' length limited?
+      if (++len == digits)                                      '  check size
         quit
     else
       if (value == 0)                                           ' done?
-        quit  
-  
+        quit
+
 
 pub dpdec(value, dp) : p_str | len, byte scratch[12]
 
@@ -130,7 +130,6 @@ pub itoa(value, radix, digits) : p_str | sign, len, d
     10    : digits := 0 #> digits <# 10
     16    : digits := 0 #> digits <#  8
     other :
-      byte[p_str] := 0
       return
 
   if ((radix == 10) && (value < 0))                             ' deal with negative decimals
@@ -217,7 +216,7 @@ con { license }
 
 {{
 
-  Terms of Use: MIT License 
+  Terms of Use: MIT License
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal

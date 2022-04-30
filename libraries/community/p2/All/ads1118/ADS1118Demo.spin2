@@ -1,0 +1,58 @@
+{{
+
+ADS1118 Driver v0.1
+Author: Greg LaPolla
+E-Mail: glapolla@gmail.com
+Copyright (c) 2020 Greg LaPolla
+See end of file for terms of use.
+
+}}
+
+con
+
+  CLK_FREQ = 200_000_000                                      ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                 ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                             ' ticks in 1us
+
+  BR_TERM  = 115_200                                          ' Serial Display Baud Rate
+
+  _clkfreq = CLK_FREQ                                          ' set system clock
+
+  RX1      = 63  { I }                                        ' programming / debug
+  TX1      = 62  { O }
+
+  AD_CS           =  26
+  AD_CLK          =  28
+  AD_SDI          =  22
+  AD_SDO          =  24
+
+  #true,   ON, OFF
+  #false,  NO, YES
+
+obj
+
+  ADS1118 : "ADS1118"
+     term : "jm_fullduplexserial"                         ' * serial IO for terminal
+
+pub main() | uV
+
+  term.start(RX1, TX1, %0000, BR_TERM)                    ' start terminal io
+
+  ADS1118.start(AD_CS, AD_CLK, AD_SDI, AD_SDO)
+  ADS1118.configure(ADS1118.RATE128SPS,ADS1118.SINGLE_SHOT,ADS1118.READY)
+
+  repeat
+
+    term.tx(term.CLS)
+    term.fstr0(string("Top of the ADS1118 demo\r\r"))
+
+    uV := ADS1118.ReadExplicit(ADS1118.DIFF_0_1, ADS1118.FSR_256)
+    term.fstr1(string("The Thermocouple reading is : %d\r"), uV)
+
+    uV := ADS1118.ReadTemp()
+    term.fstr1(string("The Cold Junction reading is : %d\r"), uV)
+
+    uV := ADS1118.ReadExplicit(ADS1118.DIFF_2_3, ADS1118.FSR_256)
+    term.fstr1(string("The Thermocouple reading is : %d\r"), uV)
+
+    waitct(clkfreq + getct())

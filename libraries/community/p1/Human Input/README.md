@@ -74,6 +74,8 @@
 
 [RFID_Demo](../All/RFID_Demo)
 
+[SNES Mouse and Gamepad Driver](../All/SNES%20Mouse%20and%20Gamepad%20Driver)
+
 [Software-only RFID reader](../All/Software-only%20RFID%20reader)
 
 [Sony IR Decoder](../All/Sony%20IR%20Decoder)

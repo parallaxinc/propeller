@@ -1,0 +1,242 @@
+CON
+
+    '' OPN2cog example that plays a weird little tune using the Spin API and VGI patch files.
+
+    _CLKFREQ = 250_000_000
+
+    leftPin  = 48
+    rightPin = 49
+
+    RATE = 8
+
+    #0,DRONE_CH,OSTINATO_CH,MELODY_CH,CHORD_CH1,CHORD_CH2,CHORD_CH3
+
+OBJ
+  OPN2 : "OPN2cog"
+
+VAR
+  long waitFor, tick
+
+PUB Main() | continue, i, cmd, n
+
+
+  OPN2.start(leftPin, rightPin, 3, true)    ' Start OPN2cog
+
+  waitFor := getct() + 1_000_000
+
+  OPN2.setLFO(2)
+
+  OPN2.loadVGI(DRONE_CH,@instr_drone)
+  OPN2.setCHPanning(DRONE_CH,1,1)
+
+  OPN2.loadVGI(OSTINATO_CH,@instr_vibra)
+  OPN2.setCHPanning(OSTINATO_CH,1,1)
+
+  OPN2.loadVGI(MELODY_CH,@instr_thingy)
+  OPN2.setCHPanning(MELODY_CH,1,1)
+
+  repeat i from CHORD_CH1 to CHORD_CH3
+    OPN2.loadVGI(i,@instr_chords)
+  OPN2.setCHPanning(CHORD_CH1,1,1)
+  OPN2.setCHPanning(CHORD_CH2,0,1)
+  OPN2.setCHPanning(CHORD_CH3,1,0)
+
+  pinl(56)
+
+  repeat
+    waitct(waitFor)
+    waitfor += clkfreq/RATE
+    pint(56)
+
+    ' Handle ostinato
+    ifnot tick&1
+      OPN2.setCHFreq(OSTINATO_CH,note2freq(ostinato_notes[(tick>>1)//4]))
+      OPN2.setKeyOn(OSTINATO_CH,%1111)
+    else
+      OPN2.setKeyOn(OSTINATO_CH,%0000)
+
+    ' Handle chords
+    i := (tick>>4)*3
+    case tick&15
+      0:
+        OPN2.setKeyOn(CHORD_CH3,%0000)
+        n := chord_notes[i+0]
+        OPN2.setCHFreq(CHORD_CH1,note2freq(n))
+        OPN2.setKeyOn(CHORD_CH1,%1111)
+      2:
+        n := chord_notes[i+1]
+        OPN2.setCHFreq(CHORD_CH2,note2freq(n))
+        OPN2.setKeyOn(CHORD_CH2,%1111)
+      4:
+        n := chord_notes[i+2]
+        OPN2.setCHFreq(CHORD_CH3,note2freq(n))
+        OPN2.setKeyOn(CHORD_CH3,%1111)
+      14: OPN2.setKeyOn(CHORD_CH1,%0000)
+      15: OPN2.setKeyOn(CHORD_CH2,%0000)
+
+
+
+
+    ' Handle drone
+    if tick == 0
+      OPN2.setCHFreq(DRONE_CH,note2freq(D+2*12))
+      OPN2.setKeyOn(DRONE_CH,%1111)
+
+    ' Handle melody
+    ifnot tick&1
+      case n := lead_notes[tick>>1]
+        255: ' do nothing
+        254: ' do nothing
+        0: ' do nothing
+        other:
+         OPN2.setCHFreq(MELODY_CH,note2freq(n))
+         OPN2.setKeyOn(MELODY_CH,%1111)
+    else
+      case n := lead_notes[tick>>1+1]
+        255: OPN2.setKeyOn(MELODY_CH,%0000)
+        254: tick := -1
+        0: ' do nothing
+        other: OPN2.setKeyOn(MELODY_CH,%0000)
+
+
+
+    OPN2.flipRegisters()
+    tick++
+
+
+PUB note2freq(noten) : r
+
+return ((noten/12)<<11)+freq_tbl[noten//12]
+
+CON
+
+#0,C,Cs,D,Ds,E,F,Fs,G,Gs,A,As,B
+
+
+DAT
+
+freq_tbl word 664,681,722,765,810,858,910,964,1021,1081,1146,1214
+
+ostinato_notes byte D+3*12,E+3*12,G+3*12,F+3*12
+
+lead_notes byte
+' 0
+byte 255
+byte 0
+byte 0
+byte 0
+
+byte A+12*3
+byte 0
+byte 0
+byte 0
+
+' 1
+byte As+12*3
+byte 0
+byte 0
+byte 0
+
+byte G+12*3
+byte 0
+byte 0
+byte 0
+
+' 2
+byte F+12*3
+byte 0
+byte 0
+byte 0
+
+byte A+12*3
+byte 0
+byte 0
+byte 0
+
+' 3
+byte 0
+byte 0
+byte 0
+byte 0
+
+byte As+12*3
+byte 0
+byte F+12*3
+byte 0
+
+' 4
+byte D+12*3
+byte 0
+byte 0
+byte 0
+
+byte 0
+byte 0
+byte 0
+byte 255
+
+' 5
+byte D+12*4
+byte 0
+byte E+12*4
+byte 0
+
+byte C+12*4
+byte 0
+byte 0
+byte 0
+
+' 6
+byte A+12*4
+byte 0
+byte 0
+byte 0
+
+byte As+12*4
+byte F+12*4
+byte D+12*4
+byte 0
+
+' 7
+byte 0
+byte 0
+byte C+12*4
+byte 0
+
+byte 0
+byte 0
+byte A+12*3
+byte 0
+
+'8
+byte 0
+byte 0
+byte D+12*4
+byte 0
+
+byte 0
+byte 0
+byte 0
+byte 0
+
+byte 254
+
+chord_notes byte
+
+byte 0,0,0
+byte 0,0,0
+byte 0,0,0
+byte 0,0,0
+
+byte D+4*12,F+4*12,A+4*12
+byte D+4*12,F+4*12,A+4*12
+byte C+4*12,E+4*12,A+4*12
+byte C+4*12,Ds+4*12,G+4*12
+byte C+4*12,Ds+4*12,G+4*12
+
+instr_drone file "drone.vgi"
+instr_vibra file "vibra.vgi"
+instr_thingy file "thingy.vgi"
+instr_chords file "chords.vgi"
+
+

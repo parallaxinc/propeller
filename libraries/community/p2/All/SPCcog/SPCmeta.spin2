@@ -1,0 +1,177 @@
+OBJ {{
+  SPC dump file metadata extraction library.
+  All text functions return pointer+length type strings. You can copy them into your own buffer if you want. Always check for length == zero.
+  Please make sure to check that you have loaded a valid SPC file first using checkSPCHeader.
+}}
+
+CON
+
+XID6_FOURCC = ("x"<<0)+("i"<<8)+("d"<<16)+("6"<<24)
+
+PUB checkSPCHeader(spcptr) : version | i
+'' Returns -1 if SPC header is not found, version number otherwise
+repeat i from 0 to $1A
+  if byte[spcptr][i] <> formatstr[i]
+    return -1
+
+return byte[spcptr][$24]
+
+
+PUB getSongTitle(spcptr) : ptr,len
+
+' Try xid6 first
+ptr,len := stripFixStr(getXid6(spcptr,$01))
+if len
+  debug("took xid6 ",uhex_long(ptr,len))
+  return
+' Try ID666
+if byte[spcptr][$23] == 26
+  return stripFixStr(spcptr+$2E,32)
+' No luck
+return 0,0
+
+PUB getGameTitle(spcptr) : ptr,len
+' Try xid6 first
+ptr,len := stripFixStr(getXid6(spcptr,$02))
+if len
+  return
+' Try ID666
+if byte[spcptr][$23] == 26
+  return stripFixStr(spcptr+$4E,32)
+' No luck
+return 0,0
+
+PUB getDumper(spcptr) : ptr,len
+' Try xid6 first
+ptr,len := stripFixStr(getXid6(spcptr,$04))
+if len
+  return
+' Try ID666
+if byte[spcptr][$23] == 26
+  return stripFixStr(spcptr+$6E,16)
+' No luck
+return 0,0
+
+PUB getComment(spcptr) : ptr,len
+' Try xid6 first
+ptr,len := stripFixStr(getXid6(spcptr,$07))
+' Try ID666
+if byte[spcptr][$23] == 26
+  return stripFixStr(spcptr+$7E,32)
+' No luck
+return 0,0
+
+PUB getArtist(spcptr) : ptr,len
+' Try xid6 first
+ptr,len := stripFixStr(getXid6(spcptr,$03))
+if len
+  return
+' Try ID666
+if byte[spcptr][$23] == 26
+  return stripFixStr(spcptr+(isBinaryFormat(spcptr) ? $B0 : $B1),32)
+' No luck
+return 0,0
+
+PUB getPublisher(spcptr) : ptr,len
+
+return stripFixStr(getXid6(spcptr,$13))
+
+PUB getYear(spcptr) : y
+
+return getXid6Num(spcptr,$14)
+
+PUB getLength(spcptr) : len
+'' Intended play length in seconds. -1 if not specified.
+
+if isBinaryFormat(spcptr)
+  return long[spcptr+$A9] & $FFFFFF
+else
+  return parseInt(spcptr+$A9,3)
+
+PUB getFadeLen(spcptr) : len
+'' Intended fade-out length in milliseconds
+
+if isBinaryFormat(spcptr)
+  return long[spcptr+$AC]
+else
+  return parseInt(spcptr+$AC,5)
+
+
+PUB isBinaryFormat(spcptr) : bin | i
+'' Internal utility method
+' If any of the length bytes are non-null,non-number we have the binary format at hand
+repeat i from $A9 to $AB
+  bin := byte[spcptr][i]
+  if bin and not (bin >= "0" and bin<="9")
+    return true
+' If $B0 is a non-number printable character, we have the binary format at hand.
+bin := byte[spcptr][$B0]
+if bin >= $20 and not (bin >= "0" and bin<="9")
+  return true
+
+return false ' Assume test otherwise
+
+PUB getXid6(spcptr,tagid) : ptr,len | chunkend,nexttag
+'' Internal utility method
+
+spcptr += $10200 ' Skip SPC file proper
+if long[spcptr] <> XID6_FOURCC
+  return 0,0
+chunkend := long[spcptr][1] + (spcptr += 8)
+repeat while spcptr < chunkend
+  nexttag := ptr := spcptr+4
+  ifnot byte[spcptr][1] ' type 0 -> 16 bit data
+    ptr -= 2
+    len := 2
+  else
+    len := word[spcptr][1]
+    nexttag +=((len+3)&!3)
+  if byte[spcptr] == tagid and ptr+len <= chunkend
+    return
+  spcptr := nexttag
+return 0,0
+
+PUB getXid6Num(spcptr,tagid) : num | ptr,len
+'' Internal utility method
+
+ptr,len := getXid6(spcptr,tagid)
+if len == 1
+  return byte[ptr]
+elseif len == 2
+  return word[ptr]
+elseif len == 4
+  return long[ptr]
+else
+  return -1
+
+PUB stripFixStr(ptrin,lenin) : ptr,len
+'' Internal utility method
+ptr := ptrin
+len := 0
+ptrin := 0 ' reuse
+
+ifnot lenin
+  return 0,0
+
+repeat
+  if ptrin == lenin
+    return
+  if byte[ptr][ptrin] == 0
+    return
+  if byte[ptr][ptrin] <> $20
+    len := ptrin+1
+  ptrin++
+
+PUB parseInt(ptr,len) : val | tmp
+ifnot byte[ptr]
+  return -1
+repeat len
+  case (tmp:=byte[ptr++])
+    $00: return
+    "0".."9": val := val*10 + tmp-"0"
+    other : return -1
+
+
+DAT
+
+formatstr byte "SNES-SPC700 Sound File Data"

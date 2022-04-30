@@ -1,0 +1,133 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Debug_16b240x240_Drv
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.6
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ This is a cool one ... allows to emulate any display and send it's screen-buffer data to
+ a debug window. Love that!
+
+ To be done:
+   * finish the double buffering code
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+}}
+
+
+CON
+  BUFFER_SIZE = 115200
+  BITS_PER_PIXEL = 16
+  X_RES = 240
+  X_MAX = 239
+  Y_RES = 240
+  Y_MAX = 239
+
+VAR
+  ' number of buffers
+  ' 0: not yet initialized
+  ' 1: only one buffer for painting and writing
+  ' 2: double buffers ->
+  '       sb_paint can be used to paint next screen
+  '       sb_write can be sent to the display
+  byte buffers
+
+  sb_paint
+  sb_write
+
+
+PUB setup( )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Function to initialize driver and display. So, it should reset
+   the display and do whatever is needed to initialize it for
+   operation.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' and initialize the display
+  debug(`bitmap D title 'DisplayEmulation' SIZE 240 240 RGB16 TRACE 0 RATE 57600 SCROLL 0 0)
+
+PUB addScreenBuffer( adr )
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+  ( should be independent of the display used )
+    Currently the dirver works with one or two screen buffers.
+    sb_paint is pointing to the buffer that is used in the
+    graphics functions.
+    sb_write is pointing to the buffer which can be send to the
+    display.
+    Adding one buffer means that only one buffer is used.
+    Adding another buffer means, that
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  case_fast buffers
+    0:
+      sb_paint:=adr
+      sb_write:=adr
+      buffers++
+    1:
+      sb_paint:=adr
+      buffers++
+    2:
+      sb_paint:=adr
+
+
+PUB switchBuffer() | tmp
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Simply switches the pointers for double buffering.
+   ( Creating next screen can be done while current screen is
+     send to the display. )
+   As an example, one COG would be using the graphics functions
+   which access the buffer pointed to by sb_paint.
+   Another COG could constantly run the screen update code, using
+   the sb_write buffer.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+
+  ' missing: if the write buffer is currently used, wait
+  tmp:=sb_write
+  sb_write:=sb_paint
+  sb_paint:=tmp
+
+
+PUB writeBuffer(adr, bytes) | i
+{{ =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   Write buffer is called by the main program. If there are no
+   high frequency display updates needed, it is feasible to run
+   this together with the graphics functions and together with
+   main code in the same COG.
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= }}
+   if adr==0
+     adr:=sb_write
+
+   repeat i from 0 to bytes/2 - 1
+     debug(`D `uhex_(word[adr][i]))
+
+   'debug(`DispEmu `UHEX_WORD_ARRAY_( adr, 57600 ))
+
+
+dat
+
+{{
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}
+

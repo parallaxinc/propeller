@@ -1,0 +1,27 @@
+libads1118.c
+ads1118_decodeConfigRegister.c
+ads1118_getTemperature.c
+ads1118_getMilliVolts.c
+ads1118_getADCValue.c
+ads1118_enablePullup.c
+ads1118_disablePullup.c
+ads1118_setSingleShotMode.c
+ads1118_setContinuousMode.c
+ads1118_setFullScaleRange.c
+ads1118_setSamplingRate.c
+ads1118.h
+ads1118_init.c
+ads1118_setMuxInput.c
+ads118_setADCMode.c
+ads1118_setTEMPMode.c
+ads1118_enableSingleStart.c
+ads1118_enableNOP.c
+>compiler=C
+>memtype=cmm main ram compact
+>optimize=-Os
+>-m32bit-doubles
+>-fno-exceptions
+>defs::-std=c99
+>-lm
+>-create_library
+>BOARD::ACTIVITYBOARD

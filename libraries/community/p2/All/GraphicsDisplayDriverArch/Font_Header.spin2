@@ -1,0 +1,55 @@
+{{
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__________               __           /\
+\______   \ ____   ____ |  | _____.__.)/_____
+ |    |  _// __ \ /    \|  |/ <   |  |/  ___/
+ |    |   \  ___/|   |  \    < \___  |\___ \
+ |______  /\___  >___|  /__|_ \/ ____/____  >
+        \/     \/     \/     \/\/         \/    Font_Header
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Version 0.5
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ This object allows easy access to the headers of a font-file. Using these functions ensure
+ that code will be compatible with future driver versions, at leas if there are no major changes.
+
+ The setter functions also allow to create a compatible header to be used by the Graphics-object.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+}}
+CON
+  HEADER_SIZE = 8
+
+  HEADER_FONTDATA = 0
+  HEADER_START_CHAR = 4
+  HEADER_END_CHAR = 5
+  HEADER_WIDTH = 6
+  HEADER_HEIGHT = 7
+
+PUB getFontAdr( header_adr ) : adr
+  return long[ header_adr + HEADER_FONTDATA ]
+
+PUB getFontWidth( header_adr ) : w
+  return byte[ header_adr + HEADER_WIDTH ]
+
+PUB getFontHeight( header_adr ) : h
+  return byte[ header_adr + HEADER_HEIGHT ]
+
+PUB getFontStartChar( header_adr ) : cs
+  return byte[ header_adr + HEADER_START_CHAR ]
+
+PUB getFontEndChar( header_adr ) : ce
+  return byte[ header_adr + HEADER_END_CHAR ]
+
+PUB setFontAdr( header_adr, font_adr )
+  long[ header_adr + HEADER_FONTDATA ]:=font_adr
+
+PUB setFontWidth( header_adr, w )
+  byte[ header_adr + HEADER_WIDTH ]:=w
+
+PUB setFontHeight( header_adr, h )
+  byte[ header_adr + HEADER_HEIGHT ]:=h
+
+PUB setFontStartChar( header_adr, cs )
+  byte[ header_adr + HEADER_START_CHAR ]:=cs
+
+PUB setFontEndChar( header_adr, ce )
+  byte[ header_adr + HEADER_END_CHAR ]:=ce

@@ -1,0 +1,249 @@
+'' =================================================================================================
+''
+''   File....... jm_lpd8806.spin2
+''   Purpose.... Driver for LPD8806 "smart" pixels
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 26 NOV 2020
+''
+'' =================================================================================================
+
+{{
+   Note: The LPD880x vendor does not publish a protocol specification for these pixels. This
+         code is based on work done by others -- some of whom have reverse-engineered the protocol
+         from LPD880x-compatible controllers.
+}}
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+
+con { colors }
+
+  '          GG RR BB XX
+  BLACK   = $00_00_00_00
+  RED     = $00_7F_00_00
+  GREEN   = $7F_00_00_00
+  BLUE    = $00_00_7F_00
+  WHITE   = $7F_7F_7F_00
+  CYAN    = $7F_00_7F_00
+  MAGENTA = $00_7F_7F_00
+  YELLOW  = $7F_7F_00_00
+
+
+var
+
+  long  cog                                                     ' cog running LPD8806 driver
+
+  ' do not change the order of these variables
+
+  long  pixelcount                                              ' number of pixels in defined strip
+  long  p_pixelbuf                                              ' hub address of pixel color storage
+  long  sdopin                                                  ' data pin to pixels
+  long  sclkpin                                                 ' clock pin to pixels
+  long  sclkticks                                               ' system ticks in 1/2 clock cycle
+
+
+pub null()
+
+'' This is not a top level object
+
+
+pub start(npixels, p_colors, dpin, cpin, khz) : result
+
+'' Start LPD8806 driver
+'' -- npixels is the number of pixels to control
+'' -- p_color is a pointer (@) to the long array that holds pixel colors
+''    * colors are stored in $GG_RR_BB_00 format
+''    * color bytes are limited to $00..$7F (0..127)
+'' -- dpin is the data pin to the pixels
+'' -- cpin is the clock pin to the pixels
+'' -- khz is the clock speed in kHz (1000 = 1MHz)
+
+  stop()
+
+  longmove(@pixelcount, @npixels, 4)                            ' copy configuration values
+
+  sclkticks := (clkfreq / (khz * 1000)) >> 1 - 6                ' calculate ticks in 1/2 sclk period
+
+  pinclear(dpin)                                                ' clear pins for use by driver cog
+  pinclear(cpin)
+
+  cog := coginit(COGEXEC_NEW, @lpd8806, @pixelcount) + 1        ' start pixel driver
+
+  return cog
+
+
+pub stop()
+
+'' Stops LPD8806 driver if running
+
+  if (cog)
+    cogstop(cog - 1)
+    cog := 0
+
+
+pub num_pixels() : result
+
+'' Returns the number of pixels used in the current configuration
+
+  return pixelcount
+
+
+pub set_pixel_rgb(ch, r, g, b)
+
+'' Set pixel channel to the color created by elements r, g, and b
+'' -- color components are limited to 0..127
+
+  if ((ch >= 0) && (ch < pixelcount))
+    long[p_pixelbuf][ch] := make_color(r, g, b)
+
+
+pub set_pixel_color(ch, color)
+
+'' Set pixel channel to color
+'' -- colors is in the format $GG_RR_BB_00
+''    * color bytes are limited to $00..$7F (0..127)
+
+  if ((ch >= 0) && (ch < pixelcount))
+    long[p_pixelbuf][ch] := color
+
+
+pub clear()
+
+'' Set all pixels to off
+
+  fill($00_00_00_00)
+
+
+pub fill(color)
+
+'' Fill color buffer
+'' -- color format is $GG_RR_BB_00
+''    * color bytes are limited to 7 bits
+
+  longfill(p_pixelbuf, color, pixelcount)
+
+
+pub rgb_fill(r, g, b)
+
+'' Fill color buffer
+'' -- converts r, g, and b elements to long in format $GG_RR_BB_00
+''    * color bytes are limited to 7 bits
+
+  longfill(p_pixelbuf, make_color(r, g, b), pixelcount)
+
+
+pub make_color(r, g, b) : result
+
+'' Convert elements to long in format $GG_RR_BB_00
+'' -- color bytes are limited to $00..$7F (0..127)
+
+  result.byte[3] := 0 #> g <# $7F
+  result.byte[2] := 0 #> r <# $7F
+  result.byte[1] := 0 #> b <# $7F
+' result.byte[0] := $00
+
+
+pub get_pixel_color(ch) : result
+
+'' Returns color from specified channel in buffer
+
+  if ((ch >= 0) && (ch < pixelcount))
+    return long[p_pixelbuf][ch]
+  else
+    return 0
+
+
+dat
+
+                org       0
+
+lpd8806         setq      #5-1                                  ' copy 5 parameters from hub
+                rdlong    npix, ptra
+
+                drvl      sdo                                   ' make data output/low
+                drvl      sclk                                  ' make clcok output/low
+
+pix_main        mov       count, npix                           ' set count to # of pixels
+                mov       hub, p_buf                            ' point to start of buffer
+
+next_pixel      rdlong    colorbits, hub                        ' read color value from hub
+                or        colorbits, ##$80_80_80_00             ' add sync bits to color elements
+                add       hub, #4                               ' point to next pixel
+
+shift_out       rep       #7, #24                               ' shift bits (msb in colorbits.[31])
+                 shl      colorbits, #1                 wc      ' get msb in c
+                 drvc     sdo                                   ' c --> sdo
+                 nop                                            ' let sdo settle
+                 drvh     sclk                                  ' clock high
+                 waitx    ctix
+                 drvl     sclk                                  ' clock low
+                 waitx    ctix
+
+                djnz      count, #next_pixel                    ' done?
+
+latch_pixels    drvl      sdo                                   ' data low (0)
+
+                mov       zeroes, npix                          ' zeroes := (npix + 31)
+                add       zeroes, #31
+                shr       zeroes, #2                            ' zeroes := zeroes / 32 * 8
+
+                rep       #4, zeroes                            ' send eight 0s for each group of 32
+                 drvh     sclk                                  ' clock high
+                 waitx    ctix
+                 drvl     sclk                                  ' clock low
+                 waitx    ctix
+
+                jmp       #pix_main
+
+' -------------------------------------------------------------------------------------------------
+
+npix            res       1                                     ' pixels to updata
+p_buf           res       1                                     ' hub address of color buffer
+sdo             res       1                                     ' data pin
+sclk            res       1                                     ' clock pin
+ctix            res       1                                     ' system ticks in 1/2 sclk period
+
+count           res       1                                     ' # of pixels to update
+hub             res       1                                     ' hub address of buffer
+colorbits       res       1                                     ' color to shift out
+zeroes          res       1                                     ' 0s for latching
+
+                fit       472
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

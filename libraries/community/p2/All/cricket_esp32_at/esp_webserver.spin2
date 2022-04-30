@@ -1,0 +1,186 @@
+' Title            : Cricket ESP32 AT , http server
+' Purpose          : http server
+' Date             :
+' Author           : mcalyer
+' Requirements     : esp_drv , esp_wifi , esp_tcp       :                  :
+' References       : 1. https://www.w3.org/Protocols/rfc2616/rfc2616.html
+'                  : 2. https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview
+'                  : 3. https://en.wikipedia.org/wiki/Gzip
+' Terms of Use     : See end
+' Verison  Date      Change log
+' 1.0      06/24/21  First release
+
+
+CON
+
+  ' Buffer sizes
+  HTTP_REQ_SIZE      = 8
+
+  ' Request types
+  HTTP_REQ_PAGE_HTML =  1
+  HTTP_REQ_PAGE_GZ   =  2
+  HTTP_REQ_GET_TEXT  =  3
+  HTTP_REQ_GET_JSON  =  4
+
+  'Request options
+  HTTP_REQ_MATCH_PARTIAL = $100
+
+  ' Cog option , stack
+  COG_STACK_SIZE = 128
+
+
+VAR
+
+
+
+DAT
+   'Header  types
+   H404_SZ   long H404_END -  H404
+   H404      byte "HTTP/1.1 404 Not Found",$0D,$0A,"Content-type: text/html;charset=UTF-8",$0D,$0A,"Content-length: 0"
+   H404_END
+
+   TEXT_HTML_SZ     long  TEXT_HTML_END - TEXT_HTML
+   TEXT_HTML        byte "HTTP/1.1 200 OK",$0D,$0A,"Content-Type: text/html; charset=UTF-8",$0D,$0A,$0D,$0A
+   TEXT_HTML_END
+
+   TEXT_HTML_GZ_SZ  long  TEXT_HTML_GZ_END - TEXT_HTML_GZ
+   TEXT_HTML_GZ     byte "HTTP/1.1 200 OK",$0D,$0A,"Content-Type: text/html; charset=UTF-8",$0D,$0A
+                    byte "Content-Encoding: gzip",$0D,$0A,$0D,$0A
+   TEXT_HTML_GZ_END
+
+   TEXT_PLAIN_SZ    long  TEXT_PLAIN_END - TEXT_PLAIN
+   TEXT_PLAIN       byte "HTTP/1.1 200 OK",$0D,$0A,"Content-Type: text/plain; charset=UTF-8",$0D,$0A,$0D,$0A
+   TEXT_PLAIN_END
+
+   JSON_SZ    long  JSON_END - JSON
+   JSON       byte "HTTP/1.1 200 OK",$0D,$0A,"Content-Type: application/json",$0D,$0A,$0D,$0A
+   JSON_END
+
+   req_buf     long 0[HTTP_REQ_SIZE * 4]
+   req_ptr     long 0
+   resp_buf    long 0[4]
+   resp_blks   long 0
+
+   cog         long -1
+   stack       long 0[COG_STACK_SIZE]
+   client_req  long 0
+   client_id   long 0
+
+OBJ
+   esp  : "esp_drv"
+   tcp  : "esp_tcp"
+   wifi : "esp_wifi"
+
+pub http_register_request (type,sptr,ptr,sz) : r | i
+    ' example : type         = HTTP_REQ_PAGE_HTML
+    '           request      = string("GET /")
+    '           payload      = ptr to index_html
+    '           payload size = index_html_size
+    if req_ptr > (HTTP_REQ_SIZE - 1) * 4
+      return -1
+    req_buf[req_ptr++] := type
+    req_buf[req_ptr++] := sptr
+    req_buf[req_ptr++] := ptr
+    req_buf[req_ptr++] := sz
+
+pub load_resp_buf(hptr,hsz,pptr,psz,blks)
+    resp_buf[0],resp_buf[1],resp_buf[2],resp_buf[3],resp_blks := hptr,hsz,pptr,psz,blks
+
+pub http_find_req(sptr) :  t,ptr,sz | i,x
+    ' find request string , if found , return response type , ptr payload buf/callback func and size
+     repeat i from 0 to  req_ptr - 1 step 4
+       if req_buf[i] & HTTP_REQ_MATCH_PARTIAL  ' example match /P56/ with /P56/ON or /P56/OFF
+         x := esp.find_string(req_buf[i + 1],sptr,strsize(sptr))
+       else
+         x := strcomp(sptr,req_buf[i + 1])
+       if x
+         return req_buf[i] , req_buf[i + 2] , req_buf[i + 3]
+
+pub http_resp() | s,t,ptr,sz,d
+    ' determine response based on request
+    t,ptr,sz := http_find_req(client_req)
+    if 0 == ptr
+      load_resp_buf(@H404,H404_SZ,0,0,1)
+    else
+       case t.byte[0]
+          HTTP_REQ_PAGE_HTML : load_resp_buf(@TEXT_HTML,TEXT_HTML_SZ,ptr,sz,2)
+
+          HTTP_REQ_PAGE_GZ   : load_resp_buf(@TEXT_HTML_GZ,TEXT_HTML_GZ_SZ,ptr,sz,2)
+
+          HTTP_REQ_GET_TEXT  : d := ptr(client_req) : 1
+                               load_resp_buf(@TEXT_PLAIN,TEXT_PLAIN_SZ,d,strsize(d),2)
+
+          HTTP_REQ_GET_JSON  : d := ptr(client_req) : 1
+                               load_resp_buf(@JSON,JSON_SZ,d,strsize(d),2)
+
+    tcp.send_data_ex(client_id,@resp_buf,resp_blks)
+    tcp.close_client(client_id)
+
+pub http_req_loop(id,req_str) | status,s,p,ph
+    ' get request header string , example "+IPD,0,333:GET / HTTP/1.1"
+    ' get just this string "GET /"
+    ' get link id  , example "+IPD,0" , 0 = link id
+    repeat
+      long[id] := long[req_str] := 0
+      repeat until (esp.com_available() > 0)
+      status , s := esp.get_resp_find_str(string("+IPD"),100)
+        if s
+          p  := esp.find_string(string("GET"),s,strsize(s))
+          ph := esp.find_string(string(" HTTP"),s,strsize(s))
+          if 0 == p || ph == 0
+            next
+          byte[ph] := 0
+          long[req_str]  := p             ' save request string
+          long[id]  := byte[s+5] - $30    ' save link id
+          http_resp()                     ' determine response
+
+pub server_init()
+    req_ptr := 0
+    longmove(@req_buf,0,HTTP_REQ_SIZE * 4)
+
+pub start_server(host_name,f) : status | i
+    if host_name
+      if status := wifi.mDNS(1,host_name,string("_http"),80)
+        return
+    if status := tcp.server_max_connect(1)
+      return
+    if status := tcp.set_mux_connect_mode(tcp.MULTIPLE_CONNECT)
+      return
+    if status := tcp.create_server(80,string("TCP"),-1)
+      return
+    if status := tcp.set_server_timeout(10)
+      return
+    if "C" == f
+      cog := cogspin(newcog, http_req_loop(@client_id,@client_req),@stack)
+    else
+      http_req_loop(@client_id,@client_req)
+
+pub stop_cog_server()
+    if cog > -1
+      cogstop(cog)
+      cog := -1
+      return
+
+
+ {{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

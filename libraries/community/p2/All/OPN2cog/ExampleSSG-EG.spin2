@@ -1,0 +1,55 @@
+CON
+
+    '' OPN2cog example/test that plays a note normally and then with all 8 SSG-EG modes.
+
+    _CLKFREQ = 250_000_000
+
+    leftPin  = 48+7
+    rightPin = 49+5
+
+    RATE = 4
+
+OBJ
+  OPN2 : "OPN2cog"
+
+VAR
+  long waitFor, tick
+
+PUB Main() | continue, i, cmd, n
+
+
+  OPN2.start(leftPin, rightPin, 3, true)    ' Start OPN2cog
+
+  waitFor := getct() + 100_000_000
+
+  OPN2.setCHAlgo(OPN2.CH1,7,0)
+  OPN2.setCHPanning(OPN2.CH1,1,1)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_MUL_DT ,$01)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_TL     ,0)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_AR_RS  ,31+0)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_DR_AM  ,1+0)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_SR     ,16)
+  OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_RR_SL  ,$09)
+
+  OPN2.setCHFreq(OPN2.CH1,12000)
+
+
+  pinl(56)
+
+  repeat
+    waitct(waitFor)
+    waitfor += clkfreq/RATE
+    pint(56)
+
+
+    case tick // 3
+      0:
+        OPN2.setOPRegister(OPN2.CH1, OPN2.OP4, OPN2.OP_SSGEG ,lookupz((tick/3)//9:0,8,9,10,11,12,13,14,15))
+        OPN2.setKeyOn(OPN2.CH1,%1000)
+
+      2: OPN2.setKeyOn(OPN2.CH1,%0000)
+
+
+    OPN2.flipRegisters()
+    tick++
+

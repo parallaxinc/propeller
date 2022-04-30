@@ -1,0 +1,143 @@
+'' =================================================================================================
+''
+''   File....... DS1302_full_Demo.spin2
+''   Purpose.... Demonstrates interface of DS1302 Run Time Clock module driver (DS1302_full.spin2)
+''   Author..... Dennis Gately
+''               Copyright (C) 2020-2021
+''               -- see below for terms of use
+''   Dependencies... jm_fullduplexserial.spin2
+''                   DS132_full.spin2
+''   Started.... 30 DEC 2020
+''   Updated.... 03 JAN 2021
+''
+'' =================================================================================================
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+con { terminal }
+
+  BR_TERM  = 230_400                                            ' terminal baud rate
+
+  #0, T_PST, T_ANSI                                             ' terminal types
+
+  T_TYPE = T_PST
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDI   = 59  { O }
+  SD_SDO   = 58  { I }
+
+  SDA1     = 55  { IO }                                         ' i2c connections
+  SCL1     = 54  { IO }
+
+  DS_clk   = 28
+  DS_data  = 29
+  DS_CE    = 30
+
+con { app io pins }
+
+con
+
+  #true,  ON, OFF
+  #false, NO, YES
+
+obj
+
+  term  : "jm_fullduplexserial"                                 ' * serial IO for terminal
+  rtc   : "DS1302_full"                                         ' ds1302 Run Time Clock
+  ansi  : "jm_ansi"                                             ' ANSI terminal control sequences
+
+var
+
+  byte hour, minute, second, day, month, year, dow
+
+pub main()| i
+
+  setup()
+
+  wait_for_terminal(true)
+
+  '' setDatetime test, un-comment to initialize to a specific date
+  '' parameters are: _mth, _day, _year, _dow, _hr, _min, _sec
+  ''rtc.setDatetime( 1, 3, 21, 1, 16, 42, 10 )
+
+  term.str(string("DS1302_full_Demo"))
+  term.tx(13)
+
+  rtc.readTime( @hour, @minute, @second )             ' read time from DS1302 RTC
+  rtc.readDate( @day, @month, @year, @dow )           ' read date from DS1302 RTC
+
+  term.fstr3(string("Time: %d:%d:%d\n\r"), hour, minute, second)
+
+  term.fstr3(string("Date: %d/%d/%d\n\r"), month, day, year)
+
+  repeat
+
+pub setup()| i
+
+  term.tstart(BR_TERM)                                ' start terminal io *
+
+  rtc.init( DS_clk, DS_data, DS_CE )                  ' clock, data, chip-enable
+
+pub wait_for_terminal(clear)
+
+'' Wait for terminal to be open and key pressed
+'  -- download to RAM with F10
+'  -- F12 to open PST
+'  -- Click [Enable] (if needed)
+'  -- Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    if (T_TYPE == T_PST)
+      term.tx(term.CLS)
+    else
+      term.str(ansi.hide_cursor())
+      term.str(ansi.home())
+      term.str(ansi.cls())
+
+dat
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+}}

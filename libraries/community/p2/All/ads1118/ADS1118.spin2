@@ -1,0 +1,209 @@
+{{
+
+ ADS1118 Driver v0.2
+ Author: Greg LaPolla
+ E-Mail: glapolla@gmail.com
+ Copyright (c) 2020 Greg LaPolla
+ See end of file for terms of use.
+
+ This object is based on  ADS1115_2v1 by Tracy Allen & Michael McDonald
+
+}}
+
+con
+
+  START_NOW     = 1 << 15                                     ' Start of conversion in single-shot mode
+
+                                                              ' Input multiplexer configuration selection for bits "MUX"
+
+                                                              ' Differential inputs
+  DIFF_0_1      = %000 << 12                                  ' Differential input: Vin=A0-A1
+  DIFF_0_3      = %001 << 12                                  ' Differential input: Vin=A0-A3
+  DIFF_1_3      = %010 << 12                                  ' Differential input: Vin=A1-A3
+  DIFF_2_3      = %011 << 12                                  ' Differential input: Vin=A2-A3
+
+                                                              ' Single ended inputs
+  AIN_0         = %100 << 12                                  ' Single ended input: Vin=A0
+  AIN_1         = %101 << 12                                  ' Single ended input: Vin=A1
+  AIN_2         = %110 << 12                                  ' Single ended input: Vin=A2
+  AIN_3         = %111 << 12                                  ' Single ended input: Vin=A3
+
+                                                              ' Full scale range (FSR) selection by "PGA" bits.
+  FSR_6144      = %000 << 9                                   ' Range: ±6.144 v. LSB SIZE = 187.5V FSR is +- 6.144 V
+  FSR_4096      = %001 << 9                                   ' Range: ±4.096 v. LSB SIZE = 125V
+  FSR_2048      = %010 << 9                                   ' Range: ±2.048 v. LSB SIZE = 62.5V ***DEFAULT
+  FSR_1024      = %011 << 9                                   ' Range: ±1.024 v. LSB SIZE = 31.25V
+  FSR_512       = %100 << 9                                   ' Range: ±0.512 v. LSB SIZE = 15.625V
+  FSR_256       = %101 << 9                                   ' Range: ±0.256 v. LSB SIZE = 7.8125V
+
+                                                              ' Used by "MODE" bit
+  CONTINUOUS    = 0 << 8                                      ' Continuous conversion mode
+  SINGLE_SHOT   = 1 << 8                                      ' Single-shot conversion and power down mode
+
+                                                              ' Sampling rate selection by "DR" bits.
+  RATE8SPS      = %000 << 5                                   ' 8 samples/s, Tconv=125ms
+  RATE16SPS     = %001 << 5                                   ' 16 samples/s, Tconv=62.5ms
+  RATE32SPS     = %010 << 5                                   ' 32 samples/s, Tconv=31.25ms
+  RATE64SPS     = %011 << 5                                   ' 64 samples/s, Tconv=15.625ms
+  RATE128SPS    = %100 << 5                                   ' 128 samples/s, Tconv=7.8125ms ***DEFAULT
+  RATE250SPS    = %101 << 5                                   ' 250 samples/s, Tconv=4ms
+  RATE475SPS    = %110 << 5                                   ' 475 samples/s, Tconv=2.105ms
+  RATE860SPS    = %111 << 5                                   ' 860 samples/s, Tconv=1.163ms
+
+                                                              ' Used by "TS_MODE" bit
+  ADC_MODE       = 0 << 4                                     ' External (inputs) voltage reading mode
+  TEMP_MODE      = 1 << 4                                     ' Internal temperature sensor reading mode
+
+                                                              ' Used by "PULL_UP_EN" bit
+  DOUT_PULLUP    = 1 << 3                                     ' Internal pull-up resistor enabled for DOUT ***DEFAULT
+  DOUT_NO_PULLUP = 0 << 3                                     ' Internal pull-up resistor disabled
+
+                                                              ' Used by "NOP" bits
+  VALID_CFG      = %01 << 1                                   ' Data will be written to Config register
+  NO_VALID_CFG   = %00 << 1                                   ' Data won't be written to Config register
+  READY          = 0
+
+  CLK_FREQ        = 200_000_000                                ' system freq as a constant
+  _ClockDelay     = 15
+  khz             = 10000
+  bits            = 16
+
+var
+
+  word mode0                                                  ' Configuration string
+  byte ipga
+  byte wsps                                                   ' interal wait time factor for conversion to complete based on samples per second
+  long cs, sclk, din, dout
+
+pub null()
+
+  '' This is not a top object
+
+pub start(_cs,_sclk,_din,_dout)
+
+  longmove(@cs, @_cs, 4)
+  configure(RATE128SPS, SINGLE_SHOT, READY)                   ' default configuration
+  pinl(sclk)
+
+pub configure(samplesPerSecond, shotMode, comparatorMode)
+
+  mode0 := START_NOW |shotMode |samplesPerSecond |comparatorMode |VALID_CFG
+  wsps := samplesPerSecond >> 5+2     ' 5 + 2    ' sets up for conversion wait time  4 is about twice the minimum wait
+
+pub ReadExplicit(channel, pga): result | mode
+
+  mode := mode0 |pga |channel |ADC_MODE
+  ipga := pga >> 9
+
+  pinl(cs)
+  write(mode)
+  pinh(cs)
+
+  result := ReRead()
+
+pub ReadTemp(): temp| mode
+
+  mode := mode0 |TEMP_MODE
+
+  pinl(cs)
+  write(mode)
+  pinh(cs)
+
+  waitus(1)
+  temp := Sample() >> 2
+  waitus(1)
+
+  temp := temp * 3125 / 100000
+
+  return temp
+
+pub ReadTempV ():temp | mode
+
+  mode := mode0 |TEMP_MODE
+
+  pinl(cs)
+  write(mode)
+  pinh(cs)
+
+  waitus(1)
+
+  temp := Sample() >> 2
+
+pri sample (): result | mark
+
+  mark := (clkfreq >> wsps) * 5 / 4 + getct()      ' (clkfreq*5) >> (wsps+2)
+  pinl(cs)
+
+  if (pinr(dout))
+    repeat
+    while (pinr(dout))                             'or (getct() - mark > 0)
+  else
+    waitct(mark)
+
+  result := read()
+
+  pinh(cs)
+
+pri read(): value
+
+  pinc(dout)                                       ' make dout input
+
+  repeat bits
+    pinh(sclk)
+    waitus(1)
+    pinl(sclk)
+    waitus(1)
+    value := (value << 1) | pinread(dout)
+
+pri write(Value)
+
+  Value ror= bits                                  ' pre-align msb
+
+  repeat bits
+    pinw(din, Value ROL = 1)                   ' output data bit
+    pinh(sclk)
+    waitus(1)
+    pinl(sclk)
+    waitus(1)
+
+pri ReRead () : result
+
+  result := Sample()
+  result signx = 15                                ' sign extend 16 bits to 32
+
+  case ipga
+    000 : result := result * 187 + result / 2      ' units of 187.5 microvolts per bit
+    001 : result := result * 125                   ' units of 125 microvolts per bit
+    010 : result := result * 62 + result / 2       ' units of 62.5 microvolts
+    011 : result := result * 32 - result * 3 / 4   ' units of 31 1/4 microvolts
+    100 : result := result * 16 - result * 3 / 8   ' units of 15 5/8 microvolts
+    101 : result := result * 8 - result * 3 / 16   ' units of 7 13/16 microvolts
+
+pub dbug(val) : result
+
+case val
+  0 : result := ipga
+  1 : result := mode0
+  2 : result := wsps
+  3 : result := din
+  4 : result := dout
+  5 : result := sclk
+  6 : result := cs
+
+DAT
+
+{{
+                                                   TERMS OF USE: MIT License                                                  �
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    �
+files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    �
+modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software�
+is furnished to do so, subject to the following conditions:                                                                   �
+                                                                                                                              �
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.�
+                                                                                                                              �
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          �
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         �
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   �
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         �
+
+}}

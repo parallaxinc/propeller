@@ -1,0 +1,72 @@
+CON
+
+_CLKFREQ = 32*256*32_000
+
+DEBUG_COGS = %01
+
+leftpin = 24+6
+rightpin = leftpin+1
+
+OBJ
+spc : "SPCcog"
+spcmeta : "SPCmeta"
+
+PUB main() | v
+
+spc.start_spcfile(leftpin,rightpin,@spcfile)
+
+debug("SPC metadata:")
+debug(sdec(spcmeta.checkSPCHeader(@spcfile)))
+debug(lstr(spcmeta.getSongTitle(@spcfile)))
+debug(lstr(spcmeta.getGameTitle(@spcfile)))
+debug(lstr(spcmeta.getDumper(@spcfile)))
+debug(lstr(spcmeta.getArtist(@spcfile)))
+debug(lstr(spcmeta.getPublisher(@spcfile)))
+debug(lstr(spcmeta.getComment(@spcfile)))
+debug(sdec(spcmeta.getYear(@spcfile)))
+debug(sdec(spcmeta.getLength(@spcfile)))
+debug(sdec(spcmeta.getFadeLen(@spcfile)))
+
+
+
+repeat
+
+DAT
+
+'' Note: copy the SPC files from the "tunes" directory
+''       into the directory this file is in to make PropTool
+''       find them. Or use that one command line option that
+''       flexspin has. .... What, do I look like I remember how
+''       that one goes? .... Ok, I have been informed I do
+''       look like that. Well, I believe it'd be "-L ./tunes".
+''       Yeah I think that'd do it.
+spcfile
+        file "sd2-01.spc"
+        'file "sd2-18.spc"
+        'file "sd2-34.spc"
+        'file "sd2-41.spc"
+        'file "sd3-207.spc"
+        'file "sd3-208.spc"
+        'file "sd3-301.spc"
+        'file "sd3-312.spc"
+        'file "mmx-04.spc"
+        'file "mmx-16.spc"
+        'file "scv4-06.spc"
+        'file "scv4-28.spc"
+        'file "iog-03.spc"
+        'file "yi-07a.spc"
+        'file "smr-128.spc"
+        'file "sf-09.spc"
+        'file "plok-01.spc"
+        'file "plok-05.spc"
+        'file "plok-12.spc"
+        'file "plok-13.spc"
+        'file "actr-04.spc"
+        'file "Axel-F.spc"
+        'file "sewer_surfin.spc"
+        'file "fz-02.spc"
+        'file "fz-07.spc"
+        'file "fz-09.spc"
+        'file "loz3-08.spc"
+        'file "loz3-21.spc"
+        'file "loz3-31.spc"
