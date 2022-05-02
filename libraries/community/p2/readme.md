@@ -2,7 +2,7 @@
 Community generated Propeller libraries for Propeller 2 microcontroller.
 
 ## Download Archive
-Download an [archive of the Propeller 2 libraries](https://github.com/parallaxinc/propeller/releases/download/OBEX-220316/P2_OBEX_220316.ZIP).
+Download an [archive of the Propeller 2 libraries](https://github.com/parallaxinc/propeller/releases/download/OBEX-220501/P2_OBEX_220501.ZIP).
 ## Contribute
 Please [contribute your objects](https://github.com/parallaxinc/propeller/wiki/Contributing) to this community archive for the benefit of all!
 
