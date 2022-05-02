@@ -196,6 +196,8 @@
 
 [ms5534_V.01](../All/ms5534_V.01)
 
+[Neurosky MindFlex Headset](../All/Neurosky%20MindFlex%20Interface/FullDuplexSerialExt.spin)
+
 [NAVCOM AI Base files](../All/NAVCOM%20AI%20Base%20files)
 
 [NOSIC](../All/NOSIC)
