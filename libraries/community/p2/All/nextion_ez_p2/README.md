@@ -16,7 +16,7 @@ If you find this library useful, please consider supporting the author of the or
 
 **NOTE**: `.HMI` files for Nextion Editor are also included in the demo folder.
 
-## The public functions
+## The public methods
 - `start()`
 - `writeNum()`
 - `writeStr()`
@@ -30,6 +30,8 @@ If you find this library useful, please consider supporting the author of the or
 - `readByte()`
 - `getCurrentPage()`
 - `getLastPage()`
+
+Standard Easy Nextion Library commands are sent from the Nextion display with `printh 23 02 54 XX` , where `XX` the id for the `triggerXX()` in HEX.  Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the nextion_ez object `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
 
 
 **NOTE**: (from the Nextion Editor Guide)
@@ -61,7 +63,7 @@ Example: `nextion.writeStr(STRING("va0.txt"), STRING("Hello World"))`
 For this to happen, the variables you want to read/write must be at the page you are currently on.  
 Otherwise, if the variables are of **global** scope, you will need to use a prefix with the page name that the variables are at.  
 Example: `nextion.readNumber(STRING("page0.va0.val"))`   'If the variable is at page0  
-The same goes for the other functions as well.
+The same goes for the other methods as well.
 
 ## Compatibility
 * Propeller (spin version in P1 folder)
