@@ -95,8 +95,6 @@ PRI callCommand(_cmd)           'parse the 1st command byte and decide how to pr
       callTrigger(nx_sub)
 
 PRI callTrigger(_triggerId)    'use the 2nd command byte from nextion and call associated function
-
-  if _triggerId < $40
     case _triggerId
       $00 :
         trigger00
