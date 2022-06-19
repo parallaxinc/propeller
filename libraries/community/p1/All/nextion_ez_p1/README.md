@@ -31,8 +31,33 @@ If you find this library useful, please consider supporting the author of the or
 - `getCurrentPage()`
 - `getLastPage()`
 
-Standard Easy Nextion Library commands are sent from the Nextion display with `printh 23 02 54 XX` , where `XX` the id for the `triggerXX()` in HEX.  Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the nextion_ez object `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
+In order for the object to update the Id of the current page, you must write the Preinitialize Event of every page: `printh 23 02 50 XX` , where `XX` the id of the page in HEX.
+Your code can then read the current page and previous page using the `getCurrentPage()` and `getLastPage()` methods.
 
+Standard Easy Nextion Library commands are sent from the Nextion display with `printh 23 02 54 XX` , where `XX` is the id for the command in HEX.  
+Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
+
+example:
+```
+PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
+  case _cmd
+    "T" :                             'standard Easy Nextion Library commands start with "T"
+      nx_sub := nextion.getSubCmd     ' so we need the second byte to know what function to call
+      callTrigger(nx_sub)
+
+PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
+  case _triggerId
+    $00 :
+      trigger00
+    $01 :
+      trigger01
+    $02 :
+      trigger02
+    $03 :
+      trigger03
+    $04 :
+      trigger04
+```
 
 **NOTE**: (from the Nextion Editor Guide)
 > In an HMI project a page is a localized unit. When changing pages, the existing page is removed from memory and the > > requested page is then loaded into memory. As such components with a variable scope of _**local**_ are only accessible while the page they are in is currently loaded. Components within a page that have a variable scope of _**global**_ are accessible by prefixing the page name to the global component .objname.
