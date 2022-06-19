@@ -25,7 +25,7 @@
         1) The Arduino implementation automatically calls trigger functions, stored in a separate file,
            in response to Nextion commands.
                 This object provides the functions cmdAvail(), getCmd(). getSubCmd() and readByte()
-                to retreave the packet commands sent from the Nextion.
+                to retreave the command packets sent from the Nextion.
 
         2) The Arduino C++ library uses a single overloaded function writeStr() to send commands and
            update string values on the Nextion.

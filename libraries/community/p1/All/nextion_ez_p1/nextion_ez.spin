@@ -16,7 +16,7 @@
         The protocol is completely compatible with the Easy Nextion Library and will allow reuse
         of HMI code between Arduino and Propeller boards.
 
-  NOTE: This Spin library requires the use of a custom version of FullDuplexSerial.spin called
+  NOTE: This Spin object requires the use of a custom version of FullDuplexSerial.spin called
         FullDuplexSerialAvail.spin that adds a function to return the number of bytes in
         the rx_buffer.
 
@@ -30,7 +30,7 @@
         1) The Arduino implementation automatically calls trigger functions, stored in a separate file,
            in response to Nextion commands.
                 This object provides the functions cmdAvail(), getCmd(). getSubCmd() and readByte()
-                to retreave the packet commands sent from the Nextion.
+                to retreave the command packets sent from the Nextion.
 
         2) The Arduino C++ library uses a single overloaded function writeStr() to send commands and
            update string values on the Nextion.
