@@ -1,7 +1,7 @@
 '' =================================================================================================
 ''
 ''   File....... nextion_ez_p2.spin2
-''   Purpose.... Provide functions and protocol similar to the Easy Nextion Arduino library
+''   Purpose.... Provide methods and protocol similar to the Easy Nextion Arduino library
 
 ''   Author..... Charles Current
 ''               -- based on the Easy Nextion Library for Arduino by Thanasis Seitanis
@@ -12,7 +12,7 @@
 ''
 '' =================================================================================================
 {{
-  NOTE: Functions are similar to, but not identical to, those in the Arduino Easy Nextion Library
+  NOTE: methods are similar to, but not identical to, those in the Arduino Easy Nextion Library
         The protocol is completely compatible with the Easy Nextion Library and will allow reuse
         of HMI code between Arduino and Propeller boards.
 
@@ -24,24 +24,21 @@
   Differences between the Arduino library and Spin object:
         1) The Arduino implementation automatically calls trigger functions, stored in a separate file,
            in response to Nextion commands.
-                This object provides the functions cmdAvail(), getCmd(). getSubCmd() and readByte()
+                This object provides the methods cmdAvail(), getCmd(). getSubCmd() and readByte()
                 to retreave the command packets sent from the Nextion.
 
         2) The Arduino C++ library uses a single overloaded function writeStr() to send commands and
            update string values on the Nextion.
-                This object uses separate functions sendCmd() and writeStr().
+                This object uses separate methods sendCmd() and writeStr().
 
         3) The the equivilent of the Arduino NextionListen() function has been named listen()
-           in this implementation.
+           in this implementation..
 
-        4) The Arduino library contains an undocumented function called readStr().
-                This function is included and documented in this object.
-
-        5) This object adds a function called addWave() to address the special syntax of the
+        4) This object adds a method called addWave() to address the special syntax of the
            Nextion waveform add command.
 
-        6) In this object the currentPageId and lastCurrentPageId variables can be accessed with the
-           functions getCurrentPage() and getLastPage()
+        5) In this object the currentPageId and lastCurrentPageId variables can be accessed with the
+           methods getCurrentPage() and getLastPage()
 
 }}
 
@@ -284,7 +281,7 @@ PUB listen() | _char, _time, _ms, _len, _cmdFound, _cmd     'check for incoming 
   Advanced users can modify the custom protocol to add new group commands.
   More info on custom protocol: https://seithan.com/Easy-Nextion-Library/Custom-Protocol/ and on the documentation of the library
 
-  ! WARNING: This function must be called repeatedly to response touch events from the Nextion.
+  ! WARNING: This method must be called repeatedly to response touch events from the Nextion.
   You can place it in the main loop of a Cog
 }}
   if _nextion.available() > 2                             'Read if more then 2 bytes come (we always send more than 2 <#> <len> <cmd> <id>

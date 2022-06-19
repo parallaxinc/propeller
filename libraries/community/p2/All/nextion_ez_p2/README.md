@@ -42,10 +42,10 @@ example:
 PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
   case _cmd
     "T" :                             'standard Easy Nextion Library commands start with "T"
-      nx_sub := nextion.getSubCmd     ' so we need the second byte to know what function to call
+      nx_sub := nextion.getSubCmd()   ' so we need the second byte to know what method to call
       callTrigger(nx_sub)
 
-PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
+PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated method
   case _triggerId
     $00 :
       trigger00()
@@ -58,13 +58,6 @@ PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call ass
     $04 :
       trigger04()
 ```
-
-**NOTE**: (from the Nextion Editor Guide)
-> In an HMI project a page is a localized unit. When changing pages, the existing page is removed from memory and the > > requested page is then loaded into memory. As such components with a variable scope of _**local**_ are only accessible while the page they are in is currently loaded. Components within a page that have a variable scope of _**global**_ are accessible by prefixing the page name to the global component .objname.
-As an Example:
- A global Number component n0 on page1 is accessed by **page1.n0** . 
-A local Number component n0 on page1 can be accessed by page1.n0 or n0, but there is little sense to try access a local component if the page is not loaded. Only the component attributes of a global component are kept in memory. Event code is never global in nature.
-
 
 ##  Usefull Tips
 
@@ -89,6 +82,12 @@ For this to happen, the variables you want to read/write must be at the page you
 Otherwise, if the variables are of **global** scope, you will need to use a prefix with the page name that the variables are at.  
 Example: `nextion.readNumber(STRING("page0.va0.val"))`   'If the variable is at page0  
 The same goes for the other methods as well.
+
+**NOTE**: (from the Nextion Editor Guide)
+> In an HMI project a page is a localized unit. When changing pages, the existing page is removed from memory and the > > requested page is then loaded into memory. As such components with a variable scope of _**local**_ are only accessible while the page they are in is currently loaded. Components within a page that have a variable scope of _**global**_ are accessible by prefixing the page name to the global component .objname.
+As an Example:
+ A global Number component n0 on page1 is accessed by **page1.n0** . 
+A local Number component n0 on page1 can be accessed by page1.n0 or n0, but there is little sense to try access a local component if the page is not loaded. Only the component attributes of a global component are kept in memory. Event code is never global in nature.
 
 ## Compatibility
 * Propeller (spin version in P1 folder)

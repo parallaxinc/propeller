@@ -95,17 +95,17 @@ PRI callCommand(_cmd)           'parse the 1st command byte and decide how to pr
       callTrigger(nx_sub)
 
 PRI callTrigger(_triggerId)    'use the 2nd command byte from nextion and call associated function
-    case _triggerId
-      $00 :
-        trigger00
-      $01 :
-        trigger01
-      $02 :
-        trigger02
-      $03 :
-        trigger03
-      $04 :
-        trigger04
+  case _triggerId
+    $00 :
+      trigger00
+    $01 :
+      trigger01
+    $02 :
+      trigger02
+    $03 :
+      trigger03
+    $04 :
+      trigger04
 
 PRI trigger00
   nextion.sendCmd(STRING("page 1"))

@@ -59,11 +59,29 @@ PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call ass
       trigger04
 ```
 
-**NOTE**: (from the Nextion Editor Guide)
-> In an HMI project a page is a localized unit. When changing pages, the existing page is removed from memory and the > > requested page is then loaded into memory. As such components with a variable scope of _**local**_ are only accessible while the page they are in is currently loaded. Components within a page that have a variable scope of _**global**_ are accessible by prefixing the page name to the global component .objname.
-As an Example:
- A global Number component n0 on page1 is accessed by **page1.n0** . 
-A local Number component n0 on page1 can be accessed by page1.n0 or n0, but there is little sense to try access a local component if the page is not loaded. Only the component attributes of a global component are kept in memory. Event code is never global in nature.
+**NOTE**: This Spin object requires the use of a custom version of FullDuplexSerial.spin called FullDuplexSerialAvail.spin that adds a function to return the number of bytes in the rx_buffer
+
+**NOTE**: Spin on the Proppeller 1 chip has a limit of 64 of items in a case statement.  For complexe Nextion systems use of custom commands in addition to the "T" command can be used to avoid this limit.  Alternatively case statements can be nested inside another structure.
+Example:
+```
+PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
+  if _triggerId < $40
+    case _triggerId
+      $00 :
+        trigger00
+
+      'many more cases
+
+      $39 :
+        trigger40
+  elseif _triggerId < $80
+    case _triggerId
+      $50 :
+        trigger50
+      'and more cases
+```
+
+**NOTE**: Spin on the Proppeller 1 chip also has a limit of 256 methods in an object, so care should be taken when planning the structure of a complex Nextion system. 
 
 
 ##  Usefull Tips
@@ -89,6 +107,13 @@ For this to happen, the variables you want to read/write must be at the page you
 Otherwise, if the variables are of **global** scope, you will need to use a prefix with the page name that the variables are at.  
 Example: `nextion.readNumber(STRING("page0.va0.val"))`   'If the variable is at page0  
 The same goes for the other methods as well.
+
+**NOTE**: (from the Nextion Editor Guide)
+> In an HMI project a page is a localized unit. When changing pages, the existing page is removed from memory and the > > requested page is then loaded into memory. As such components with a variable scope of _**local**_ are only accessible while the page they are in is currently loaded. Components within a page that have a variable scope of _**global**_ are accessible by prefixing the page name to the global component .objname.
+As an Example:
+ A global Number component n0 on page1 is accessed by **page1.n0** . 
+A local Number component n0 on page1 can be accessed by page1.n0 or n0, but there is little sense to try access a local component if the page is not loaded. Only the component attributes of a global component are kept in memory. Event code is never global in nature.
+
 
 ## Compatibility
 * Propeller (spin version in P1 folder)
