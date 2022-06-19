@@ -6,7 +6,7 @@
 
 ''   E-mail..... charles@charlescurrent.com
 ''   Started.... 17 JUN 2022
-''   Updated.... 18 JUN 2022
+''   Updated.... 19 JUN 2022
 ''
 '' =================================================================================================
 {{
@@ -129,7 +129,7 @@ PRI trigger02
 PRI trigger03 | slidder, wave, guage
   slidder := nextion.readNum(STRING("h0.val"))
   guage := slidder * 36 / 10
-  wave := slidder * 2
+  wave := slidder * 255 / 100
 
   nextion.writeNum(STRING("j0.val"), slidder)
   nextion.writeNum(STRING("z0.val"), guage)
