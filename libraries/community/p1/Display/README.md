@@ -114,6 +114,8 @@
 
 [NewHaven Serial LCD Display driver](../All/NewHaven%20Serial%20LCD%20Display%20driver)
 
+[Nextion HMI Display driver](../All/nextion_ez)
+
 [NHD-0420D3Z-FL-GBW LCD Driver](../All/NHD-0420D3Z-FL-GBW%20LCD%20Driver)
 
 [Nibble](../All/Nibble)
