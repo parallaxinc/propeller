@@ -85,7 +85,7 @@ PUB main
 PRI callCommand(_cmd)           'parse the 1st command byte and decide how to proceed
   case _cmd
     "T" :                                               'standard Easy Nextion Library commands start with "T"
-      nx_sub := nextion.getSubCmd                       ' so we need the second byte to know what function to call
+      nx_sub := nextion.readByte                       ' so we need the second byte to know what function to call
 
       'data to serial terminal to demonstrate what is returned
       serial.Str(STRING("nextion subcommand = "))

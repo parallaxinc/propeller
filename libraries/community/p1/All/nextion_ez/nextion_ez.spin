@@ -29,20 +29,23 @@
    Differences between the Arduino library and Spin object:
         1) The Arduino implementation automatically calls trigger functions, stored in a separate file,
            in response to Nextion commands.
-                This object provides the methods cmdAvail(), getCmd(). getSubCmd() and readByte()
+                This object provides the methods cmdAvail(), getCmd(). and readByte()
                 to retreave the command packets sent from the Nextion.
 
         2) The Arduino C++ library uses a single overloaded function writeStr() to send commands and
            update string values on the Nextion.
                 This object uses separate methods sendCmd() and writeStr().
 
-        3) The the equivilent of the Arduino NextionListen() function has been named listen()
+        3) A argument fifo has been added to allow a new method pushCmdArg() that can be used to
+           provide a variable number of arguments to sendCmd().
+
+        4) The the equivilent of the Arduino NextionListen() function has been named listen()
            in this implementation.
 
-        4) This object adds a method called addWave() to address the special syntax of the
+        5) This object adds a method called addWave() to create a quick and easy interface to the
            Nextion waveform add command.
 
-        5) In this object the currentPageId and lastCurrentPageId variables can be accessed with the
+        6) In this object the currentPageId and lastCurrentPageId variables can be accessed with the
            methods getCurrentPage() and getLastPage()
 
 }}
@@ -55,9 +58,11 @@ VAR
   long  current_page_id
   long  last_current_page_id
   byte  cmd
-  byte  sub_cmd
   byte  cmd_len
   byte  cmd_avail
+  long  cmd_fifo[16]
+  byte  cmd_fifo_head
+  byte  cmd_fifo_tail
 
 OBJ
   _nextion      : "FullDuplexSerialAvail"               'a special version of FullDuplexSerial that provides an available method like Arduino and FullDuplexSerial
@@ -101,15 +106,53 @@ PUB writeStr(ptr_component, ptr_txt)                      'send a string value t
   repeat 3
     _nextion.tx($FF)
 
+PUB writeByte(val)                                        'send raw data byte (not ASCII formated) to Nextion
+{{
+  Main purpose and usage is for sending the raw data required by the addt command
+  where we need to write raw bytes to serial
 
-PUB sendCmd(ptr_command)                                'send a command to nextion
+  example: nextion.writeByte(0)
+ }}
+  _nextion.tx(val)
+
+PUB pushCmdArg(argument)                                'load the argument FIFO with numeric arguments that are to be sent with the command using sendCmd()
+{{
+  Used to load the argument FIFO with numeric arguments that are to be sent with the command using sendCmd()
+  example:  to send the command "page 1" to the nextion
+            nextion.pushCmdArg(1)
+            nextion.sendCmd(STRING("page"))
+}}
+  cmd_fifo[cmd_fifo_head] := argument
+  cmd_fifo_head++
+  if cmd_fifo_head > 16
+    cmd_fifo_head := 0
+
+PUB sendCmd(ptr_command) | count, x, argument                               'send a command to nextion
 {{
   send a command to nextion
   ptr_command should be a pointer to a string containing the command to be sent
 
   example: nextion.sendCmd(STRING("page 0"))
 }}
+  if(cmd_fifo_head < cmd_fifo_tail)
+    count := (cmd_fifo_head + 16) - cmd_fifo_tail
+  else
+    count := cmd_fifo_head - cmd_fifo_tail
+
   _nextion.str(ptr_command)
+
+  if(count > 0)
+    _nextion.tx(" ")
+    x := 0
+    repeat count
+      if x > 0
+        _nextion.tx(",")                                'only need commas between arguments, not between command and 1st argument
+      argument := cmd_fifo[cmd_fifo_tail]
+      _nextion.dec(argument)
+      cmd_fifo_tail++
+      if(cmd_fifo_tail > 15)
+        cmd_fifo_tail := 0
+
   repeat 3
     _nextion.tx($FF)
 
@@ -327,12 +370,7 @@ PUB listen | _char, _time, _ms, _len, _cmdFound, _cmd      'check for incoming s
           last_current_page_id := current_page_id
           current_page_id := _nextion.rx
 
-        "T" :
-          cmd_avail := true          'normal Easy Nextion Library style 2 byte commands start with "T"
-          cmd := _cmd                ' so we pull both bytes and hold them for the main code
-          sub_cmd := _nextion.rx
-
-        OTHER :                      'custom commands can be variable length, we pull just the first and leave the rest for main code to deal with
+        OTHER :                      'commands can be variable length, we pull just the first and leave the rest for main code to deal with
           cmd_avail := true
           cmd := _cmd
   return
@@ -340,19 +378,22 @@ PUB listen | _char, _time, _ms, _len, _cmdFound, _cmd      'check for incoming s
 PUB getCurrentPage : _page                              'returns the current page id
   return current_page_id
 
+PUB setCurrentPage(_page)                               'sets the current page id
+  current_page_id := _page
+
 PUB getLastPage : _page                                 'returns the previous page id
   return last_current_page_id
 
-PUB cmdAvail : _avail                                   'returns the number of commands in the buffer
+PUB setLastPage(_page)                                  'sets the previous page id
+  last_current_page_id := _page
+
+PUB cmdAvail : _avail                                   'returns true if commands in the buffer
   _avail := cmd_avail
   cmd_avail := false
   return
 
 PUB getCmd : _cmd                                       'returns the 1st command byte
   return cmd
-
-PUB getSubCmd : _sub                                    'returns the 2nd command byte
-  return sub_cmd
 
 PUB getCmdLen : _len                                  'returns the number of command bytes (for use in custom commands)
   return cmd_len
