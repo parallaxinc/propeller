@@ -11,3 +11,5 @@
 [JM Quadrature Encoder](../All/jm_quadrature)
 
 [JM Quiic Twist](../All/jm_quiic_twist)
+
+[Nextion HMI Display driver](../All/nextion_ez)

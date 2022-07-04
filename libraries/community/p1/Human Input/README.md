@@ -52,6 +52,8 @@
 
 [NES Controller Object](../All/NES%20Controller%20Object)
 
+[Nextion HMI Display driver](../All/nextion_ez)
+
 [Nibble](../All/Nibble)
 
 [Parallax Digital I/O Board Driver](../All/Parallax%20Digital%20IO%20Board%20Driver)
