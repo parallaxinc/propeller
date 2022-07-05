@@ -107,7 +107,7 @@ PRI callCommand(_cmd)           'parse the 1st command byte and decide how to pr
 PRI callTrigger(_triggerId)     'use the 2nd command byte from nextion and call associated function
   case _triggerId
     $00 :
-      trigger00()                                       ' the Arduino library uses numbered trigger functions
+      trigger00()                                       ' the orginal Arduino library uses numbered trigger functions
     $01 :
       trigger01()
     $02 :

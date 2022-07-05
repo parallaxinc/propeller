@@ -41,20 +41,25 @@ Standard Easy Nextion Library commands are sent from the Nextion display with `p
 Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `cmdAvail`, `getCmd()` and `readByte()` methods to parse any commands.
 
 example:
-```
-PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
-  case _cmd
-    "T" :                             'standard Easy Nextion Library commands start with "T"
-      callTrigger(readByte)           ' so we need the second byte to know what function to call    
+```spin
+PUB main()
+    nextion.listen                          ' need to run this to check for incoming data from the Nextion
+    if nextion.cmdAvail > 0                 ' has the nextion sent a command?
+      callCommand(nextion.getCmd)           ' get the command byte and see parse it        
 
-PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
+PRI callCommand(_cmd)                       ' parse the 1st command byte and decide how to proceed
+  case _cmd
+    "T" :                                   ' standard Easy Nextion Library commands start with "T"
+      callTrigger(readByte)                 ' so we need the second byte to know what function to call    
+
+PRI callTrigger(_triggerId)                 ' use the 2nd command byte from nextion and call associated function
   case _triggerId
     $00 :
-      trigger00
+      trigger00                             ' the orginal Arduino library uses numbered trigger functions
     $01 :
       trigger01
     $02 :
-      trigger02
+      runCount                              ' but since we are parsing ourselves, we can call any method we want
     $03 :
       trigger03
     $04 :
@@ -65,7 +70,7 @@ PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call ass
 
 **NOTE**: Spin on the Proppeller 1 chip has a limit of 64 of items in a case statement.  For complexe Nextion systems use of custom commands in addition to the "T" command can be used to avoid this limit.  Alternatively case statements can be nested inside another structure.
 Example:
-```
+```spin
 PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
   if _triggerId < $40
     case _triggerId
@@ -121,8 +126,6 @@ A local Number component n0 on page1 can be accessed by page1.n0 or n0, but ther
 * Propeller     (https://github.com/parallaxinc/propeller spin version in P1 folder)
 * Propeller2    (https://github.com/parallaxinc/propeller spin2 version in P2 folder)
 * Arduino       (https://github.com/currentc57/nextion_ez)
-
-## Releases:
 
 
 ## Licence 
