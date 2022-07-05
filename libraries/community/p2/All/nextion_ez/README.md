@@ -57,6 +57,8 @@ Differences between the Arduino library and this library
 - `setCurrentPage()`
 - `setLastPage()`
 
+**NOTE** previous version had a `getSubCmd()` method that exactly duplicated the functionality of `readByte()`, it has been removed.  If you used `getSubCmd()` in your code, just replace it with `readByte()` 
+
 In order for the object to update the Id of the current page, you must write the Preinitialize Event of every page: `printh 23 02 50 XX` , where `XX` the id of the page in HEX.
 Your code can then read the current page and previous page using the `getCurrentPage()` and `getLastPage()` methods.
 
