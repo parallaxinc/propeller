@@ -37,7 +37,7 @@ CON
 
         NX_TX_PIN = 0
         NX_RX_PIN = 1
-        NX_BAUD = 9_600
+        NX_BAUD = 115_200
 
         DB_TX_PIN = 30
         DB_RX_PIN = 31
@@ -126,7 +126,7 @@ PRI trigger00
   nextion.sendCmd(STRING("page 1"))                     ' nextion commands can have their arguments in the string we send
 
 PRI trigger01
-  nextion.pushCmdArg($00)                               ' or up to 16 arguments can pe passed via a stack
+  nextion.pushCmdArg(0)                               ' or up to 16 arguments can pe passed via a stack
   nextion.sendCmd(STRING("page"))                       ' this allows the easy use of variables and constants
 
 PRI runCount

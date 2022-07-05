@@ -51,6 +51,7 @@ PRI callCommand(_cmd)                       ' parse the 1st command byte and dec
   case _cmd
     "T" :                                   ' standard Easy Nextion Library commands start with "T"
       callTrigger(readByte)                 ' so we need the second byte to know what function to call    
+                                            ' custom commands can be added by expanding this case statement
 
 PRI callTrigger(_triggerId)                 ' use the 2nd command byte from nextion and call associated function
   case _triggerId
@@ -60,10 +61,6 @@ PRI callTrigger(_triggerId)                 ' use the 2nd command byte from next
       trigger01
     $02 :
       runCount                              ' but since we are parsing ourselves, we can call any method we want
-    $03 :
-      trigger03
-    $04 :
-      trigger04
 ```
 
 **NOTE**: This Spin object requires the use of a custom version of FullDuplexSerial.spin called FullDuplexSerialAvail.spin that adds a function to return the number of bytes in the rx_buffer
