@@ -26,10 +26,10 @@
   If you find this library useful, please consider supporting the author of the original
         Easy Nextion Library, Thanasis Seitanis at: [seithagta@gmail.com](https://paypal.me/seithan)
 
-   Differences between the Arduino library and Spin object:
+  Differences between the Arduino library and Spin object:
         1) The Arduino implementation automatically calls trigger functions, stored in a separate file,
            in response to Nextion commands.
-                This object provides the methods cmdAvail(), getCmd(). and readByte()
+                This object provides the methods cmdAvail(), getCmd(), and readByte()
                 to retreave the command packets sent from the Nextion.
 
         2) The Arduino C++ library uses a single overloaded function writeStr() to send commands and
@@ -46,7 +46,7 @@
            Nextion waveform add command.
 
         6) In this object the currentPageId and lastCurrentPageId variables can be accessed with the
-           methods getCurrentPage() and getLastPage()
+           methods getCurrentPage(), getLastPage(), setCurrentPage() and setLastPage()
 
 }}
 
@@ -124,7 +124,7 @@ PUB pushCmdArg(argument)                                'load the argument FIFO 
 }}
   cmd_fifo[cmd_fifo_head] := argument
   cmd_fifo_head++
-  if cmd_fifo_head > 16
+  if cmd_fifo_head > 15
     cmd_fifo_head := 0
 
 PUB sendCmd(ptr_command) | count, x, argument                               'send a command to nextion

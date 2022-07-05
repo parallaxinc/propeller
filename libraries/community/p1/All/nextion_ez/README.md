@@ -13,57 +13,61 @@ Full documentation on the Arduino Easy Nextion Library and protocol, as well as 
 
 If you find this library useful, please consider supporting the author of the original Easy Nextion Library, Thanasis Seitanis at: [seithagta@gmail.com](https://paypal.me/seithan)
 
-
 **NOTE**: `.HMI` files for Nextion Editor are also included in the demo folder.
 
 ## The public methods
 - `start()`
 - `writeNum()`
 - `writeStr()`
+- `writeByte()`
+- `pushCmdArg()`
 - `sendCmd()`
 - `addWave()`
 - `readNum()`
 - `readStr()` 
+- `readByte()`
 - `cmdAvail()`
 - `getCmd()`
-- `getSubCmd()`
-- `readByte()`
+- `getCmdLen()`
 - `getCurrentPage()`
 - `getLastPage()`
+- `setCurrentPage()`
+- `setLastPage()`
 
 In order for the object to update the Id of the current page, you must write the Preinitialize Event of every page: `printh 23 02 50 XX` , where `XX` the id of the page in HEX.
 Your code can then read the current page and previous page using the `getCurrentPage()` and `getLastPage()` methods.
 
 Standard Easy Nextion Library commands are sent from the Nextion display with `printh 23 02 54 XX` , where `XX` is the id for the command in HEX.  
-Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
+Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `cmdAvail`, `getCmd()` and `readByte()` methods to parse any commands.
 
 example:
-```
-PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
-  case _cmd
-    "T" :                             'standard Easy Nextion Library commands start with "T"
-      nx_sub := nextion.getSubCmd     ' so we need the second byte to know what function to call
-      callTrigger(nx_sub)
+```spin
+PUB main()
+    nextion.listen                          ' need to run this to check for incoming data from the Nextion
+    if nextion.cmdAvail > 0                 ' has the nextion sent a command?
+      callCommand(nextion.getCmd)           ' get the command byte and see parse it        
 
-PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
+PRI callCommand(_cmd)                       ' parse the 1st command byte and decide how to proceed
+  case _cmd
+    "T" :                                   ' standard Easy Nextion Library commands start with "T"
+      callTrigger(readByte)                 ' so we need the second byte to know what function to call    
+                                            ' custom commands can be added by expanding this case statement
+
+PRI callTrigger(_triggerId)                 ' use the 2nd command byte from nextion and call associated function
   case _triggerId
     $00 :
-      trigger00
+      trigger00                             ' the orginal Arduino library uses numbered trigger functions
     $01 :
       trigger01
     $02 :
-      trigger02
-    $03 :
-      trigger03
-    $04 :
-      trigger04
+      runCount                              ' but since we are parsing ourselves, we can call any method we want
 ```
 
 **NOTE**: This Spin object requires the use of a custom version of FullDuplexSerial.spin called FullDuplexSerialAvail.spin that adds a function to return the number of bytes in the rx_buffer
 
 **NOTE**: Spin on the Proppeller 1 chip has a limit of 64 of items in a case statement.  For complexe Nextion systems use of custom commands in addition to the "T" command can be used to avoid this limit.  Alternatively case statements can be nested inside another structure.
 Example:
-```
+```spin
 PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
   if _triggerId < $40
     case _triggerId
@@ -116,10 +120,9 @@ A local Number component n0 on page1 can be accessed by page1.n0 or n0, but ther
 
 
 ## Compatibility
-* Propeller (spin version in P1 folder)
-* Propeller2 (spin2 version in P2 folder)
-
-## Releases:
+* Propeller     (https://github.com/parallaxinc/propeller spin version in P1 folder)
+* Propeller2    (https://github.com/parallaxinc/propeller spin2 version in P2 folder)
+* Arduino       (https://github.com/currentc57/nextion_ez)
 
 
 ## Licence 
