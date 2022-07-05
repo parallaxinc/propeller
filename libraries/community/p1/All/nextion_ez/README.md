@@ -13,37 +13,39 @@ Full documentation on the Arduino Easy Nextion Library and protocol, as well as 
 
 If you find this library useful, please consider supporting the author of the original Easy Nextion Library, Thanasis Seitanis at: [seithagta@gmail.com](https://paypal.me/seithan)
 
-
 **NOTE**: `.HMI` files for Nextion Editor are also included in the demo folder.
 
 ## The public methods
 - `start()`
 - `writeNum()`
 - `writeStr()`
+- `writeByte()`
+- `pushCmdArg()`
 - `sendCmd()`
 - `addWave()`
 - `readNum()`
 - `readStr()` 
+- `readByte()`
 - `cmdAvail()`
 - `getCmd()`
-- `getSubCmd()`
-- `readByte()`
+- `getCmdLen()`
 - `getCurrentPage()`
 - `getLastPage()`
+- `setCurrentPage()`
+- `setLastPage()`
 
 In order for the object to update the Id of the current page, you must write the Preinitialize Event of every page: `printh 23 02 50 XX` , where `XX` the id of the page in HEX.
 Your code can then read the current page and previous page using the `getCurrentPage()` and `getLastPage()` methods.
 
 Standard Easy Nextion Library commands are sent from the Nextion display with `printh 23 02 54 XX` , where `XX` is the id for the command in HEX.  
-Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
+Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `cmdAvail`, `getCmd()` and `readByte()` methods to parse any commands.
 
 example:
 ```
 PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
   case _cmd
     "T" :                             'standard Easy Nextion Library commands start with "T"
-      nx_sub := nextion.getSubCmd     ' so we need the second byte to know what function to call
-      callTrigger(nx_sub)
+      callTrigger(readByte)           ' so we need the second byte to know what function to call    
 
 PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated function
   case _triggerId
@@ -116,8 +118,9 @@ A local Number component n0 on page1 can be accessed by page1.n0 or n0, but ther
 
 
 ## Compatibility
-* Propeller (spin version in P1 folder)
-* Propeller2 (spin2 version in P2 folder)
+* Propeller     (https://github.com/parallaxinc/propeller spin version in P1 folder)
+* Propeller2    (https://github.com/parallaxinc/propeller spin2 version in P2 folder)
+* Arduino       (https://github.com/currentc57/nextion_ez)
 
 ## Releases:
 

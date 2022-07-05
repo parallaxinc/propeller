@@ -6,11 +6,26 @@
 
 ''   E-mail..... charles@charlescurrent.com
 ''   Started.... 17 JUN 2022
-''   Updated.... 19 JUN 2022
+''   Updated.... 04 JUL 2022
 ''
 '' =================================================================================================
 {{
   A simple demonstration of how to use the nextion_ez_p1 object with the Nextion display
+
+  This demo uses two serial connections.  One is for communicating with the Nextion (or simulator),
+  the other to send debug data to a serial terminal.
+
+  The Nextion demo project has 2 pages.
+  The first page has 2 buttons, 1 number, 1 float and 1 text field
+  The Run button is dual state and when depressed it will cause
+  the Propeller To change the text field and increment the number and float fields.
+  The Page1 button will cause the Propeller to request a change to page1
+
+  The second page has 1 button, 1 slider, 1 gauge, 1 progress and 1 waveform
+  The slider is located on the far right of the page
+  Moving the slider will cause the Propeller to retrieve its position
+  and use that value to update the progress bar, gauge and waveform.
+  The Page0 button will cause the Propeller to request a change to page0
 
   NOTE: HMI files for Nextion Editor are also included in the demo folder.
 }}
@@ -51,7 +66,7 @@ PUB main
   repeat
     waitcnt(clkfreq / 25 + cnt)
 
-    if nextion.getCurrentPage <> currentPage
+    if nextion.getCurrentPage <> currentPage            'has the Nextion page changed?
       lastPage := nextion.getLastPage
       currentPage := nextion.getCurrentPage
 
@@ -66,21 +81,21 @@ PUB main
       serial.hex(nextion.readNum(STRING("dp")), 2)
       serial.Tx(CR)
 
-    nextion.listen
-    if nextion.cmdAvail > 0
-      nx_cmd := nextion.getCmd
+    nextion.listen                                      ' need to run this to check for incoming data from the Nextion
+    if nextion.cmdAvail > 0                             ' has the nextion sent a command?         '
+      nx_cmd := nextion.getCmd                          ' get the command byte
 
       'data to serial terminal to demonstrate what is returned
       serial.Str(STRING("nextion command = "))
       serial.hex(nx_cmd, 2)
       serial.Tx(CR)
 
-      callCommand(nx_cmd)
+      callCommand(nx_cmd)                               ' let's see what command we received
 
     if run_count == true
       disp_value++
-      nextion.writeNum(STRING("x0.val"), disp_value)
-      nextion.writeNum(STRING("n0.val"), disp_value)
+      nextion.writeNum(STRING("x0.val"), disp_value)    ' update the nextion number
+      nextion.writeNum(STRING("n0.val"), disp_value)    ' and float fields on page0
 
 PRI callCommand(_cmd)           'parse the 1st command byte and decide how to proceed
   case _cmd
@@ -92,34 +107,35 @@ PRI callCommand(_cmd)           'parse the 1st command byte and decide how to pr
       serial.hex(nx_sub, 2)
       serial.Tx(CR)
 
-      callTrigger(nx_sub)
+      callTrigger(nx_sub)                               ' now we call the associated function
 
 PRI callTrigger(_triggerId)    'use the 2nd command byte from nextion and call associated function
   case _triggerId
     $00 :
-      trigger00
+      trigger00                                         ' the Arduino library uses numbered trigger functions
     $01 :
       trigger01
     $02 :
-      trigger02
+      runCount                                          ' but since we are parsing ourselves, we can call any method we want
     $03 :
       trigger03
     $04 :
       trigger04
 
 PRI trigger00
-  nextion.sendCmd(STRING("page 1"))
+  nextion.sendCmd(STRING("page 1"))                     ' nextion commands can have their arguments in the string we send
 
 PRI trigger01
-  nextion.sendCmd(STRING("page 0"))
+  nextion.pushCmdArg($00)                               ' or up to 16 arguments can pe passed via a stack
+  nextion.sendCmd(STRING("page"))                       ' this allows the easy use of variables and constants
 
-PRI trigger02
+PRI runCount
   run_count := NOT run_count
   if run_count
-    nextion.writeStr(STRING("t0.txt"), STRING("Running"))
+    nextion.writeStr(STRING("t0.txt"), STRING("Running")) ' we can update nextion text attributes with writeStr
   else
     nextion.writeStr(STRING("t0.txt"), STRING("Stopped"))
-  nextion.readStr(STRING("t0.txt"), @txt)
+  nextion.readStr(STRING("t0.txt"), @txt)                 ' and we can read text attributes with readStr
 
   'data to serial terminal to demonstrate what is returned
   serial.str(STRING("t0.txt = "))
@@ -127,13 +143,13 @@ PRI trigger02
   serial.tx(CR)
 
 PRI trigger03 | slidder, wave, guage
-  slidder := nextion.readNum(STRING("h0.val"))
+  slidder := nextion.readNum(STRING("h0.val"))            ' number attributes can be read with readNum
   guage := slidder * 36 / 10
   wave := slidder * 255 / 100
 
-  nextion.writeNum(STRING("j0.val"), slidder)
+  nextion.writeNum(STRING("j0.val"), slidder)             ' and number attributes an be updated on the nextion with writeNum
   nextion.writeNum(STRING("z0.val"), guage)
-  nextion.addWave(1, 0, wave)
+  nextion.addWave(1, 0, wave)                             ' the addWave method makes it easy to add to a nextion waveform
 
   'data to serial terminal to demonstrate what is returned
   serial.str(STRING("h0.val = "))
