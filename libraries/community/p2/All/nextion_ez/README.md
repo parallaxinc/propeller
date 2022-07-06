@@ -13,6 +13,28 @@ Full documentation on the Arduino Easy Nextion Library and protocol, as well as 
 
 If you find this library useful, please consider supporting the author of the original Easy Nextion Library, Thanasis Seitanis at: [seithagta@gmail.com](https://paypal.me/seithan)
 
+Differences between the Arduino library and this library
+
+1. The original Easy Nextion library automatically calls trigger functions, stored in a separate file,
+    in response to Nextion commands.
+        This object provides the methods `cmdAvail()`, `getCmd()`, and `readByte()`
+        to retreave the command packets sent from the Nextion.
+
+2. The original library uses a single overloaded function `writeStr()` to send commands and
+    update string values on the Nextion.
+        This object uses separate methods `sendCmd()` and `writeStr()`.
+
+3. An argument fifo has been added to allow a new method `pushCmdArg()` that can be used to
+    provide a variable number of arguments to `sendCmd()`.
+
+4. The the original library's `NextionListen()` function has been named `listen()`
+    in this implementation.
+
+5. This object adds a method called `addWave()` to create a quick and easy interface to the
+    Nextion waveform add command.
+
+6. In this object the currentPageId and lastCurrentPageId variables can be accessed with the
+    functions `getCurrentPage()`, `getLastPage()`, `setCurrentPage()` and `setLastPage()`
 
 **NOTE**: `.HMI` files for Nextion Editor are also included in the demo folder.
 
@@ -20,16 +42,22 @@ If you find this library useful, please consider supporting the author of the or
 - `start()`
 - `writeNum()`
 - `writeStr()`
+- `writeByte()`
+- `pushCmdArg()`
 - `sendCmd()`
 - `addWave()`
 - `readNum()`
 - `readStr()` 
+- `readByte()`
 - `cmdAvail()`
 - `getCmd()`
-- `getSubCmd()`
-- `readByte()`
+- `getCmdLen()`
 - `getCurrentPage()`
 - `getLastPage()`
+- `setCurrentPage()`
+- `setLastPage()`
+
+**NOTE** previous version had a `getSubCmd()` method that exactly duplicated the functionality of `readByte()`, it has been removed.  If you used `getSubCmd()` in your code, just replace it with `readByte()` 
 
 In order for the object to update the Id of the current page, you must write the Preinitialize Event of every page: `printh 23 02 50 XX` , where `XX` the id of the page in HEX.
 Your code can then read the current page and previous page using the `getCurrentPage()` and `getLastPage()` methods.
@@ -38,25 +66,26 @@ Standard Easy Nextion Library commands are sent from the Nextion display with `p
 Your code should call the `listen()` method frequently to check for new commands from the display.  You can then use the `getAvail`, `getCmd()` and `getSubCmd` methods to parse any commands.
 
 example:
-```
-PRI callCommand(_cmd)      'parse the 1st command byte and decide how to proceed
-  case _cmd
-    "T" :                             'standard Easy Nextion Library commands start with "T"
-      nx_sub := nextion.getSubCmd()   ' so we need the second byte to know what method to call
-      callTrigger(nx_sub)
+```spin2
+PUB main()
+    nextion.listen()                        ' need to run this to check for incoming data from the Nextion
+    if nextion.cmdAvail() > 0               ' has the nextion sent a command?
+      callCommand(nextion.getCmd())         ' get the command byte and see parse it         
 
-PRI callTrigger(_triggerId)  'use the 2nd command byte from nextion and call associated method
+PRI callCommand(_cmd)                       ' parse the 1st command byte and decide how to proceed
+  case _cmd
+    "T" :                                   ' standard Easy Nextion Library commands start with "T"
+      callTrigger(readByte())               ' so we need the second byte to know what function to call
+                                            ' custom commands can be added by expanding this case statement 
+
+PRI callTrigger(_triggerId)                 ' use the 2nd command byte from nextion and call associated method
   case _triggerId
     $00 :
-      trigger00()
+      trigger00()                           ' the orginal Arduino library uses numbered trigger functions
     $01 :
       trigger01()
     $02 :
-      trigger02()
-    $03 :
-      trigger03()
-    $04 :
-      trigger04()
+      runCount()                            ' but since we are parsing ourselves, we can call any method we want
 ```
 
 ##  Usefull Tips
@@ -90,10 +119,9 @@ As an Example:
 A local Number component n0 on page1 can be accessed by page1.n0 or n0, but there is little sense to try access a local component if the page is not loaded. Only the component attributes of a global component are kept in memory. Event code is never global in nature.
 
 ## Compatibility
-* Propeller (spin version in P1 folder)
-* Propeller2 (spin2 version in P2 folder)
-
-## Releases:
+* Propeller     (https://github.com/parallaxinc/propeller spin version in P1 folder)
+* Propeller2    (https://github.com/parallaxinc/propeller spin2 version in P2 folder)
+* Arduino       (https://github.com/currentc57/nextion_ez)
 
 
 ## Licence 
