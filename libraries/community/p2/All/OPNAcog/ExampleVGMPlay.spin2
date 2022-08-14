@@ -1,0 +1,131 @@
+'
+'' A minimalistic VGM dump player.
+
+'' Notes:
+''  - Some VGMs don't loop or have glitches at the loop point. IDK why. Some don't loop at all. IDK why.
+
+CON
+    _CLKFREQ = OPNA.OPN_SAMPLE_RATE*256*23 ' 320 MHz is the recommended clock speed for OPNACog Ultra (270 MHz for standard ver.)
+
+    SPEED_DIV = 1
+
+    leftPin  = 30
+    rightPin = 31
+
+VAR
+  long waitFor,readptr
+  long database,dataptr
+  long loopptr,loopleft,looplength
+  byte buffer[64]
+
+OBJ
+  'OPNA : "OPNAcog"
+  OPNA : "OPNAcog_ultra"
+
+PUB Main() | continue, i, cmd, writedelay
+
+
+  OPNA.start(leftPin, rightPin, $2200)          ' Start OPNAcog
+
+
+  '"Handle" vgm header (ignore it)
+
+  readptr := @thevgm+long[@thevgm+$34]+$34
+  if readptr == @thevgm+$34
+    readptr := @thevgm+$40
+  loopptr := @thevgm+long[@thevgm+$1C]+$1C
+  if loopptr < readptr
+    loopptr := readptr
+  looplength := long[@thevgm+$20]
+  loopleft := looplength
+  writedelay := clkfreq/55_000
+
+  ' Below is a minimalistic implementation of the ".vgm" format
+  ' Have a look at the .vgm file format documentation for a better understanding
+  waitFor := getct() + 10_000_000
+  repeat
+
+    continue := true
+    repeat while continue
+
+      if looplength and loopleft <= 0
+        loopleft += looplength
+        readptr := loopptr
+      elseif readptr >= @thevgm_end
+        readptr := loopptr
+        waitSamples(30000)
+        continue := false
+
+      getn(@buffer, 1)            ' Read a command byte
+      cmd := buffer[0]
+      'debug(uhex_byte(cmd))
+      case cmd
+        $50:             ' PSG write
+          getn(@buffer, 1)          ' Read the regsiter value from sd
+          'OPNA.writePSGport(buffer[0])    ' Write the value to SNEcog
+
+        $55,$56,$57:      ' OPNA write
+          getn(@buffer, 2) ' reg value and address
+          i := buffer[0]
+          if cmd == $57
+            i+=256
+          OPNA.setOPNARegister(i,buffer[1])
+          waitct(writedelay+getct()) ' Wait for the write to go through (doesn't affect actual timing)
+
+
+        $80..$8F:     ' Data bank DAC write + wait
+          OPNA.setOPNARegister($2A,byte[database][dataptr++])
+          if cmd <> $80
+            waitSamples(cmd & 15)
+            continue := false
+
+        $70..$7F:     ' Wait a short amount of time
+          waitSamples((cmd & 15)+1)
+          continue := false
+
+
+        $61:         ' Wait an arbitrary amount of time
+          getn(@buffer, 2)
+          waitSamples(buffer[0] | (buffer[1]<<8))
+          continue := false
+
+        $62:         ' Wait 1/60 of a second
+          waitSamples(735)
+          continue := false
+
+        $63:         ' Wait 1/50 of a second
+          waitSamples(882)
+          continue := false
+
+        $E0: ' data bank seek
+           getn(@buffer, 4)
+           dataptr:= long[@buffer]
+
+        $67: ' data bank init
+           getn(@buffer,6)
+           if buffer[1] == 0
+             database:=readptr
+             dataptr:=0
+             readptr+=long[@buffer+2]
+
+
+        $66: readptr := @thevgm_end
+        other: debug("Unknown command ",uhex_byte(cmd))
+
+    if waitFor-getct() >= 100
+      waitct(waitFor)                ' Wait until the right time to
+
+PRI waitSamples(n) | ct
+  if readptr >= loopptr
+    loopleft -= n
+  waitFor += ((_CLKFREQ/44100*SPEED_DIV) * (n) ) #> 50
+
+
+PRI getn(buf,n)
+  bytemove(buf,readptr,n)
+  readptr+=n
+
+DAT
+
+thevgm file "breeze_2608.vgm"
+thevgm_end
