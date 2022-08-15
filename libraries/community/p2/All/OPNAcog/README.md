@@ -44,6 +44,7 @@ This is an emulation of the Yamaha "OPNA" YM2608 FM synth chip
 |`OPNAcog.spin2`|OPNA emulation core|
 |`OPNAcog_ultra.spin2`|OPNA emulation core (higher quality version)|
 |`OPN2_ROM.DAT`|OPN logsin/exponent ROM|
+|`RHYTHM.DAT`|OPNA rhythm samples|
 |`ExampleSpinAPI.spin2`|Example that plays a weird little tune using the Spin API and VGI patch files|
 |`*.vgi`|VGI patch files used by the Spin API example|
 |`ExampleVGMPlay.spin2`|In-memory VGM player. Copy a VGM file from the tunes directory and load it!|
