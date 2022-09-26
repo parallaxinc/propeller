@@ -1,0 +1,35 @@
+'
+' A minimalistic AY/YM dump player.
+
+CON _clkfreq = 320_000_000
+
+    playRate = 50'Hz
+    leftPin  = 24+6
+    rightPin = leftPin+1
+
+VAR
+  byte  buffer[100]
+
+OBJ
+  AY : "OPNAcog_ultra"
+
+PUB Main() | ptr,i
+
+  ay.start(rightPin, leftPin,0)         ' Start the emulated AY/YM in a cog
+
+  ptr := @dump + 62                      ' Skip header (header size varies from tune to tune)
+
+  'Main loop
+  repeat while ptr < @dump_end
+    waitct(getct() + (clkfreq/playRate))   ' Wait one VBL
+    repeat i from 0 to 15
+      ay.setOPNARegister(i,byte[ptr++])
+
+    'ay.updateRegisters(ptr)        ' Write 16 byte to AYcog
+    'ptr += 16
+
+DAT
+
+dump
+file "cybernet.ym"
+dump_end

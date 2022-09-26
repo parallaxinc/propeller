@@ -1,0 +1,259 @@
+CON
+
+    '' OPNAcog example that plays a weird little tune using the Spin API and VGI patch files.
+
+    _CLKFREQ = 320_000_000
+
+    leftPin  = 24+6
+    rightPin = leftPin+1
+
+    RATE = 8
+
+    #0,DRONE_CH,OSTINATO_CH,MELODY_CH,CHORD_CH1,CHORD_CH2,CHORD_CH3
+
+OBJ
+  OPNA : "OPNAcog_ultra"
+
+VAR
+  long waitFor, tick
+
+PUB Main() | continue, i, cmd, n
+
+
+  OPNA.start(leftPin, rightPin, $2200)      ' Start OPNAcog
+
+  waitFor := getct() + 1_000_000
+
+  OPNA.setLFO(2)
+
+  OPNA.setRhythmVolume(63)
+
+  OPNA.loadVGI(DRONE_CH,@instr_drone)
+  OPNA.setCHPanning(DRONE_CH,1,1)
+
+  OPNA.loadVGI(OSTINATO_CH,@instr_vibra)
+  OPNA.setCHPanning(OSTINATO_CH,1,1)
+
+  OPNA.loadVGI(MELODY_CH,@instr_thingy)
+  OPNA.setCHPanning(MELODY_CH,1,1)
+
+  repeat i from CHORD_CH1 to CHORD_CH3
+    OPNA.loadVGI(i,@instr_chords)
+  OPNA.setCHPanning(CHORD_CH1,1,1)
+  OPNA.setCHPanning(CHORD_CH2,0,1)
+  OPNA.setCHPanning(CHORD_CH3,1,0)
+
+  pinl(56)
+
+  repeat
+    waitct(waitFor)
+    waitfor += clkfreq/RATE
+    pint(56)
+
+    ' Handle ostinato
+    ifnot tick&1
+      OPNA.setCHFreq(OSTINATO_CH,note2freq(ostinato_notes[(tick>>1)//4]))
+      OPNA.setKeyOn(OSTINATO_CH,%1111)
+    else
+      OPNA.setKeyOn(OSTINATO_CH,%0000)
+
+    ' Handle rhythm
+    case tick&3
+      0:
+        OPNA.triggerRhythm(OPNA.BASS_DRUM,31,1,1)
+      2:
+        OPNA.triggerRhythm(OPNA.HI_HAT,24,1,1)
+      3:
+        if tick >= 64
+          OPNA.triggerRhythm(OPNA.HI_HAT,22,1,1)
+    if tick >= 128
+      OPNA.triggerRhythm(OPNA.SNARE_DRUM,30,tick&3<>0,tick&3<>2)
+    elseif tick&126 == 62 or tick >= 128
+      OPNA.triggerRhythm(OPNA.SNARE_DRUM,28,1,1)
+
+
+
+
+    ' Handle chords
+    i := (tick>>4)*3
+    case tick&15
+      0:
+        OPNA.setKeyOn(CHORD_CH3,%0000)
+        n := chord_notes[i+0]
+        OPNA.setCHFreq(CHORD_CH1,note2freq(n))
+        OPNA.setKeyOn(CHORD_CH1,%1111)
+      2:
+        n := chord_notes[i+1]
+        OPNA.setCHFreq(CHORD_CH2,note2freq(n))
+        OPNA.setKeyOn(CHORD_CH2,%1111)
+      4:
+        n := chord_notes[i+2]
+        OPNA.setCHFreq(CHORD_CH3,note2freq(n))
+        OPNA.setKeyOn(CHORD_CH3,%1111)
+      14: OPNA.setKeyOn(CHORD_CH1,%0000)
+      15: OPNA.setKeyOn(CHORD_CH2,%0000)
+
+
+
+
+    ' Handle drone
+    if tick == 0
+      OPNA.setCHFreq(DRONE_CH,note2freq(D+2*12))
+      OPNA.setKeyOn(DRONE_CH,%1111)
+
+    ' Handle melody
+    ifnot tick&1
+      case n := lead_notes[tick>>1]
+        255: ' do nothing
+        254: ' do nothing
+        0: ' do nothing
+        other:
+         OPNA.setCHFreq(MELODY_CH,note2freq(n))
+         OPNA.setKeyOn(MELODY_CH,%1111)
+    else
+      case n := lead_notes[tick>>1+1]
+        255: OPNA.setKeyOn(MELODY_CH,%0000)
+        254: tick := -1
+        0: ' do nothing
+        other: OPNA.setKeyOn(MELODY_CH,%0000)
+
+
+
+    tick++
+
+
+PUB note2freq(noten) : r
+
+return ((noten/12)<<11)+freq_tbl[noten//12]
+
+CON
+
+#0,C,Cs,D,Ds,E,F,Fs,G,Gs,A,As,B
+
+
+DAT
+
+freq_tbl word 664,681,722,765,810,858,910,964,1021,1081,1146,1214
+
+ostinato_notes byte D+3*12,E+3*12,G+3*12,F+3*12
+
+lead_notes byte
+' 0
+byte 255
+byte 0
+byte 0
+byte 0
+
+byte A+12*3
+byte 0
+byte 0
+byte 0
+
+' 1
+byte As+12*3
+byte 0
+byte 0
+byte 0
+
+byte G+12*3
+byte 0
+byte 0
+byte 0
+
+' 2
+byte F+12*3
+byte 0
+byte 0
+byte 0
+
+byte A+12*3
+byte 0
+byte 0
+byte 0
+
+' 3
+byte 0
+byte 0
+byte 0
+byte 0
+
+byte As+12*3
+byte 0
+byte F+12*3
+byte 0
+
+' 4
+byte D+12*3
+byte 0
+byte 0
+byte 0
+
+byte 0
+byte 0
+byte 0
+byte 255
+
+' 5
+byte D+12*4
+byte 0
+byte E+12*4
+byte 0
+
+byte C+12*4
+byte 0
+byte 0
+byte 0
+
+' 6
+byte A+12*4
+byte 0
+byte 0
+byte 0
+
+byte As+12*4
+byte F+12*4
+byte D+12*4
+byte 0
+
+' 7
+byte 0
+byte 0
+byte C+12*4
+byte 0
+
+byte 0
+byte 0
+byte A+12*3
+byte 0
+
+'8
+byte 0
+byte 0
+byte D+12*4
+byte 0
+
+byte 0
+byte 0
+byte 0
+byte 0
+
+byte 254
+
+chord_notes byte
+
+byte 0,0,0
+byte 0,0,0
+byte 0,0,0
+byte 0,0,0
+
+byte D+4*12,F+4*12,A+4*12
+byte D+4*12,F+4*12,A+4*12
+byte C+4*12,E+4*12,A+4*12
+byte C+4*12,Ds+4*12,G+4*12
+byte C+4*12,Ds+4*12,G+4*12
+
+instr_drone file "drone.vgi"
+instr_vibra file "vibra.vgi"
+instr_thingy file "thingy.vgi"
+instr_chords file "chords.vgi"
+
