@@ -1,6 +1,6 @@
 '' =================================================================================================
 ''
-''   File....... nextion_ez_p2.spin2
+''   File....... nextion_ez_demo.spin2
 ''   Purpose....
 ''   Author..... Charles Current
 
@@ -122,7 +122,7 @@ PRI trigger00()
 
 PRI trigger01()
   nextion.pushCmdArg(0)                               ' or up to 16 arguments can pe passed via a stack
-  nextion.sendCmd(STRING("page"))                       ' this allows the easy use of variables and constants
+  nextion.sendCmd(STRING("page "))                       ' this allows the easy use of variables and constants
 
 PRI runCount()
   run_count := NOT run_count
