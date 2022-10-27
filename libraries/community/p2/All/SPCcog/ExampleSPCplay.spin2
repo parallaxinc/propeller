@@ -70,3 +70,4 @@ spcfile
         'file "loz3-08.spc"
         'file "loz3-21.spc"
         'file "loz3-31.spc"
+        'file "broken_moon.spc" ' Fixed in V1.1
