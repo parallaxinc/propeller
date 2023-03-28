@@ -41,7 +41,7 @@ DAT
 ''       look like that. Well, I believe it'd be "-L ./tunes".
 ''       Yeah I think that'd do it.
 spcfile
-        file "sd2-01.spc"
+        'file "sd2-01.spc"
         'file "sd2-18.spc"
         'file "sd2-34.spc"
         'file "sd2-41.spc"
@@ -71,3 +71,5 @@ spcfile
         'file "loz3-21.spc"
         'file "loz3-31.spc"
         'file "broken_moon.spc" ' Fixed in V1.1
+        file "nightmares.spc" ' Fixed in V1.2
+        'file "ms_assault.spc" ' Easily broken by poorly thought out clipping changes (same issue happens in sd3-207, but way into the tune)
