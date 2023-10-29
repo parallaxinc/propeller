@@ -4,7 +4,7 @@
 
 [OPN2cog](../All/OPN2cog)
 
-[OPNAcog](../All/OPN2cog)
+[OPNAcog](../All/OPNAcog)
 
 [AYcog](../All/AYcog)
 
