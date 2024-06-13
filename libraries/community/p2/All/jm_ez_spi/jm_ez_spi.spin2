@@ -45,6 +45,8 @@ pub null()
                                                                  
           
 pub start(sdipin, sdopin, sckpin, khz) : result | m, x
+pub start(sdipin, sdopin, sckpin, khz, cpha) : result | m, x
+pub start(sdipin, sdopin, sckpin, khz, cpha, cpol) : result | m, x
 
 '' Configure P2 smart pins for SPI coms
 '' -- sdipin is input from external device (-1 if not used)
@@ -64,11 +66,13 @@ pub start(sdipin, sdopin, sckpin, khz) : result | m, x
     m |= ((sck-sdi) & %111) << 24                               ' add SCK offset (B pin)              
     x := %0_00000 | (8-1)                                       ' sample ahead of b pin rise, 8 bits  
     pinstart(sdi, m, x, 0)                                      ' configure smart pin                                                                   
+    m |= cpha << 27                                             ' set clock phase
     pinf(sdi)                                                   ' disable until used
 
   if (sdo >= 0)
     m := P_OE | P_SYNC_TX                                       ' spi tx mode
     m |= ((sck-sdo) & %111) << 24                               ' add SCK offset (B pin)
+    m |= cpha << 27                                             ' set clock phase
     x := %1_00000 | (8-1)                                       ' start/stop mode, 8 bits
     pinstart(sdo, m, x, 0)                                      ' configure smart pin  
     pinf(sdo)                                                   ' disable until used 
@@ -77,6 +81,7 @@ pub start(sdipin, sdopin, sckpin, khz) : result | m, x
   x.word[0] := 2 #> (clkfreq / (khz*1000)) <# $FFFF             ' ticks in period        
   x.word[1] := x.word[0] >> 1                                   ' ticks in low cycle (50%)      
   pinstart(sck, m, x, 0)                                        ' configure smart pin                                                         
+  m |= cpol << 14                                               ' set clock polarity
 
   setup := true
 
